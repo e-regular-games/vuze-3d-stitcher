@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xpacket begin='﻿' id='W5M0MpCehiHzreSzNTczkc9d'?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Image::ExifTool 12.16">
+   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      <rdf:Description xmlns:GImage="http://ns.google.com/photos/1.0/image/" rdf:about="">
+         <GImage:Data>__BASE64DATA__</GImage:Data>
+         <GImage:Mime>image/jpeg</GImage:Mime>
+      </rdf:Description>
+      <rdf:Description xmlns:GPano="http://ns.google.com/photos/1.0/panorama/" rdf:about="">
+         <GPano:CroppedAreaImageHeightPixels>__HEIGHTEYE__</GPano:CroppedAreaImageHeightPixels>
+         <GPano:InitialViewHeadingDegrees>180</GPano:InitialViewHeadingDegrees>
+         <GPano:InitialHorizontalFOVDegrees>150</GPano:InitialHorizontalFOVDegrees>
+         <GPano:CroppedAreaImageWidthPixels>__WIDTH__</GPano:CroppedAreaImageWidthPixels>
+         <GPano:CroppedAreaLeftPixels>0</GPano:CroppedAreaLeftPixels>
+         <GPano:CroppedAreaTopPixels>0</GPano:CroppedAreaTopPixels>
+         <GPano:FullPanoHeightPixels>__HEIGHTEYE__</GPano:FullPanoHeightPixels>
+         <GPano:FullPanoWidthPixels>__WIDTH__</GPano:FullPanoWidthPixels>
+         <GPano:ProjectionType>equirectangular</GPano:ProjectionType>
+      </rdf:Description>
+   </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end='w'?>
