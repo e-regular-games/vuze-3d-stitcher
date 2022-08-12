@@ -1,0 +1,28 @@
+# create necessary equirect images: ../notes/splice_360.sh -d -c config_bash_splice_360.dat
+# execute this config file using: ../notes/splice_360.py -c config_python_splice_360.dat
+# to build into google pano: ../notes/make_vr.sh HET_0014.JPG
+
+in,spl_HET_0014
+out,HET_0014
+
+resolution,2160
+splices,45,135,225,315
+
+transform,1,scale_theta,0.9
+transform,2,scale_theta,0.9
+transform,3,scale_theta,0.9
+transform,4,scale_theta,0.9
+transform,5,scale_theta,0.9
+transform,6,scale_theta,0.9
+transform,7,scale_theta,0.9
+transform,8,scale_theta,0.9
+
+radius,734
+lens,1,544,778
+lens,2,560,778
+lens,3,500,800
+lens,4,570,770
+lens,5,490,830
+lens,6,580,800
+lens,7,544,778
+lens,8,580,800
