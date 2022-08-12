@@ -2,7 +2,7 @@
 # to build into google pano: ../notes/make_vr.sh HET_0014.JPG
 
 in,HET_0014
-out,HET_0014
+out,HET_0014_bash
 
 resolution,1080
 

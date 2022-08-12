@@ -1,0 +1,22 @@
+# execute this config file using: ../notes/merge_exposure.sh -c config_exposure_merge.dat
+# to create the equirect images: ../notes/splice_360.sh -d -c config_exposure_bash_splice_360.dat
+# to create the merged pano: ../notes/splice_360.py -c config_exposure_python_splice_360.dat
+# to build into google pano: ../notes/make_vr.sh HET_1014.JPG
+
+out,HET_1014
+
+lens,1,544,778,734
+lens,2,560,778,734
+lens,3,500,800,734
+lens,4,570,770,734
+lens,5,490,830,734
+lens,6,580,800,734
+lens,7,544,778,734
+lens,8,580,800,734
+
+image,-4,HET_0011
+image,-2,HET_0012
+image,0,HET_0014
+
+hdr,method,enfuse
+
