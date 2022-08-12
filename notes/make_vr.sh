@@ -60,9 +60,9 @@ format_image() {
     cp "${file_left}" "${file_final}"
     res=`exiftool -overwrite_original -tagsfromfile "${file_name}.xmp" '-xmp:all<all' "${file_final}"`
 
-    #rm "${file_name}.xmp"
-    #rm "${file_right}"
-    #rm "${file_left}"
+    rm "${file_name}.xmp"
+    rm "${file_right}"
+    rm "${file_left}"
 
     echo -e "\tcomplete: ${file}"
 }
