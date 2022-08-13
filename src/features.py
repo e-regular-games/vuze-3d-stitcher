@@ -257,6 +257,10 @@ class RefineSeam():
         print('theta_k: ', k)
 
         polar[..., 1] *= k
+
+        err = polar_f[:, 1] - polar[:, 1]
+        print('error:', np.mean(err), np.std(err))
+
         return k, polar
 
     def compute_phi_rate(self, polar, polar_f):
@@ -270,6 +274,10 @@ class RefineSeam():
         print('dphi_k: ', k)
 
         polar[..., 0] += (polar[..., 1] * k)
+
+        err = polar_f[:, 0] - polar[:, 0]
+        print('error:', np.mean(err), np.std(err))
+
         return k, polar
 
     def show_polar_plot(self, polar_a, polar_b):
@@ -452,8 +460,7 @@ for s in range(4):
     splice.set_transform(s, t)
 
 print('generate left eye')
-combined = splice.generate(1080)
-cv.imwrite(config.output + '_left.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
+left = splice.generate(1080)
 
 print('stitch right eye')
 seam = RefineSeam(images)
@@ -470,8 +477,9 @@ for s in range(4):
     splice.set_transform(s, t)
 
 print('generate right eye')
-combined = splice.generate(1080)
-cv.imwrite(config.output + '_right.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
+right = splice.generate(1080)
 
+combined = np.concatenate([left, right])
+cv.imwrite(config.output + '.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
 
 plt.show()
