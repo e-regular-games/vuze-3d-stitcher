@@ -6,7 +6,7 @@ The best points for each seam were obtained by choosing points within 1 standard
 
 | Left and Right seam points (lenses: 1, 2, 3, 4) |
 | :----: |
-| <img src="seam_1_left_right_eyes.png" /> |
+| <img src="seam_1_left_right_eyes.png" width="400px" /> |
 
 | Hypothetical Seam Points per Lens |
 | :----: |
@@ -22,6 +22,8 @@ Finally, the theta scaling and phi rate constants were computed using points whi
 
 
 The improved seam analysis had an overall positive effect while the alignment per pair worsened the computed error of the theta/phi constants.
+
+<img src="../test/HET_0014_features_v1.JPG" alt="Better seam alignment" width="540px" />
 
 <!-- \overline{\theta_f - \theta_i} -->
 <!-- \sigma_{\theta_f-\theta_i} -->
