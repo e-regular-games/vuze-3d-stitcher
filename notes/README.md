@@ -1,6 +1,8 @@
 ## Developer Log
 *Most recent first.*
 
+[Color Histogram Matching](./color_hist_match.md)
+
 [Seam Alignment](./seam_alignment.md)
 
 [Using Feature Detection](./feature_detection.md)

@@ -1,0 +1,16 @@
+# execute this config file using: ../notes/splice_360.sh -c config_hist_match_bad_bash.dat
+
+in,HET_0017
+out,HET_0017
+
+resolution,1080
+
+radius,734
+lens,1,544,778
+lens,2,560,778
+lens,3,500,800
+lens,4,570,770
+lens,5,490,830
+lens,6,580,800
+lens,7,544,778
+lens,8,580,800

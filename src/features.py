@@ -9,6 +9,7 @@ import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
+from skimage import exposure
 
 class ProgramOptions:
 
@@ -36,6 +37,8 @@ class Config:
     def __init__(self, file_path):
         self.input = ""
         self.output = ""
+        self.resolution = 1080
+        self.reference = 1
 
         f = open(file_path, 'r')
         for l in f.readlines():
@@ -44,6 +47,10 @@ class Config:
                 self.input = cmd[1]
             if cmd[0] == 'out' and len(cmd) == 2:
                 self.output = cmd[1]
+            if cmd[0] == 'resolution' and len(cmd) == 2:
+                self.resolution = int(cmd[1])
+            if cmd[0] == 'reference' and len(cmd) == 2:
+                self.reference = int(cmd[1])
 
     def valid(self):
         return self.input != '' or self.output != ''
@@ -236,6 +243,9 @@ class RefineSeam():
                     kp_indices[m.trainIdx, i] = m.queryIdx
 
             kp_indices = kp_indices[(kp_indices != -1).all(axis=1), :]
+            if kp_indices.shape[0] == 0:
+                continue
+
             rl_pts = np.zeros((kp_indices.shape[0], 2 * kp_indices.shape[1]))
             for i in range(kp_indices.shape[0]):
                 for j in range(kp_indices.shape[1]):
@@ -264,6 +274,9 @@ class RefineSeam():
             inv = (inv_a, inv_b)
 
             matches = self._determine_matches(des_b, des_a, threshold, 20)
+
+            if len(matches) == 0:
+                continue
 
             rl_pts = np.zeros((len(matches), 4))
             for i, m in enumerate(matches):
@@ -543,7 +556,7 @@ class RefineSeam():
     def align_verticle(self):
         kv = np.zeros(len(self._images))
         for i in range(0, len(self._images), 2):
-            matches = self._determine_matching_points(self._images[i], self._images[i+1], 0, 0, 0.5)
+            matches = self._determine_matching_points(self._images[i], self._images[i+1], 0, 0, 0.75)
 
             # reject outliers
             diff = matches[:,2:4] - matches[:,0:2]
@@ -598,6 +611,13 @@ images = []
 for l in range(1, 9):
     images.append(cv.imread(config.input + '_' + str(l) + '_eq360.JPG'))
 
+print('matching exposure')
+# match histograms using the reference image.
+for i in range(len(images)):
+    if i != config.reference:
+        images[i] = exposure.match_histograms(images[i], images[config.reference], channel_axis=2)
+
+print('refining seams')
 seam = RefineSeam(images)
 kv = seam.align_verticle()
 ka, ma = seam.align_all(kv)
@@ -626,10 +646,10 @@ for s in range(4):
     splice_right.set_transform(s, tr)
 
 print('generate left eye')
-left = splice_left.generate(1080)
+left = splice_left.generate(config.resolution)
 
 print('generate right eye')
-right = splice_right.generate(1080)
+right = splice_right.generate(config.resolution)
 
 combined = np.concatenate([left, right])
 cv.imwrite(config.output + '.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
