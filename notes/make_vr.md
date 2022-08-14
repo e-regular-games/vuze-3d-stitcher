@@ -12,9 +12,9 @@ It turns out Google Photos uses image metadata to embed the right eye image in t
 
 To preserve the proper format a template xmp file is used. This template is modified with the current photo data and the exiftool inserts the template into the left eye image. The result is a single image which can be displayed both as a normal image and as 3d 360 VR.
 
-The example below shows only the left image, but the file size is larger than that of the stack stereo image.
+The example below shows only the left image, but the file size is larger than that of the stacked over-under stereo image, 918kb vs. 766kb.
 
-<img src="../test/HET_1014_bash_gimage.JPG" alt="Google Photos compatible 3D 360 VR" width="540px" />
+<img src="../test/HET_0014_bash_gimage.JPG" alt="Google Photos compatible 3D 360 VR" width="540px" />
 
 ### References
 
