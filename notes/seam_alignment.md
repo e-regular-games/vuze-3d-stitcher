@@ -1,5 +1,15 @@
 ## Seam Alignment
 
+*Date: July 24, 2022*
+
+Script: [features.py](../src/features.py)
+
+Usage:
+```
+../notes/splice_360.sh -d -c config_bash_splice_360.dat
+../src/features.py -c config_features.dat
+```
+
 The 8 seams lines within the stereo images are disorienting. Using matching feature points from the left and right eye for each seam should reduce the number of seams appearing to a person to 4. This requires matching feature points between 4 images instead of 2. Those images are the left-eye-left-of-seam, left-eye-right-of-seam, right-eye-left-of-seam, and right-eye-right-of-seam.
 
 The best points for each seam were obtained by choosing points within 1 standard deviation of the median of all seam points. The average between the left-of-seam and right-of-seam points for each eye was sorted and combined into the seam line. The plot below shows the left-eye and right-eye seam points for the first seam, between lenses 1, 2, 3, and 4. Such a diagram is produced by the script for each set of four lenses: (1,2,3,4), (3,4,5,6), (5,6,7,8), and (7,8,1,2).

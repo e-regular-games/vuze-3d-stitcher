@@ -1,5 +1,7 @@
 ## Bash Splice
 
+*Date: July 15, 2022*
+
 Script: [splice_360.sh](./splice_360.sh)
 
 Usage (from ./test): `../notes/splice_360.sh -c config_bash_splice_360.dat`

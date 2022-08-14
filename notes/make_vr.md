@@ -1,9 +1,20 @@
 ## Make VR
+
+*Date: July 10, 2022*
+
+Script: [make_vr.sh](./make_vr.sh)
+
+Usage: `../notes/make_vr.sh HET_0014.JPG`
+
 Google Photos can render 360 images. It shows them in flat vr or as a single eye 2d moveable frame. It also appears to have the ability to render 360 3d images, but does not use the standard side-by-side or over under stereo format.
 
 It turns out Google Photos uses image metadata to embed the right eye image in the left eye file. It uses XMP tags for dimensions, initial position, the image type, and the actual right eye image. While the standard appears straightforward there are some caveats to actually inserting the image. Allow exiftool to insert the XMP tags as it pleases leads to a file which Google Photos does not understand. Special care must be taken to preserve a format compatible with Google Photos.
 
 To preserve the proper format a template xmp file is used. This template is modified with the current photo data and the exiftool inserts the template into the left eye image. The result is a single image which can be displayed both as a normal image and as 3d 360 VR.
+
+The example below shows only the left image, but the file size is larger than that of the stack stereo image.
+
+<img src="../test/HET_1014_bash_gimage.JPG" alt="Google Photos compatible 3D 360 VR" width="540px" />
 
 ### References
 

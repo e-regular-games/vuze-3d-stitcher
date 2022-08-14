@@ -1,5 +1,7 @@
 ## Python Splice
 
+*Date: July 21, 2022*
+
 Script: [splice_360.py](./splice_360.py)
 
 Usage (from ./test):

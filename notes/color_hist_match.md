@@ -1,5 +1,15 @@
 ## Color Histogram Matching
 
+*Date: July 24, 2022*
+
+Script: [features.py](../src/features.py)
+
+Usage:
+```
+../notes/splice_360.sh -d -c config_hist_match_bad_bash.dat
+../src/features.py -c config_hist_match_bad.dat
+```
+
 With the improved image alignment and seams, the color differences between the lenses are becoming more obvious. A simple way to align color distributions between similar images is to use the histogram matching technique.
 
 Histogram matching returns reasonable results for images with already similar color histograms.

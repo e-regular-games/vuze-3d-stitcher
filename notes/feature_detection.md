@@ -1,5 +1,7 @@
 ## Using Feature Detection
 
+*Date: July 23, 2022*
+
 Script: [features.py](../src/features.py)
 
 Usage:

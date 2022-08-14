@@ -1,5 +1,7 @@
 ## Exposure Fusion
 
+*Date: July 19, 2022*
+
 Script: [merge_exposure.sh](./merge_exposure.sh)
 
 Usage (Luminance): `../notes/merge_exposure.sh -c config_exposure_merge_luminance.dat`
