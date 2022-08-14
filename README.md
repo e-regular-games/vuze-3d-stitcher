@@ -17,5 +17,3 @@ A collection of test images, configuration files, and result images.
 # References
 
 [Jumping Jack Flash - Foto 3d a 180° o 360° (VR180 o VR360)](https://jumpjack.wordpress.com/2021/07/03/foto-3d-a-180-o-360-vr180-o-vr360/) - A thorough explanation of how to create an image compatible with Google Photos that will render in 360° Stereoscopic.
-
-[Equirec2Perspec](https://github.com/fuenwang/Equirec2Perspec) - A script for converting an equirectangular image to rectilinear.

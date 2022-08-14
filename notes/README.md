@@ -1,7 +1,7 @@
 ## Developer Log
 *Most recent first.*
 
-[Using Feature Detection](./feature_detection.py)
+[Using Feature Detection](./feature_detection.md)
 
 [Exposure Fusion](./exposure_fusion.md)
 

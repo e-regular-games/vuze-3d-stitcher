@@ -130,3 +130,6 @@ dmypy.json
 
 # emacs files
 *~
+
+# temp files created by bash scripts
+spl_*.JPG
