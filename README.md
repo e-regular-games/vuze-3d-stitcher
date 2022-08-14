@@ -6,13 +6,19 @@ A python based script for combining 8 separate photos taken by the Vuze 4K 3D 36
 
 # Repository Structure
 ## Notes
-This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future.
+This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
+
+[Development Log](./notes/README.md)
 
 ## Src
-The working source code, when it is complete.
+The working source code. The current implementation is in python and requires several added libraries such as Numpy, OpenCV and MatPlotLib.
+
+[Main Function](./src/features.py)
 
 ## Test
 A collection of test images, configuration files, and result images.
+
+[Test Images](./test/README.md)
 
 # References
 

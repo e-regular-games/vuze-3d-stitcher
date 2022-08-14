@@ -1,6 +1,8 @@
 ## Developer Log
 *Most recent first.*
 
+[Seam Alignment](./seam_alignment.md)
+
 [Using Feature Detection](./feature_detection.md)
 
 [Exposure Fusion](./exposure_fusion.md)
