@@ -58,3 +58,21 @@ Hiking trail intersection in Redding, CT. Exposure 0. Large number of feature po
     <td><img src="HET_0014_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
   </tr>
 </table>
+
+### HET_0017
+A bright day at the Putnam Railroad Station in Yorktown Heights, NY. The solid blue sky provides few feature points and the bright sun on one set of lenses causes color and brightness differences.
+
+<table>
+  <tr>
+    <td><img src="HET_0017_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0017_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0017_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0017_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
+  </tr>
+  <tr>
+    <td><img src="HET_0017_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0017_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0017_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0017_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
+  </tr>
+</table>
