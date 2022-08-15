@@ -35,20 +35,15 @@ The improved seam analysis had an overall positive effect while the alignment pe
 
 <img src="../test/HET_0014_features_v1.JPG" alt="Better seam alignment" width="540px" />
 
-<!-- \overline{\theta_f - \theta_i} -->
-<!-- \sigma_{\theta_f-\theta_i} -->
-<!-- \overline{\phi_f - \phi_i} -->
-<!-- \sigma_{\phi_f-\phi_i} -->
-
 <table>
   <tr>
-    <th>Lens Pair</th>
+    <th>Lens</th>
     <th>Theta Scale</th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Coverline%7B%5Ctheta_f%20-%20%5Ctheta_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Theta Mean Error" /></th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Csigma_%7B%5Ctheta_f-%5Ctheta_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Theta Error Std Dev" /></th>
+    <th>$\overline{\theta_f - \theta_i}$</th>
+    <th>$\sigma_{\theta_f-\theta_i}$</th>
     <th>Phi Rate</th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Coverline%7B%5Cphi_f%20-%20%5Cphi_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Phi Mean Error" /></th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Csigma_%7B%5Cphi_f-%5Cphi_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Phi Error Std Dev" /></th>
+    <th>$\overline{\phi_f - \phi_i}$</th>
+    <th>$\sigma_{\phi_f-\phi_i}$</th>
   </tr>
   <tr>
     <td>1, 2</td>

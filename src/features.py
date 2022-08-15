@@ -78,30 +78,145 @@ def polar_to_eqr(c, shape):
     r[:, 1] = h * (c[:, 0] / math.pi)
     return r
 
+# where all inputs are np.array objects
+# https://en.wikipedia.org/wiki/Cubic_equation#General_cubic_formula
+def cubic_roots(a, b, c, d):
+    p = c/a - b*b/(3*a*a)
+    q = 2*b*b*b/(27*a*a*a) - b*c/(3*a*a) + d/a
+
+    # determine the number of roots
+    # I only care about the case where there is 1 root.
+    ds = q*q/4 + p*p*p/27
+
+    # ensure the final constant is an array.
+    D = np.ones(ds.shape)*b/(3*a)
+
+    s = ds > 0
+    root = np.zeros(ds.shape)
+    root[s] = np.cbrt(-q[s]/2 - np.sqrt(ds[s])) + np.cbrt(-q[s]/2 + np.sqrt(ds[s])) - D[s]
+    return root
+
 
 class Transform():
     def __init__(self):
-        # constants for the question phi = slope*theta + offset
-        self.phi_slope = 0.0
-        self.phi_offset = 0.0
+        self.theta_coeffs = np.zeros(4)
+        self.phi_coeffs = np.zeros(3)
+        self.phi_offset = 0
 
-        # scaling factor for theta around the center of the image which is
-        # assumed to be at theta = 0
-        self.theta_scale = 1.0
+    def _determine_theta(self, p_i, p_f):
+        theta = p_i[:, 1] - math.pi
+        phi = p_i[:, 0]
+        theta_f = p_f[:, 1] - math.pi
+        k = theta_f - theta
+
+        plt.figure()
+        ax = plt.axes(projection = '3d')
+        ax.plot3D(phi, theta, k, 'bo', markersize=1)
+
+        # the valus for dk appear to match with: dk=c1.*(th-2).*th.*(th+2)-c2.*(ph-3).*ph.*th;
+        # putting in terms of constant coeffs
+        # k / th = c1*th^2 + c2*th + c3*ph^2 + c4*ph
+
+        y = k / theta
+        x = np.zeros((phi.shape[0], 4))
+        x[:,0] = theta * theta
+        x[:,1] = theta
+        x[:,2] = phi * phi
+        x[:,3] = phi
+
+        # QR decomposition
+        Q, R = np.linalg.qr(x)
+        c = np.linalg.inv(R).dot(np.transpose(Q)).dot(y)
+        self.theta_coeffs = c
+
+        khat = x.dot(c) * theta
+
+        err = k - khat
+        print('theta coeffs', c)
+        print('theta stats', np.std(err), np.mean(err))
+
+    def _determine_phi(self, p_i, p_f):
+        theta_f = p_f[:, 1] - math.pi
+        phi = p_i[:, 0]
+        phi_f = p_f[:, 0]
+
+        # the dPhi only changes with respect to theta: dphi = a*th^2 + b*th + c
+        y = phi_f - phi
+        x = np.zeros((phi.shape[0], 4))
+        x[:,0] = theta_f * theta_f * theta_f
+        x[:,1] = theta_f * theta_f
+        x[:,2] = theta_f
+        x[:,3] = 1
+
+        # QR decomposition
+        Q, R = np.linalg.qr(x)
+        c = np.linalg.inv(R).dot(np.transpose(Q)).dot(y)
+        self.phi_coeffs = c
+
+        yhat = x.dot(c)
+
+        err = y - yhat
+        print('phi coeffs', c)
+        print('phi stats', np.std(err), np.mean(err))
+
+    # p_i and p_f are polar coordinates (phi, theta)
+    # where (pi/2, pi) is the center of the image
+    def determine(self, p_i, p_f):
+        self._determine_theta(p_i, p_f)
+        self._determine_phi(p_i, p_f)
 
     # c columns assumed as: phi, theta, ...
     def polar(self, c):
         r = c.copy()
-        r[:, 0] = c[:, 0] + self.phi_slope * c[:, 1] + self.phi_offset
-        r[:, 1] = self.theta_scale * c[:, 1]
+        theta = c[:,1] - math.pi
+        phi = c[:,0] + self.phi_offset
+
+        r[:,0] = phi
+
+        x_th = np.zeros((phi.shape[0], 4))
+        x_th[:,0] = theta * theta
+        x_th[:,1] = theta
+        x_th[:,2] = phi * phi
+        x_th[:,3] = phi
+
+        # r is the original value before subtracting pi, so all we have to do is add k.
+        r[:, 1] += x_th.dot(self.theta_coeffs) * theta
+        theta_1 = r[:,1] - math.pi
+
+        x_ph = np.zeros((phi.shape[0], 4))
+        x_ph[:,0] = theta_1 * theta_1 * theta_1
+        x_ph[:,1] = theta_1 * theta_1
+        x_ph[:,2] = theta_1
+        x_ph[:,3] = 1
+        r[:, 0] += x_ph.dot(self.phi_coeffs)
+
         return r
 
+    # assumes c is polar coordinates (phi, theta) with the center of the image
+    # at (pi/2, pi)
     def unpolar(self, c):
         r = c.copy()
-        r[:, 1] = (c[:, 1] - math.pi) / self.theta_scale
-        r[:, 0] = c[:, 0] - self.phi_slope * r[:, 1] - self.phi_offset
+        theta_1 = c[:,1] - math.pi
+        phi = c[:,0] - self.phi_offset
+        r[:,0] = phi
 
-        r[:, 1] += math.pi
+        # find roots of: c1 * th^3 + c2 * th^2 + (c + 1) * th - th_1
+        # where c = c3 * ph^2 + c4 * ph
+        a_th = self.theta_coeffs[0]
+        b_th = self.theta_coeffs[1]
+        c_th = self.theta_coeffs[2] * phi * phi + self.theta_coeffs[3] * phi + 1
+        d_th = -1 * theta_1
+
+        # compute the original theta
+        r[:,1] = cubic_roots(a_th, b_th, c_th, d_th) + math.pi
+
+        x_ph = np.zeros((c.shape[0], 4))
+        x_ph[:,0] = theta_1 * theta_1 * theta_1
+        x_ph[:,1] = theta_1 * theta_1
+        x_ph[:,2] = theta_1
+        x_ph[:,3] = 1
+        r[:,0] -= x_ph.dot(self.phi_coeffs)
+
         return r
 
 
@@ -215,9 +330,7 @@ class RefineSeam():
     # the seem is assumed to exist at 45deg in a, and -45deg in b.
     def __init__(self, images):
         self._images = images
-
-    def _match_between_sides(self, img_a, img_b, theta_a, theta_b, threshold):
-        pass
+        self._verticle_offset = np.zeros((8))
 
     def _match_between_eyes(self, imgs_left, imgs_right, threshold):
         sift = cv.SIFT_create()
@@ -243,9 +356,6 @@ class RefineSeam():
                     kp_indices[m.trainIdx, i] = m.queryIdx
 
             kp_indices = kp_indices[(kp_indices != -1).all(axis=1), :]
-            if kp_indices.shape[0] == 0:
-                continue
-
             rl_pts = np.zeros((kp_indices.shape[0], 2 * kp_indices.shape[1]))
             for i in range(kp_indices.shape[0]):
                 for j in range(kp_indices.shape[1]):
@@ -273,10 +383,7 @@ class RefineSeam():
             kp_b, des_b = sift.detectAndCompute(rl_b, None)
             inv = (inv_a, inv_b)
 
-            matches = self._determine_matches(des_b, des_a, threshold, 20)
-
-            if len(matches) == 0:
-                continue
+            matches = self._determine_matches(des_b, des_a, threshold, 40)
 
             rl_pts = np.zeros((len(matches), 4))
             for i, m in enumerate(matches):
@@ -310,37 +417,6 @@ class RefineSeam():
 
         return good_matches[:limit]
 
-    def compute_theta_scaling(self, polar, polar_f):
-        theta = polar[..., 1]
-        theta_f = polar_f[..., 1]
-
-        # theta_f = theta * k -> solve for k, using linear regression
-        k = (theta @ theta_f) / (theta @ theta)
-        print('theta_k: ', k)
-
-        polar[..., 1] *= k
-
-        err = polar_f[:, 1] - polar[:, 1]
-        print('error:', np.mean(err), np.std(err))
-
-        return k, polar
-
-    def compute_phi_rate(self, polar, polar_f):
-        theta = polar[..., 1]
-        dphi = polar_f[..., 0]
-
-        # TODO do we need to calculate a constant b to fit y = dphi * theta + b
-
-        # solve dphi = theta * k
-        k = (theta @ dphi) / (theta @ theta)
-        print('dphi_k: ', k)
-
-        polar[..., 0] += (polar[..., 1] * k)
-
-        err = polar_f[:, 0] - polar[:, 0]
-        print('error:', np.mean(err), np.std(err))
-
-        return k, polar
 
     def show_polar_plot(self, polar_a, polar_b):
         plt.figure()
@@ -349,54 +425,26 @@ class RefineSeam():
         za = np.cos(polar_a[..., 0])
 
         ax = plt.axes(projection ='3d')
-        ax.plot3D(xa, ya, za, 'bo', markersize=1)
+        ax.plot3D(xa, ya, za, 'bo')
 
         xb = np.sin(polar_b[..., 0]) * np.cos(polar_b[..., 1])
         yb = np.sin(polar_b[..., 0]) * np.sin(polar_b[..., 1])
         zb = np.cos(polar_b[..., 0])
 
-        ax.plot3D(xb, yb, zb, 'ro', markersize=1)
+        ax.plot3D(xb, yb, zb, 'ro')
 
         plt.xlim([-1, 1])
         plt.ylim([-1, 1])
         ax.set_zlim(-1, 1)
 
-    def transform(self, pts, k):
-        # expect k to be an array of form [dphi_k, theta_k]
-        result = np.zeros(pts.shape)
-        result[..., 1] = (pts[..., 1] - math.pi) * k[1]
-        result[..., 0] = pts[..., 0] + result[..., 1] * k[0]
-        return result
-
-
-    def compute_stitch_line(self, polar_k, matches, idx):
-        l = idx
-        r = (idx + 1) % len(matches)
-
-        left_side = np.array([0, math.pi / 2])
-        pts_l = self.transform(matches[l][:,0:2], polar_k[l])
-        pts_r = self.transform(matches[l][:,2:4] - left_side, polar_k[r]) + left_side
-
-        middle = (pts_l + pts_r) / 2
-        m_theta = np.median(middle[:, 1])
-        d_theta = np.std(middle[:, 1])
-        print('median', m_theta, 'stddev', d_theta)
-
-        include = np.logical_and(middle[:, 1] > m_theta - d_theta, middle[:, 1] < m_theta + d_theta)
-        pts_l = pts_l[include]
-        pts_r = pts_r[include]
-        middle = middle[include]
-
-        sort_middle = middle[middle[:, 0].argsort()]
-        unique_phi, indices = np.unique(sort_middle[:, 0], return_index=True)
-        sort_middle = sort_middle[indices]
-
-        pts = np.concatenate([np.array([[0, m_theta]]), sort_middle, np.array([[math.pi, m_theta]])])
-        return pts
+    def _transform_v(self, pts, idx):
+        r = pts.copy()
+        r[:,0] += self._verticle_offset[idx]
+        return r
 
     # idx is the index of the stitch line: 0:4
     # returns line_left, line_right as np.arrays of phi, theta coordinates
-    def compute_eye_stitch_line(self, polar_k, kv, idx):
+    def compute_eye_stitch_line(self, ts_left, ts_right, idx):
         ll = 2 * idx
         lr = (ll + 2) % 8
         rl = ll + 1
@@ -408,24 +456,22 @@ class RefineSeam():
         # matches = numpy.array([ll, lr, rl, rr])
         matches = self._match_between_eyes(img_left, img_right, 0.75)
 
-        matches[:, 0:4] = self.transform_v(matches[:, 0:4], [kv[ll], kv[lr]])
-        matches[:, 4:8] = self.transform_v(matches[:, 4:8], [kv[rl], kv[rr]])
-
         # reject outliers
         keep = np.full((matches.shape[0]), True)
         for m in range(2, 8, 2):
             diff = matches[:,m:m+2] - matches[:,0:2]
-            s = np.std(diff)
-            mn = np.median(diff)
-            valid = np.logical_and(diff > (mn - 2 * s), diff < (mn + 2 * s)).all(axis=1)
+            s = np.std(diff, axis=0)
+            mn = np.median(diff, axis=0)
+            accept = [2, 2]
+            valid = np.logical_and(diff > (mn - accept * s), diff < (mn + accept * s)).all(axis=1)
             keep = np.logical_and(valid, keep)
         matches = matches[keep]
 
         left_side = np.array([0, math.pi / 2])
-        pts_ll = self.transform(matches[:,0:2], polar_k[idx])
-        pts_lr = self.transform(matches[:,2:4] - left_side, polar_k[(idx + 1) % 4]) + left_side
-        pts_rl = self.transform(matches[:,4:6], polar_k[idx])
-        pts_rr = self.transform(matches[:,6:8] - left_side, polar_k[(idx + 1) % 4]) + left_side
+        pts_ll = ts_left.polar(self._transform_v(matches[:, 0:2], ll)) - [0, math.pi]
+        pts_lr = ts_left.polar(self._transform_v(matches[:, 2:4], lr) - left_side) + left_side - [0, math.pi]
+        pts_rl = ts_right.polar(self._transform_v(matches[:, 4:6], rl)) - [0, math.pi]
+        pts_rr = ts_right.polar(self._transform_v(matches[:, 6:8], rr) - left_side) + left_side - [0, math.pi]
 
         def limit_range(l, r, num_std):
             middle = (l + r) / 2
@@ -438,9 +484,17 @@ class RefineSeam():
             middle = (l + r) / 2
             m_theta = np.median(middle[:, 1])
             sort_middle = middle[middle[:, 0].argsort()]
-            unique_phi, indices = np.unique(sort_middle[:, 0], return_index=True)
-            sort_middle = sort_middle[indices]
             return np.concatenate([np.array([[0, m_theta]]), sort_middle, np.array([[math.pi, m_theta]])])
+
+        def unique_filter(pts):
+            _, unique = np.unique(pts[:,0], return_index=True)
+            include = np.full((pts.shape[0]), False)
+            include[unique] = True
+            return include
+
+        def max_slope(pts, mx):
+            slope = np.absolute((pts[1:,1] - pts[:-1,1]) / (pts[1:,0] - pts[:-1,0]))
+            return np.concatenate([slope < mx, [True]])
 
         include_l = limit_range(pts_ll, pts_lr, 0.75)
         include_r = limit_range(pts_rl, pts_rr, 0.75)
@@ -448,7 +502,14 @@ class RefineSeam():
 
         pts_l = sort_middle(pts_ll[include], pts_lr[include])
         pts_r = sort_middle(pts_rl[include], pts_rr[include])
-        self.show_polar_plot(pts_l, pts_r)
+
+        include = np.logical_and(unique_filter(pts_l), unique_filter(pts_r))
+        pts_l = pts_l[include]
+        pts_r = pts_r[include]
+
+        include = np.logical_and(max_slope(pts_l, 1.0), max_slope(pts_r, 1.0))
+        pts_l = pts_l[include]
+        pts_r = pts_r[include]
 
         print('stitch points: ', pts_l.shape[0], pts_r.shape[0])
 
@@ -458,97 +519,90 @@ class RefineSeam():
         m0 = range(0, 2)
         m1 = range(2, 4)
         # reject outliers
-        for m in matches:
+        for i in range(len(matches)):
+            m = matches[i]
             diff = m[:,m1] - m[:,m0]
-            s = np.std(diff)
-            mn = np.mean(diff)
-            valid = np.logical_and(diff > (mn - 2 * s), diff < (mn + 2 * s)).all(axis=1)
-            m = m[valid]
+            s = np.std(diff, axis=0)
+            mn = np.mean(diff, axis=0)
+            accept = [2, 3]
+            valid = np.logical_and(diff > (mn - accept * s), diff < (mn + accept * s)).all(axis=1)
+            matches[i] = m[valid]
 
         middles = []
-        diffs = []
         for m in matches:
             middles.append((m[:,m0] + m[:,m1]) / 2)
-            diffs.append((m[:,m1] - m[:,m0]) / 2)
 
         left_side = np.array([0, math.pi / 2])
 
-        polar_k = np.zeros((4, 2))
+        transforms = []
         for l in range(len(matches)):
             r = (l + 1) % len(matches)
 
             polar_a = np.concatenate([matches[l][:,m1] - left_side, matches[r][:,m0]])
             polar_f = np.concatenate([middles[l] - left_side, middles[r]])
 
-            # the offset is to ensure scaling is done from the center of the image
-            polar_a -= np.array([math.pi / 2, math.pi])
-            polar_f -= np.array([math.pi / 2, math.pi])
-            polar_k[l][1], polar_a = self.compute_theta_scaling(polar_a, polar_f)
+            t = Transform()
+            t.determine(polar_a, polar_f)
+            transforms.append(t)
 
-            polar_f = np.concatenate([diffs[l], diffs[r]])
-            polar_k[l][0], polar_a = self.compute_phi_rate(polar_a, polar_f)
-            polar_a += np.array([math.pi / 2, 0])
+        return transforms
 
-            # try with the transform function
-            #polar_a = self.transform(np.concatenate([matches[l][:,m1] - left_side, matches[r][:,m0]]), polar_k[l])
-            #polar_b = np.concatenate([middles[l] - left_side, middles[r]])
-            #polar_b -= np.array([0, math.pi])
-            #self.show_polar_plot(polar_a, polar_b)
-
-        return polar_k, matches
-
-    def transform_v(self, m, kv):
-        r = m.copy()
-        r[:,0] += kv[0]
-        r[:,2] += kv[1]
-        return r
-
-    # returns polar_k, which is a 4x2 matrix with each row dphi_k, theta_k
-    def align_left(self, kv):
+    # returns an array of Transform objects aligned to each side.
+    def align_left(self):
         matches = [
+            self._determine_matching_points(self._images[6], self._images[0], 45, -45, 0.6),
             self._determine_matching_points(self._images[0], self._images[2], 45, -45, 0.6),
             self._determine_matching_points(self._images[2], self._images[4], 45, -45, 0.6),
-            self._determine_matching_points(self._images[4], self._images[6], 45, -45, 0.6),
-            self._determine_matching_points(self._images[6], self._images[0], 45, -45, 0.6)
+            self._determine_matching_points(self._images[4], self._images[6], 45, -45, 0.6)
         ]
 
-        for m in range(len(matches)):
-            matches[m] = self.transform_v(matches[m], [kv[2*m], kv[(2*m+2) % 8]])
+        for m in range(4):
+            matches[m] = np.concatenate([self._transform_v(matches[m][:,0:2], (2*m-2)%8),
+                                         self._transform_v(matches[m][:,2:4], 2*m)], axis=1)
 
-        return self._align(matches)
+        transforms = self._align(matches)
+        for i in range(4):
+            transforms[i].phi_offset = self._verticle_offset[2*i]
+        return transforms
 
-    # returns polar_k, which is a 4x2 matrix with each row dphi_k, theta_k
-    def align_right(self, kv):
+    # returns an array of Transform objects aligned to each side.
+    def align_right(self):
         matches = [
+            self._determine_matching_points(self._images[7], self._images[1], 45, -45, 0.6),
             self._determine_matching_points(self._images[1], self._images[3], 45, -45, 0.6),
             self._determine_matching_points(self._images[3], self._images[5], 45, -45, 0.6),
-            self._determine_matching_points(self._images[5], self._images[7], 45, -45, 0.6),
-            self._determine_matching_points(self._images[7], self._images[1], 45, -45, 0.6)
+            self._determine_matching_points(self._images[5], self._images[7], 45, -45, 0.6)
         ]
 
-        for m in range(len(matches)):
-            matches[m] = self.transform_v(matches[m], [kv[2*m+1], kv[(2*m+3) % 8]])
+        for m in range(4):
+            matches[m] = np.concatenate([self._transform_v(matches[m][:,0:2], (2*m-1)%8),
+                                         self._transform_v(matches[m][:,2:4], 2*m+1)], axis=1)
 
-        return self._align(matches)
+        transforms = self._align(matches)
+        for i in range(4):
+            transforms[i].phi_offset = self._verticle_offset[2*i+1]
+        return transforms
 
-    def align_all(self, kv):
+    def align_all(self):
         left = [
+            self._determine_matching_points(self._images[6], self._images[0], 45, -45, 0.6),
             self._determine_matching_points(self._images[0], self._images[2], 45, -45, 0.6),
             self._determine_matching_points(self._images[2], self._images[4], 45, -45, 0.6),
-            self._determine_matching_points(self._images[4], self._images[6], 45, -45, 0.6),
-            self._determine_matching_points(self._images[6], self._images[0], 45, -45, 0.6)
+            self._determine_matching_points(self._images[4], self._images[6], 45, -45, 0.6)
         ]
         right = [
+            self._determine_matching_points(self._images[7], self._images[1], 45, -45, 0.6),
             self._determine_matching_points(self._images[1], self._images[3], 45, -45, 0.6),
             self._determine_matching_points(self._images[3], self._images[5], 45, -45, 0.6),
-            self._determine_matching_points(self._images[5], self._images[7], 45, -45, 0.6),
-            self._determine_matching_points(self._images[7], self._images[1], 45, -45, 0.6)
+            self._determine_matching_points(self._images[5], self._images[7], 45, -45, 0.6)
         ]
 
         matches = []
         for m in range(4):
-            l = self.transform_v(left[m], [kv[2*m], kv[(2*m+2) % 8]])
-            r = self.transform_v(right[m], [kv[2*m+1], kv[(2*m+3) % 8]])
+            l = np.concatenate([self._transform_v(left[m][:,0:2], (2*m-2)%8),
+                                self._transform_v(left[m][:,2:4], 2*m)], axis=1)
+            r = np.concatenate([self._transform_v(right[m][:,0:2], (2*m-1)%8),
+                                self._transform_v(right[m][:,2:4], 2*m+1)], axis=1)
             matches.append(np.concatenate([l, r]))
 
         return self._align(matches)
@@ -556,53 +610,22 @@ class RefineSeam():
     def align_verticle(self):
         kv = np.zeros(len(self._images))
         for i in range(0, len(self._images), 2):
-            matches = self._determine_matching_points(self._images[i], self._images[i+1], 0, 0, 0.75)
+            matches = self._determine_matching_points(self._images[i], self._images[i+1], 0, 0, 0.6)
 
             # reject outliers
             diff = matches[:,2:4] - matches[:,0:2]
-            s = np.std(diff)
-            mn = np.median(diff)
-            valid = np.logical_and(diff > (mn - 2 * s), diff < (mn + 2 * s)).all(axis=1)
+            s = np.std(diff, axis=0)
+            mn = np.median(diff, axis=0)
+            accept = [3, 2]
+            valid = np.logical_and(diff > (mn - accept * s), diff < (mn + accept * s)).all(axis=1)
             matches = matches[valid]
 
             phi_middle = (matches[:,0] + matches[:,2]) / 2
             kv[i] = np.median(phi_middle - matches[:,0])
             kv[i+1] = np.median(phi_middle - matches[:,2])
-        return kv
 
-    def show_matches(self, idx_a, idx_b, theta_a, theta_b, threshold):
-        kp_a = self._determine_keypoints(self._images[idx_a], theta_a)
-        kp_b = self._determine_keypoints(self._images[idx_b], theta_b)
-        matches = self.determine_matches(kp_a, kp_b, threshold)
-
-        kps_a = []
-        kps_b = []
-        for m in matches:
-            pt_a = kp_a.keypoints[m.queryIdx]
-            pt_a.pt = kp_a.equirect_points[m.queryIdx]
-            kps_a.append(pt_a)
-
-            pt_b = kp_b.keypoints[m.trainIdx]
-            pt_b.pt = kp_b.equirect_points[m.trainIdx]
-            kps_b.append(pt_b)
-
-            m.queryIdx = len(kps_a) - 1
-            m.trainIdx = len(kps_b) - 1
-
-        lol_matches = []
-        for m in matches:
-            lol_matches.append([m])
-        res = cv.drawMatchesKnn(self._images[idx_a], kps_a, self._images[idx_b], kps_b, lol_matches, None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
-        plt.figure()
-        plt.imshow(cv.cvtColor(res, cv.COLOR_BGR2RGB))
-
-
-    def print_keypoint_stats(self):
-        d = self._coord_b - self._coord_a
-        print('dtheta: mean: ', np.mean(d[..., 1]), ', var: ', np.var(d[..., 1]))
-        print('dphi: mean: ', np.mean(d[..., 0]), ', var: ', np.var(d[..., 0]))
-
+        print('verticle offset:', kv)
+        self._verticle_offset = kv
 
 
 np.set_printoptions(suppress=True)
@@ -619,31 +642,23 @@ for i in range(len(images)):
 
 print('refining seams')
 seam = RefineSeam(images)
-kv = seam.align_verticle()
-ka, ma = seam.align_all(kv)
+seam.align_verticle()
+tsl = seam.align_left()
+tsr = seam.align_right()
+#ts = seam.align_all()
 
 splice_left = SpliceImages(images[0:8:2])
 splice_right = SpliceImages(images[1:8:2])
 for s in range(4):
     print('computing seam ' + str(s))
-    st_l, st_r = seam.compute_eye_stitch_line(ka, kv, s)
+    st_l, st_r = seam.compute_eye_stitch_line(tsl[s], tsr[s], s)
     st_l[:,1] += s * math.pi / 2
     st_r[:,1] += s * math.pi / 2
     splice_left.set_stitch(s, st_l)
     splice_right.set_stitch(s, st_r)
 
-    tl = Transform()
-    tl.phi_slope = ka[s, 0]
-    tl.theta_scale = ka[s, 1]
-    tl.phi_offset = kv[2*s]
-
-    splice_left.set_transform(s, tl)
-
-    tr = Transform()
-    tr.phi_slope = ka[s, 0]
-    tr.theta_scale = ka[s, 1]
-    tr.phi_offset = kv[2*s+1]
-    splice_right.set_transform(s, tr)
+    splice_left.set_transform(s, tsl[s])
+    splice_right.set_transform(s, tsr[s])
 
 print('generate left eye')
 left = splice_left.generate(config.resolution)

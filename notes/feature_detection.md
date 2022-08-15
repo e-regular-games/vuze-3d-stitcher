@@ -12,30 +12,22 @@ Usage:
 
 Image feature identification works best with rectilinear images. The Equirec2Perspec code was used to convert to rectilinear for feature identification. The code was enhanced to provide the reverse mapping "Perspec2Equirec" and allow for determining the original equirectangular point for each feature.
 
-The features script uses image features as determined by the SIFT algoritm and brute force macthing between images to determine the constants used for image transformations. All image transforms are within the spherical coordinate system. The most beneficial is the scaling of theta. A second transform was added to linearly shift phi with respect to theta.
+The features script uses image features as determined by the SIFT algoritm and brute force macthing between images to determine the constants used for image transformations. All image transforms are within the spherical coordinate system. The most beneficial is the scaling of $\theta$. A second transform was added to linearly shift phi with respect to $\theta$.
 
-<!-- \theta_f = k \theta_i -->
-<img src="http://www.sciweavers.org/tex2img.php?eq=%5Ctheta_f%20%3D%20k%20%5Ctheta_i&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Theta Scaling" />
-
-<!-- \phi_f = \phi_i + k \theta_i -->
-<img src="http://www.sciweavers.org/tex2img.php?eq=%5Cphi_f%20%3D%20%5Cphi_i%20%2B%20k%20%5Ctheta_i&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Phi Linear shift" />
+$\theta_f = k \theta_i$
+$\phi_f = \phi_i + k \theta_i$
 
 These transforms were used because the operations are easy to perform both forward and reverse. The reverse transform is needed to determine the pixel location within the lens when given a pixel location in the final image. The table below shows the resulting constants and the error between the expected value and the calculated value using the constant.
-
-<!-- \overline{\theta_f - \theta_i} -->
-<!-- \sigma_{\theta_f-\theta_i} -->
-<!-- \overline{\phi_f - \phi_i} -->
-<!-- \sigma_{\phi_f-\phi_i} -->
 
 <table>
   <tr>
     <th>Lens</th>
     <th>Theta Scale</th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Coverline%7B%5Ctheta_f%20-%20%5Ctheta_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Theta Mean Error" /></th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Csigma_%7B%5Ctheta_f-%5Ctheta_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Theta Error Std Dev" /></th>
+    <th>$\overline{\theta_f - \theta_i}$</th>
+    <th>$\sigma_{\theta_f-\theta_i}$</th>
     <th>Phi Rate</th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Coverline%7B%5Cphi_f%20-%20%5Cphi_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Phi Mean Error" /></th>
-    <th><img src="http://www.sciweavers.org/tex2img.php?eq=%5Csigma_%7B%5Cphi_f-%5Cphi_i%7D&bg=White&fc=Black&im=jpg&fs=12&ff=arev&edit=" alt="Phi Error Std Dev" /></th>
+    <th>$\overline{\phi_f - \phi_i}$</th>
+    <th>$\sigma_{\phi_f-\phi_i}$</th>
   </tr>
   <tr>
     <td>1</td>
@@ -111,7 +103,7 @@ These transforms were used because the operations are easy to perform both forwa
   </tr>
 </table>
 
-Once the images were adjusted to get the feature points as close as possible, the stitch seams were computed. Instead of choosing a single constant theta for the seam a line of points starting from phi = 0, to phi = math.pi was used. All points within one standard deviation of the median theta were used for the seam. The seam is sorted by phi with duplicate values of phi removed. Points within the seam are assumed to be connected by a straight line. As you can see the stitch lines have issues when theta changes greatly with very little change in phi. The significant changes causes a zig-zag pattern in the final image. There are still 8 stitch lines in the image.
+Once the images were adjusted to get the feature points as close as possible, the stitch seams were computed. Instead of choosing a single constant $\theta$ for the seam a line of points starting from phi = 0, to phi = math.pi was used. All points within one standard deviation of the median $\theta$ were used for the seam. The seam is sorted by $\phi$ with duplicate values of phi removed. Points within the seam are assumed to be connected by a straight line. As you can see the stitch lines have issues when $\theta$ changes greatly with very little change in $\phi$. The significant changes causes a zig-zag pattern in the final image. There are still 8 stitch lines in the image.
 
 <img src="../test/HET_0014_features_v0.JPG" alt="Stitch using feature points" width="540px" />
 
