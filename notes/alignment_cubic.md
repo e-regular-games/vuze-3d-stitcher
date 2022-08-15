@@ -33,7 +33,8 @@ plot(theta, y)
 This shape appears to follow a curve which is cubic with respect to $\theta$ and a quadratic with respect to $\phi$. The convexity of the quadratic changes about the $\theta$ axis.
 
 $$
-\Delta\theta = c_1(\theta-c_2)(\theta-c_3)\theta + c_4(\phi-c_5)\phi\theta \\
+\Delta\theta = c_1(\theta-c_2)(\theta-c_3)\theta + c_4(\phi-c_5)\phi\theta
+\newline
 \frac{\Delta\theta}{\theta} = a\theta^2 + b\theta + c\phi^2 + d\phi + e
 $$
 
@@ -46,16 +47,18 @@ $$
 In order to compute $\theta_i$ given a $\theta_f$ and $\phi$ solve the following.
 
 $$
-\theta_f = \theta + \Delta\theta \\
-\theta_f = \theta + a\theta^3 + b\theta^2 + c\phi^2\theta + d\phi\theta + e\theta \\
-0 = a\theta^3 + b\theta^2 + \theta(c\phi^2 + d\phi + e + 1) - \theta_f \\
+\theta_f = \theta + \Delta\theta
+\newline
+\theta_f = \theta + a\theta^3 + b\theta^2 + c\phi^2\theta + d\phi\theta + e\theta
+\newline
+0 = a\theta^3 + b\theta^2 + \theta(c\phi^2 + d\phi + e + 1) - \theta_f
 $$
 
 A basic implementation assuming one root, was written using NumPy O(1) algebraic functions. The NumPy Polynomial module was not used, because the runtime complexity of it was not known.
 
 Verticle alignment between eyes was attempted using two transforms. The first is an offset of $\phi$ for each lens calculated by using the average $\phi$ value of matching feature points between the left-eye and right-eye. This per lens offset was applied before other regression calculations including the analysis of $\theta$ mentioned above. Further analysis for $\phi$ will need to be performed in the future. At this point, the $\Delta\phi$ analysis was not performed and its approximation function was assumed to be a cubic with respect to $\theta$.
 
-The results of using a cubic function for transforming the $\theta$ coordinate of the image in the spherical coordinate system are promissing. There is much better alignment on the seams and the $\sigma_{\Delta\theta} is much improved. In fact, the average difference between the approximation of $\theta_a$ and the expected $\theta_f$ was 0.0. The average difference between the approximation of $\phi_a$ and the expected $\phi_f$ was 0.0. The useful information is in how many coordinates lie within one standard deviation of the mean.
+The results of using a cubic function for transforming the $\theta$ coordinate of the image in the spherical coordinate system are promissing. There is much better alignment on the seams and the $\sigma_{\Delta\theta}$ is much improved. In fact, the average difference between the approximation of $\theta_a$ and the expected $\theta_f$ was 0.0. The average difference between the approximation of $\phi_a$ and the expected $\phi_f$ was 0.0. The useful information is in how many coordinates lie within one standard deviation of the mean.
 
 <img src="../test/HET_0014_features_v2.JPG" alt="Theta transform using a cubic" width="540px" />
 
