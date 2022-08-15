@@ -33,6 +33,7 @@ plot(theta, y)
 This shape appears to follow a curve which is cubic with respect to $\theta$ and a quadratic with respect to $\phi$. The convexity of the quadratic changes about the $\theta$ axis.
 
 $$\Delta\theta = c_1(\theta-c_2)(\theta-c_3)\theta + c_4(\phi-c_5)\phi\theta$$
+
 $$\frac{\Delta\theta}{\theta} = a\theta^2 + b\theta + c\phi^2 + d\phi + e$$
 
 With the givens of $\theta$, $\phi$, and $\Delta\theta$ treat this equation as a linear regression and compute the constants $a, b, c, d, e$. The approximation function for $\theta$ is then represented as the following. The result of which is called $\theta_a$.
@@ -42,7 +43,9 @@ $$\theta_a = a\theta^3 + b\theta^2 + \theta(c\phi^2 + d\phi + e + 1)$$
 In order to compute $\theta_i$ given a $\theta_f$ and $\phi$ solve the following.
 
 $$\theta_f = \theta + \Delta\theta$$
+
 $$\theta_f = \theta + a\theta^3 + b\theta^2 + c\phi^2\theta + d\phi\theta + e\theta$$
+
 $$0 = a\theta^3 + b\theta^2 + \theta(c\phi^2 + d\phi + e + 1) - \theta_f$$
 
 A basic implementation assuming one root, was written using NumPy O(1) algebraic functions. The NumPy Polynomial module was not used, because the runtime complexity of it was not known.
