@@ -38,6 +38,8 @@ $$\frac{\Delta\theta}{\theta} = a\theta^2 + b\theta + c\phi^2 + d\phi + e$$
 
 With the givens of $\theta$, $\phi$, and $\Delta\theta$ treat this equation as a linear regression and compute the constants $a, b, c, d, e$. The approximation function for $\theta$ is then represented as the following. The result of which is called $\theta_a$.
 
+$$\theta_a = \theta + \Delta\theta$$
+
 $$\theta_a = a\theta^3 + b\theta^2 + \theta(c\phi^2 + d\phi + e + 1)$$
 
 In order to compute $\theta_i$ given a $\theta_f$ and $\phi$ solve the following.
