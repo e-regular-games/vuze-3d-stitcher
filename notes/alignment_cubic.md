@@ -1,5 +1,15 @@
 ## Alignment with a Cubic
 
+*Date: July 23, 2022*
+
+Script: [features.py](../src/features.py)
+
+Usage:
+```
+../notes/splice_360.sh -d -c config_bash_splice_360.dat
+../src/features.py -c config_features.dat
+```
+
 To improve the standard deviation of $\theta$, a better approximation function needs to be determind. The difference between $\theta_f$ and $\theta_i$, or $\Delta\theta$ is shown with respect to $\theta_i$ and $\phi_i$. The plot appears to follow different curves with respect to each axis.
 
 | $\theta_f - \theta_i$ with respect to $\theta_i$ and $\phi_i$ |

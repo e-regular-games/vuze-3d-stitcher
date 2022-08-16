@@ -15,3 +15,5 @@
 [Color Histogram Matching](./color_hist_match.md) (July 24, 2022)
 
 [Alignment with a Cubic](./alignment_cubic.md) (July 27, 2022)
+
+[Alignment in 3 Steps](./alignment_3_steps.md) (July 30, 2022)
