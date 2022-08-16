@@ -15,7 +15,7 @@ Seams of the final image still appear to show some misalignment. The 3 steps of 
 ### Step 1
 The first step is verticle alignment, or ensuring the matching feature points of the left-eye image and the right-eye image have the same value of $\phi$. The median $\phi$ between the left-eye and right-eye was used as the desired value, $\phi_f$. The regression was done assuming a quadratic function with respect to $\theta$ and $\phi$. Using the calculated constants, the output of the function will be called $\phi_a$.
 
-| $\Delta\phi$ with respect to $\theta$ and $\phi |
+| $\Delta\phi$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_phi_vertical_initial.png" alt="Difference in phi with respect to theta and phi" width="400px" /> |
 
@@ -29,13 +29,13 @@ $$ + c_6\phi^2 + c_7\phi + c_8$$
 
 The linear regression is computed using QR factorization and the following setup for $x$.
 
-$$x = \begin{bmatrix} \theta^2\phi^2 & \theta^2\phi & \theta^2 & ... & \phi^2 & \phi & 1 \end{bmatrix}$$
+$$x = \begin{bmatrix} \theta^2\phi^2 & \theta^2\phi & \theta^2 & \theta\phi^2 & \theta\phi & \theta & \phi^2 & \phi & 1 \end{bmatrix}$$
 
-$$\phi_f = \sum_{i=0}^{9}{c_i + x_i}$$
+$$\phi_f = \sum_{i=0}^{9}{c_ix_i}$$
 
 The error between the actual value of $\phi_f$ and the approximation $\phi_a$ is plotted below.
 
-| $\phi_f - \phi_a$ with respect to $\theta$ and $\phi |
+| $\phi_f - \phi_a$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_phi_vertical_final.png" alt="Difference in phi after adjustment with respect to theta and phi" width="400px" /> |
 
@@ -48,7 +48,7 @@ The next step is to align the edges of each lens with the edges of the lenses ad
 
 The difference between the feature point and the average value determined above needs to be approximated in order to transform the image. This difference is visualized below. The similarly shaped, but offset collections are each from a single eye.
 
-| $\Delta\theta$ with respect to $\theta$ and $\phi |
+| $\Delta\theta$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_theta_initial.png" alt="Difference in theta with respect to theta and phi" width="400px" /> |
 
@@ -60,19 +60,19 @@ $$\theta_a = c_0\theta^3\phi^3 + c_1\theta^3\phi^2 + c_2\theta^3\phi + c_3\theta
 
 $$ + c_4\theta^2\phi^3 + c_5\theta^2\phi^2 + c_6\theta^2\phi + c_7\theta^2$$
 
-$$ + c_8\theta\phi^3 + c_9\theta\phi^2 + c_10\theta\phi + c_11\theta$$
+$$ + c_8\theta\phi^3 + c_9\theta\phi^2 + c_{10}\theta\phi + c_{11}\theta$$
 
-$$ + c_12\phi^3 + c_13\phi^2 + c_14\phi + c_15$$
+$$ + c_{12}\phi^3 + c_{13}\phi^2 + c_{14}\phi + c_{15}$$
 
 The regression to compute the constants for $c$ is as follows.
 
 $$x = \begin{bmatrix} \theta^3\phi^3 & \theta^3\phi^2 & \theta^3\phi & \theta^3 & ... & \phi^3 & \phi^2 & \phi & 1 \end{bmatrix}$$
 
-$$\theta_f = \sum_{i=0}^{16}{c_i + x_i}$$
+$$\theta_f = \sum_{i=0}^{16}{c_ix_i}$$
 
 Using these constants a much closer value of $\theta$ can be obtained.
 
-| $\theta_f - \theta_a$ with respect to $\theta$ and $\phi |
+| $\theta_f - \theta_a$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_theta_final.png" alt="Difference in theta after adjustment with respect to theta and phi" width="400px" /> |
 
@@ -85,13 +85,13 @@ The final step is to adjust $\phi$ one last time. The adjustment is done to more
 
 The observed difference is visualized below. The similarly shaped, but offset collections are each from a single eye.
 
-| $\Delta\phi$ with respect to $\theta$ and $\phi |
+| $\Delta\phi$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_phi_initial.png" alt="Difference in phi with respect to theta and phi" width="400px" /> |
 
 A similar regression to step 1 is performed. The reuslting error in $\phi_a$ is graphed below.
 
-| $\phi_f - \phi_a$ with respect to $\theta$ and $\phi |
+| $\phi_f - \phi_a$ with respect to $\theta$ and $\phi$ |
 | :----: |
 | <img src="lens_1_phi_final.png" alt="Difference in phi after adjustment with respect to theta and phi" width="400px" /> |
 
@@ -100,6 +100,7 @@ A similar regression to step 1 is performed. The reuslting error in $\phi_a$ is 
 The regression performed well respect to to the mean error. For all regressions the mean error was 0.0. The table below shows only the standard deviation of the error. Each lens has a unique regression for vertical $\phi$, but combined left-eye and right-eye pairs were used for $\theta$ and $\phi$.
 
 | Lens | Vertical $\sigma_{\phi_f-\phi_a}$ | $\sigma_{\theta_f-\theta_a}$ | $\sigma_{\phi_f-\phi_a}$ |
+| ---- | ---- | ---- | ---- |
 | 1 | 0.0016 | 0.0117 | 0.0119 |
 | 2 | 0.0012 | 0.0117 | 0.0119 |
 | 3 | 0.0047 | 0.0104 | 0.0125 |
