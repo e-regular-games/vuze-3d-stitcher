@@ -13,7 +13,7 @@ This directory contains documentation on useful processes and tests. It also doc
 ## Src
 The working source code. The current implementation is in python and requires several added libraries such as Numpy, OpenCV and MatPlotLib.
 
-[Main Function](./src/features.py)
+[Main Function](./src/vuze_merge.py)
 
 ## Test
 A collection of test images, configuration files, and result images.

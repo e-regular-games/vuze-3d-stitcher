@@ -19,3 +19,5 @@
 [Alignment in 3 Steps](./alignment_3_steps.md) (July 30, 2022)
 
 [Code Modules](./code_modules.md) (August 2, 2022)
+
+[All at Once Alignment](./alignment_all.md) (August 4, 2022)

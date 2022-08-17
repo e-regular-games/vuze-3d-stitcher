@@ -20,7 +20,7 @@ def usage():
     print('')
     print('-c,--config\t\t(required) Specify the config file.')
     print('-v,--verbose\t\tMore detailed output to the console.')
-    print('-d,--display\t\tShow intermediate progress images.')
+    print('-d,--display\t\tShow intermediate progress images. Enums separated by "|" or "all". {regression|exposure|fisheye|seams|matches}')
     print('-h,--help\t\tDisplay this message.')
     print('\n')
     print('--Config File Format--    A comma separated value format file with various options.')
@@ -38,12 +38,12 @@ class ProgramOptions:
     def __init__(self):
         self.verbose = False
         self.config = ""
-        self.display = False
+        self.display = {}
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'dhvc:',
-            ["config=", "verbose"])
+            'd:hvc:',
+            ['help', 'config=', 'verbose', 'display='])
 
         for o, a in options:
             if o in ("-c", "--config"):
@@ -51,13 +51,22 @@ class ProgramOptions:
             elif o in ("-v", "--verbose"):
                 self.verbose = True
             elif o in ("-d", "--display"):
-                self.display = True
+                for s in a.split('|'):
+                    self.display[s] = True
             elif o in ("-h", "--help"):
                 usage()
                 exit(0)
 
     def valid(self):
         return len(self.config) > 0
+
+class Debug:
+    def __init__(self, options):
+        self.display = options.display
+        self.verbose = options.verbose
+
+    def enable(self, opt):
+        return opt in self.display and self.display[opt]
 
 class Config:
     def __init__(self, file_path):
@@ -104,9 +113,7 @@ def set_middle(img, value):
     middle = range(int(width/4), int(width*3/4))
     img[:,middle] = value
 
-def plot_lenses(display, images, title):
-    if not display:
-        return
+def plot_lenses(images, title):
     f, axs = plt.subplots(3, 3, sharex=True, sharey=True)
     f.canvas.manager.set_window_title(title)
     for i, img in enumerate(images):
@@ -125,6 +132,8 @@ def main():
         usage()
         exit(1)
 
+    debug = Debug(options)
+
     np.set_printoptions(suppress=True)
     print('loading images')
     images = []
@@ -136,7 +145,7 @@ def main():
         fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
         images.append(fish.to_equirect())
 
-    plot_lenses(options.display, images, '1) Equirectangular')
+    if debug.enable('fisheye'): plot_lenses(images, '1) Equirectangular')
 
     if len(config.exposure_fuse) > 0:
         for l in range(1, 9):
@@ -153,7 +162,7 @@ def main():
             mergeMertens = cv.createMergeMertens()
             merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
             images[l-1] = merged.astype(np.uint8)
-        plot_lenses(options.display, images, '2) Exposures Fused')
+        if debug.enable('exposure'): plot_lenses(images, '2) Exposures Fused')
 
     if config.exposure_match != 0:
         print('matching exposure')
@@ -163,26 +172,25 @@ def main():
             if i != (config.exposure_match - 1):
                 mid = get_middle(images[i])
                 set_middle(images[i], exposure.match_histograms(mid, ref, channel_axis=2))
-        plot_lenses(options.display, images, '3) Exposures Matched')
+        if debug.enable('exposure'): plot_lenses(images, '3) Exposures Matched')
 
-    print('refining seams')
-    seam = refine_seams.RefineSeams(images, options.verbose, options.display)
-    seam.align_verticle()
-    seam.align_left()
-    seam.align_right()
+    print('computing seams')
+    seam = refine_seams.RefineSeams(images, debug)
+    stitches = seam.align()
     ts = seam._transforms;
 
     splice_left = splice.SpliceImages(images[0:8:2], options.verbose, options.display)
     splice_right = splice.SpliceImages(images[1:8:2], options.verbose, options.display)
-    for s in range(4):
-        print('computing seam ' + str(s))
-        st_l, st_r = seam.compute_eye_stitch_line(ts[2*s], ts[2*s+1], s)
-        st_l[:,1] += s * math.pi / 2
-        st_r[:,1] += s * math.pi / 2
-        splice_left.set_stitch(s, st_l)
-        splice_right.set_stitch(s, st_r)
 
+    for s in range(4):
+        st_l = stitches[2*s].copy()
+        st_l[:,1] += s * math.pi / 2
+        splice_left.set_stitch(s, st_l)
         splice_left.set_transform(s, ts[2*s])
+
+        st_r = stitches[2*s+1].copy()
+        st_r[:,1] += s * math.pi / 2
+        splice_right.set_stitch(s, st_r)
         splice_right.set_transform(s, ts[2*s+1])
 
     print('generate left eye')
