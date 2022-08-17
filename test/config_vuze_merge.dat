@@ -1,0 +1,18 @@
+# execute this config file using: ../src/vuze_merge.py -c config_vuze_merge.dat
+
+input,HET_0014
+output,HET_0014_vuze
+
+resolution,1080
+
+aperture,179
+radius,734
+
+lens,1,544,778
+lens,2,560,778
+lens,3,500,800
+lens,4,570,770
+lens,5,490,830
+lens,6,580,800
+lens,7,544,778
+lens,8,580,800

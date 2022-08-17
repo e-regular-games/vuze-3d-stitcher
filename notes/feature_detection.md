@@ -15,6 +15,7 @@ Image feature identification works best with rectilinear images. The Equirec2Per
 The features script uses image features as determined by the SIFT algoritm and brute force macthing between images to determine the constants used for image transformations. All image transforms are within the spherical coordinate system. The most beneficial is the scaling of $\theta$. A second transform was added to linearly shift phi with respect to $\theta$.
 
 $\theta_f = k \theta_i$
+
 $\phi_f = \phi_i + k \theta_i$
 
 These transforms were used because the operations are easy to perform both forward and reverse. The reverse transform is needed to determine the pixel location within the lens when given a pixel location in the final image. The table below shows the resulting constants and the error between the expected value and the calculated value using the constant.

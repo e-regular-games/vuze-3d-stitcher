@@ -17,3 +17,5 @@
 [Alignment with a Cubic](./alignment_cubic.md) (July 27, 2022)
 
 [Alignment in 3 Steps](./alignment_3_steps.md) (July 30, 2022)
+
+[Code Modules](./code_modules.md) (August 2, 2022)
