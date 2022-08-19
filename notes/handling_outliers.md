@@ -11,7 +11,7 @@ Usage:
 
 ### Invalid Feature Point Matches
 
-During feature matching sometimes the algorithm incorrectly identifies matches. The diagonal lines in the images below represent these invalid matches. The images represent rectilinear images taken at $\phi = \left{60^{\circ}, 0^{\circ}, -60^{\cird}\right}$. The right hand side of each match pair is the image from lens 7.
+During feature matching sometimes the algorithm incorrectly identifies matches. The diagonal lines in the images below represent these invalid matches. The images represent rectilinear images taken at $\phi = \left\\{60^{\circ}, 0^{\circ}, -60^{\circ}\right\\}$. The right hand side of each match pair is the image from lens 7.
 
 | Matching Features for Seam 0: Lenses 7, 8, 1, 2 |
 | :------: |
