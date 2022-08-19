@@ -21,3 +21,5 @@
 [Code Modules](./code_modules.md) (August 2, 2022)
 
 [All at Once Alignment](./alignment_all.md) (August 4, 2022)
+
+[Handling Outliers & Better Seam Lines](./handling_outliers.md) (August 7, 2022)

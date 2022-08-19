@@ -20,6 +20,9 @@ class RefineSeams():
         self._transforms = []
         self._debug = debug
 
+        self.seam_points = 50
+        self.seam_window = 10
+
         for i, img in enumerate(images):
             t = transform.Transform(debug)
             t.label = 'lens:' + str(i+1)
@@ -59,7 +62,7 @@ class RefineSeams():
 
             if self._debug.enable('matches'):
                 for i in range(1, 4):
-                    plot = cv.drawMatches(gray[0], kp[0], gray[i], kp[i], matches[i], None,
+                    plot = cv.drawMatches(gray[i], kp[i], gray[0], kp[0], matches[i], None,
                                   flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
                     fig.add_subplot(3, 3, fc).imshow(plot)
                     fc += 1
@@ -117,10 +120,10 @@ class RefineSeams():
 
     # is in a N by 1 vector.
     def _trim_outliers(self, i, d):
-        med = np.median(i)
+        m = np.mean(i)
         std = np.std(i)
 
-        inc = np.logical_and(med - d*std < i, i < med + d*std)
+        inc = np.logical_and(m - d*std < i, i < m + d*std)
         return i[inc], inc
 
     # i and f are N by 2 matrices.
@@ -146,12 +149,17 @@ class RefineSeams():
             self._match_between_eyes([self._images[4], self._images[6]], [self._images[5], self._images[7]], match_thres)
         ]
 
+        shist_pre = plt.figure() if self._debug.enable('sanitize') else None
         for m in range(4):
             match = matches[m]
             inc = np.full((match.shape[0]), True)
             for i in range(4):
-                _, inc_i = self._trim_outliers(match[:,2*i+1], 1)
+                shift = math.pi / 2 if (i % 2 == 1) else 0
+                if self._debug.enable('sanitize'):
+                    shist_pre.add_subplot(4, 4, 4*m+i+1).hist(match[:,2*i+1] - shift)
+                _, inc_i = self._trim_outliers(match[:,2*i+1], 5)
                 inc = np.logical_and(inc, inc_i)
+
             matches[m] = match[inc]
 
         if self._debug.verbose:
@@ -173,7 +181,8 @@ class RefineSeams():
         left = np.array([0, math.pi/2])
         within_error = [np.zeros((matches[i].shape[0], 4)) for i in range(4)]
 
-        fig = plt.figure() if self._debug.enable('regression') else None
+        rhist = plt.figure() if self._debug.enable('regression_hist') else None
+        shist = plt.figure() if self._debug.enable('sanitize') else None
         for l in range(8):
             ll = int(l / 2)
             lr = int((ll + 1) % 4)
@@ -181,30 +190,38 @@ class RefineSeams():
             rc = int(4 * (l % 2))
 
             ls = matches[ll].shape[0]
-            i = np.concatenate([matches[ll][:,lc:lc+2] - left, matches[lr][:,rc:rc+2]])
-            f = np.concatenate([targets[ll][:,lc:lc+2] - left, targets[lr][:,rc:rc+2]])
-            i, f, inc = self._trim_outliers_by_diff(i, f, 2, 2)
+            li, lf, linc = self._trim_outliers_by_diff(matches[ll][:,lc:lc+2], targets[ll][:,lc:lc+2], 2, 2)
+            ri, rf, rinc = self._trim_outliers_by_diff(matches[lr][:,rc:rc+2], targets[lr][:,rc:rc+2], 2, 2)
+            i = np.concatenate([li - left, ri])
+            f = np.concatenate([lf - left, rf])
+            inc = np.concatenate([linc, rinc])
+
+            if self._debug.enable('sanitize'):
+                diff = i - f
+                shist.add_subplot(2, 8, l+1).hist(diff[:,0])
+                shist.add_subplot(2, 8, 8+l+1).hist(diff[:,1])
 
             #self.show_polar_plot(i, f)
             t = self._transforms[l]
-            t.calculate_theta_c(i, f)
+            t.calculate_phi_c(i, f)
 
             im = i.copy()
-            im[:,1] = f[:,1]
-            t.calculate_phi_c(im, f)
+            im[:,0] = f[:,0]
+            t.calculate_theta_c(im, f)
 
             adj = t.apply(i)
             err = np.zeros((inc.shape[0]))
             err[inc] = np.sqrt(np.sum((adj-f)*(adj-f), axis=1))
 
-            if self._debug.enable('regression'):
-                fig.add_subplot(3, 3, l+1).hist(err[inc], range=(0, 0.05))
+            if self._debug.enable('regression_hist'):
+                rhist.add_subplot(3, 3, l+1).hist(err[inc], range=(0, 0.02))
 
-            within_error[ll][:,2*(l%2)+1] = err[:ls] < err_thres
-            within_error[lr][:,2*(l%2)] = err[ls:] < err_thres
-
+            within_error[ll][:,2*(l%2)+1] = np.logical_and(err[:ls] < err_thres, inc[:ls])
+            within_error[lr][:,2*(l%2)] = np.logical_and(err[ls:] < err_thres, inc[ls:])
 
         # use within error to find a seam of points
+        cphi = self.seam_points
+        wphi = self.seam_window
         seams = []
         for i in range(8):
             m = int(i /2)
@@ -212,7 +229,7 @@ class RefineSeams():
             r = i # image right of the seam
             c = 4 * (i % 2) # column within the matched set of 4 images.
             closest = within_error[m].all(axis=1)
-            target = targets[m][:,c:c+2][closest].copy()
+            target = self._transforms[l].apply(matches[m][:,c:c+2][closest])
 
             target = target[target[:,0] < math.pi]
             target = target[target[:,0].argsort()]
@@ -220,28 +237,26 @@ class RefineSeams():
             _, unique = np.unique(target[:,0], return_index=True)
             target = target[unique]
 
-            seam = np.zeros(target.shape)
-            seam[:,0] = target[:,0]
-            seam[:,1] = (np.cumsum(target[:,1]) / np.arange(1, target.shape[0]+1)) - math.pi
+            seam = np.zeros((cphi, 2))
+            seam_valid = np.full((cphi), True)
+            for p in range(cphi):
+                lower = p*math.pi / cphi - math.pi / wphi
+                upper = (p+1)*math.pi / cphi + math.pi / wphi
+                in_range = np.logical_and(target[:,0] >= lower, target[:,0] <= upper)
+                if np.count_nonzero(in_range) == 0:
+                    seam_valid[p] = False
+                else:
+                    seam[p,0] = p*math.pi / cphi
+                    seam[p,1] = np.mean(target[in_range,1])
 
-            self.show_polar_plot(target, seam + [0, math.pi], 'seam:' + str(i))
+            seam = seam[seam_valid,:] - [0, math.pi]
+            seam = np.concatenate([seam, [[math.pi, seam[-1,1]]]])
+            if self._debug.enable('seams'):
+                self.show_polar_plot(target, seam + [0, math.pi], 'seam:' + str(i))
+
+            if self._debug.verbose:
+                print('seam:', i, round(np.mean(seam[:,1]), 3))
+
             seams.append(seam)
 
         return seams
-
-
-    def align_verticle(self):
-        img_pairs = []
-        for i in range(0, len(self._images), 2):
-            img_pairs.append((self._images[i], self._images[i+1]))
-            img_pairs.append((self._images[i+1], self._images[i]))
-
-        for i, pair in enumerate(img_pairs):
-            matches = np.zeros((0,4))
-            for a in [-90, -30, 30, 90]:
-                m = self._determine_matching_points(pair[0], pair[1], a, a, 0.5)
-                matches = np.concatenate([matches, m])
-
-            middle = (matches[:,0:2] + matches[:,2:4]) / 2
-
-            self._transforms[i].calculate_phi_lr_c(matches[:,0:2], middle)

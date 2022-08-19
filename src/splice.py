@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
 
 class SpliceImages():
-    def __init__(self, images, verbose=False, display=False):
+    def __init__(self, images, debug):
         self._images = images
 
         # tansform(i) of image (i)
@@ -19,8 +19,7 @@ class SpliceImages():
         self._st_slopes = [None]*len(images)
         self._st_offset = [None]*len(images)
 
-        self.verbose = verbose
-        self.display = display
+        self._debug = debug
 
     def set_transform(self, idx, t):
         self._transforms[idx] = t

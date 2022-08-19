@@ -4,6 +4,7 @@ import sys
 import getopt
 import fisheye
 import splice
+import transform
 import refine_seams
 import math
 import numpy as np
@@ -21,6 +22,8 @@ def usage():
     print('-c,--config\t\t(required) Specify the config file.')
     print('-v,--verbose\t\tMore detailed output to the console.')
     print('-d,--display\t\tShow intermediate progress images. Enums separated by "|" or "all". {regression|exposure|fisheye|seams|matches}')
+    print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
+    print('-r,--read-equation\t\tRead the alignment equation constants to the provided file.')
     print('-h,--help\t\tDisplay this message.')
     print('\n')
     print('--Config File Format--    A comma separated value format file with various options.')
@@ -30,7 +33,8 @@ def usage():
     print('radius,<pixels>\t\t\t\tNumber of pixels for all fisheye lenses.')
     print('aperture,<degrees>\t\t\tAperture angle of all fisheye lenses. (degrees)')
     print('resolution,<pixels>\t\t\tOutput verticle resolution.')
-    print('match_exposure,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
+    print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
+    print('exposure_fuse,<image_prefix>\t\t\tFile name to include in the exposure fusion stack.')
     print('lens,<1-8>,<x_pixels>,<y_pixels>\tThe center of the fisheye for each lens.')
     print('\n')
 
@@ -39,17 +43,23 @@ class ProgramOptions:
         self.verbose = False
         self.config = ""
         self.display = {}
+        self.read_equation = ''
+        self.write_equation = ''
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hvc:',
-            ['help', 'config=', 'verbose', 'display='])
+            'd:hw:r:vc:',
+            ['help', 'write-equation=', 'read-equation=', 'config=', 'verbose', 'display='])
 
         for o, a in options:
             if o in ("-c", "--config"):
                 self.config = a
             elif o in ("-v", "--verbose"):
                 self.verbose = True
+            elif o in ("-r", "--read-equation"):
+                self.read_equation = a
+            elif o in ("-w", "--write-equation"):
+                self.write_equation = a
             elif o in ("-d", "--display"):
                 for s in a.split('|'):
                     self.display[s] = True
@@ -59,6 +69,52 @@ class ProgramOptions:
 
     def valid(self):
         return len(self.config) > 0
+
+class AdjustmentCoeffs:
+    def __init__(self, fname, debug):
+        self._fname = fname
+        self._debug = debug
+
+    def write(self, stitches, transforms):
+        with open(self._fname, 'w') as f:
+            for i, s in enumerate(stitches):
+                f.write(','.join(['seam', str(i), 'phi'] + np.char.mod('%f', s[:,0]).tolist()) + '\n')
+                f.write(','.join(['seam', str(i), 'theta'] + np.char.mod('%f', s[:,1]).tolist()) + '\n')
+
+            for i, t in enumerate(transforms):
+                f.write(','.join(['phi', str(i), str(t.phi_coeffs_order)] + np.char.mod('%f', t.phi_coeffs).tolist()) + '\n')
+                f.write(','.join(['theta', str(i), str(t.theta_coeffs_order)] + np.char.mod('%f', t.theta_coeffs).tolist()) + '\n')
+
+    def read(self):
+        with open(self._fname, 'r') as f:
+            stitches_phi = [None]*8
+            stitches_theta = [None]*8
+            transforms = [transform.Transform(self._debug) for t in range(8)]
+            for l in f.readlines():
+                cmd = l.strip().split(',')
+                if cmd[0] == 'seam' and len(cmd) >= 3:
+                    data = np.array([float(s) for s in cmd[3:]])
+                    if cmd[2] == 'phi':
+                        stitches_phi[int(cmd[1])] = data
+                    elif cmd[2] == 'theta':
+                        stitches_theta[int(cmd[1])] = data
+                if cmd[0] == 'phi':
+                    t = int(cmd[1])
+                    transforms[t].phi_coeffs_order = int(cmd[2])
+                    transforms[t].phi_coeffs = np.array([float(s) for s in cmd[3:]])
+                if cmd[0] == 'theta':
+                    t = int(cmd[1])
+                    transforms[t].theta_coeffs_order = int(cmd[2])
+                    transforms[t].theta_coeffs = np.array([float(s) for s in cmd[3:]])
+
+            stitches = []
+            for i in range(8):
+                st = np.zeros((stitches_phi[i].shape[0], 2))
+                st[:,0] = stitches_phi[i]
+                st[:,1] = stitches_theta[i]
+                stitches.append(st)
+
+            return stitches, transforms
 
 class Debug:
     def __init__(self, options):
@@ -137,8 +193,9 @@ def main():
     np.set_printoptions(suppress=True)
     print('loading images')
     images = []
-    fish = fisheye.FisheyeImage();
+    fish = fisheye.FisheyeImage(debug)
     fish.set_output_resolution(config.resolution)
+    fish.restrict_to_image_angle(False)
     for l in range(1, 9):
         img = cv.imread(config.input + '_' + str(l) + '.JPG')
         img = np.rot90(img)
@@ -174,13 +231,19 @@ def main():
                 set_middle(images[i], exposure.match_histograms(mid, ref, channel_axis=2))
         if debug.enable('exposure'): plot_lenses(images, '3) Exposures Matched')
 
-    print('computing seams')
-    seam = refine_seams.RefineSeams(images, debug)
-    stitches = seam.align()
-    ts = seam._transforms;
+    stitches = []
+    ts = []
+    if options.read_equation != '':
+        print('loading seams')
+        stitches, ts = AdjustmentCoeffs(options.read_equation, debug).read()
+    else:
+        print('computing seams')
+        seam = refine_seams.RefineSeams(images, debug)
+        stitches = seam.align()
+        ts = seam._transforms;
 
-    splice_left = splice.SpliceImages(images[0:8:2], options.verbose, options.display)
-    splice_right = splice.SpliceImages(images[1:8:2], options.verbose, options.display)
+    splice_left = splice.SpliceImages(images[0:8:2], debug)
+    splice_right = splice.SpliceImages(images[1:8:2], debug)
 
     for s in range(4):
         st_l = stitches[2*s].copy()
@@ -201,6 +264,9 @@ def main():
 
     combined = np.concatenate([left, right])
     cv.imwrite(config.output + '.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
+
+    if options.write_equation != '':
+        AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts)
 
     plt.show()
 
