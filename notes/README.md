@@ -23,3 +23,5 @@
 [All at Once Alignment](./alignment_all.md) (August 4, 2022)
 
 [Handling Outliers & Better Seam Lines](./handling_outliers.md) (August 7, 2022)
+
+[Color Matching with Regression](./color_regression.md) (August 11, 2022)

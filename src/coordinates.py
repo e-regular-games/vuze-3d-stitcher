@@ -6,6 +6,7 @@ August 1st, 2022
 
 import math
 import numpy as np
+import cv2 as cv
 
 # @param c a matrix with N rows and 2 columns, (x, y)
 # @param shape a tuple with at least 2 values, (height, width)
@@ -62,3 +63,14 @@ def equirect_points(resolution):
             eq[i, 1] = y
 
     return eq
+
+def eqr_interp(eqr, img):
+    l = eqr.shape[0]
+    s = math.floor(math.sqrt(l) + 1)
+    padding = np.zeros(s*s - l, dtype=np.float32)
+
+    x = np.concatenate([eqr[:, 0], padding]).reshape(s, s).astype(np.float32)
+    y = np.concatenate([eqr[:, 1], padding]).reshape(s, s).astype(np.float32)
+
+    pixels = cv.remap(img, x, y, cv.INTER_LINEAR, borderMode=cv.BORDER_WRAP)
+    return pixels.reshape(s * s, 3)[:l,:]

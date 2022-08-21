@@ -13,6 +13,7 @@ class SpliceImages():
 
         # tansform(i) of image (i)
         self._transforms = [None]*len(images)
+        self._color_transforms = [None]*len(images)
 
         # seam(i) between images (i) and (i+1)
         self._stitches = [None]*len(images)
@@ -23,6 +24,9 @@ class SpliceImages():
 
     def set_transform(self, idx, t):
         self._transforms[idx] = t
+
+    def set_color_transform(self, idx, cc):
+        self._color_transforms[idx] = cc
 
     # line is a numpy array of (phi, theta) rows
     # the first row should be phi = 0, and the last should be phi = pi
@@ -106,7 +110,10 @@ class SpliceImages():
             local_pts_polar = self._transforms[s].reverse(pts)
             local_pts_eqr = coordinates.polar_to_eqr(local_pts_polar, self._images[s].shape)
             print('determine pixel colors ' + str(s))
-            pixels = self._interp(local_pts_eqr, self._images[s])
+            pixels = coordinates.eqr_interp(local_pts_eqr, self._images[s])
+            if self._color_transforms[s] is not None:
+                pixels = self._color_transforms[s] \
+                             .correct_bgr(pixels, pts[:,0:2] - [0, math.pi])
             result[local_pts_eqr[:,2].astype(np.int)] = pixels
 
         return result.reshape(shape)

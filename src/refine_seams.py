@@ -1,4 +1,5 @@
 
+import color_correction
 import coordinates
 import transform
 import math
@@ -18,6 +19,8 @@ class RefineSeams():
     def __init__(self, images, debug):
         self._images = images
         self._transforms = []
+        self._feature_points = []
+        self._color_corrections = []
         self._debug = debug
 
         self.seam_points = 50
@@ -27,6 +30,8 @@ class RefineSeams():
             t = transform.Transform(debug)
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
+            c = color_correction.ColorCorrection(images, debug)
+            self._color_corrections.append(c)
 
     def _match_between_eyes(self, imgs_left, imgs_right, threshold):
         sift = cv.SIFT_create()
@@ -118,14 +123,6 @@ class RefineSeams():
         plt.ylim([-1, 1])
         ax.set_zlim(-1, 1)
 
-    # is in a N by 1 vector.
-    def _trim_outliers(self, i, d):
-        m = np.mean(i)
-        std = np.std(i)
-
-        inc = np.logical_and(m - d*std < i, i < m + d*std)
-        return i[inc], inc
-
     # i and f are N by 2 matrices.
     # the difference between i, and f is computed
     # any row whose diff is outside d0 and d1 standard deviations
@@ -140,8 +137,15 @@ class RefineSeams():
         inc = np.logical_and(mn - d*std < diff, diff < mn + d*std).all(axis=1)
         return i[inc], f[inc], inc
 
-    # compute the alignment coefficients
-    def align(self, match_thres=0.75, err_thres=0.0075):
+    # is in a N by 1 vector.
+    def _trim_outliers(self, i, d):
+        m = np.mean(i)
+        std = np.std(i)
+
+        inc = np.logical_and(m - d*std < i, i < m + d*std)
+        return i[inc], inc
+
+    def _determine_matches_and_targets(self, match_thres):
         matches = [
             self._match_between_eyes([self._images[6], self._images[0]], [self._images[7], self._images[1]], match_thres),
             self._match_between_eyes([self._images[0], self._images[2]], [self._images[1], self._images[3]], match_thres),
@@ -154,8 +158,8 @@ class RefineSeams():
             match = matches[m]
             inc = np.full((match.shape[0]), True)
             for i in range(4):
-                shift = math.pi / 2 if (i % 2 == 1) else 0
                 if self._debug.enable('sanitize'):
+                    shift = math.pi / 2 if (i % 2 == 1) else 0
                     shist_pre.add_subplot(4, 4, 4*m+i+1).hist(match[:,2*i+1] - shift)
                 _, inc_i = self._trim_outliers(match[:,2*i+1], 5)
                 inc = np.logical_and(inc, inc_i)
@@ -178,6 +182,9 @@ class RefineSeams():
             target[:,7] = np.sum(matches[i][:,[5,7]], axis=1) * 0.5
             targets.append(target)
 
+        return matches, targets
+
+    def _compute_transforms(self, matches, targets, err_thres):
         left = np.array([0, math.pi/2])
         within_error = [np.zeros((matches[i].shape[0], 4)) for i in range(4)]
 
@@ -219,6 +226,10 @@ class RefineSeams():
             within_error[ll][:,2*(l%2)+1] = np.logical_and(err[:ls] < err_thres, inc[:ls])
             within_error[lr][:,2*(l%2)] = np.logical_and(err[ls:] < err_thres, inc[ls:])
 
+        return within_error
+
+
+    def _compute_seams(self, matches):
         # use within error to find a seam of points
         cphi = self.seam_points
         wphi = self.seam_window
@@ -228,8 +239,7 @@ class RefineSeams():
             l = (i-2) % 8 # image left of the seam
             r = i # image right of the seam
             c = 4 * (i % 2) # column within the matched set of 4 images.
-            closest = within_error[m].all(axis=1)
-            target = self._transforms[l].apply(matches[m][:,c:c+2][closest])
+            target = self._transforms[l].apply(matches[m][:,c:c+2])
 
             target = target[target[:,0] < math.pi]
             target = target[target[:,0].argsort()]
@@ -260,3 +270,56 @@ class RefineSeams():
             seams.append(seam)
 
         return seams
+
+    def _match_colors(self, matches):
+        size = 1
+        resolution = 1080
+        colors = []
+        targets = []
+        left = [0, 0, 0, math.pi / 2]
+        fig = plt.figure() if self._debug.enable('color') else None
+        for i, m in enumerate(matches):
+            ll = (2*i-2) % 8
+            lr = 2*i % 8
+            rl = (2*i-1) % 8
+            rr = (2*i+1) % 8
+
+            color = np.zeros((size*size*m.shape[0], 4, 3))
+            color[:,0,:] = self._get_hsv(m[:,0:2], self._images[ll], size, resolution)
+            color[:,1,:] = self._get_hsv(m[:,2:4] - [0, math.pi/2], self._images[lr], size, resolution)
+            color[:,2,:] = self._get_hsv(m[:,4:6], self._images[rl], size, resolution)
+            color[:,3,:] = self._get_hsv(m[:,6:8] - [0, math.pi/2], self._images[rr], size, resolution)
+            colors.append(color)
+            target = color_correction.average_hsv(color)
+            #target = np.mean(color, axis=1)
+            targets.append(target)
+
+            if self._debug.enable('color'):
+                t = target[:,0:3].reshape(target.shape[0], 1, 3)
+                img = np.concatenate([color, t], axis=1).astype(np.uint8)
+                print(img)
+                fig.add_subplot(1, 4, i+1).imshow(cv.cvtColor(img, cv.COLOR_HSV2RGB))
+
+        fig = plt.figure()
+        for i in range(8):
+            l = int(i/2)
+            r = (l+1) % 4
+            cl = 2 * (i % 2) + 1 # column within the matched set of 4 images.
+            cr = 2 * (i % 2) # column within the matched set of 4 images.
+            color = np.concatenate([colors[l][:,cl], colors[r][:,cr]])
+            target = np.concatenate([targets[l], targets[r]])
+            inc = target[:,3] > 0.97
+            self._color_corrections[i].compute_hsv(color[inc], target[inc,:3])
+
+
+    # compute the alignment coefficients
+    def align(self, match_thres=0.75, err_thres=0.0075):
+        matches, targets = self._determine_matches_and_targets(match_thres)
+        within_error = self._compute_transforms(matches, targets, err_thres)
+
+        for i in range(len(matches)):
+            closest = within_error[i].all(axis=1)
+            matches[i] = matches[i][closest]
+
+        seams = self._compute_seams(matches)
+        return seams, matches

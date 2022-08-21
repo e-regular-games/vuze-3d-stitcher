@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
+import color_correction
 import sys
 import getopt
 import fisheye
+from format_vr import FormatVR
 import splice
 import transform
 import refine_seams
@@ -35,6 +37,9 @@ def usage():
     print('resolution,<pixels>\t\t\tOutput verticle resolution.')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
     print('exposure_fuse,<image_prefix>\t\t\tFile name to include in the exposure fusion stack.')
+    print('color_correction,mean\t\t\t\tAdjust colors of all lenses using the mean between lenses.')
+    print('color_correction,seams,<dist_deg>\t\t\tUse the mean between lenses, but fade the effect from the seam.')
+    print('contrast_equlization,<clip>,<gridx>,<gridy>\t\tEnable adaptive hsv-value histogram equalization.')
     print('lens,<1-8>,<x_pixels>,<y_pixels>\tThe center of the fisheye for each lens.')
     print('\n')
 
@@ -75,7 +80,7 @@ class AdjustmentCoeffs:
         self._fname = fname
         self._debug = debug
 
-    def write(self, stitches, transforms):
+    def write(self, stitches, transforms, matches):
         with open(self._fname, 'w') as f:
             for i, s in enumerate(stitches):
                 f.write(','.join(['seam', str(i), 'phi'] + np.char.mod('%f', s[:,0]).tolist()) + '\n')
@@ -85,10 +90,15 @@ class AdjustmentCoeffs:
                 f.write(','.join(['phi', str(i), str(t.phi_coeffs_order)] + np.char.mod('%f', t.phi_coeffs).tolist()) + '\n')
                 f.write(','.join(['theta', str(i), str(t.theta_coeffs_order)] + np.char.mod('%f', t.theta_coeffs).tolist()) + '\n')
 
+            for i, m in enumerate(matches):
+                l = m.shape[0] * m.shape[1]
+                f.write(','.join(['matches', str(i)] + np.char.mod('%f', m.reshape((l))).tolist()) + '\n')
+
     def read(self):
         with open(self._fname, 'r') as f:
             stitches_phi = [None]*8
             stitches_theta = [None]*8
+            matches = [None]*4
             transforms = [transform.Transform(self._debug) for t in range(8)]
             for l in f.readlines():
                 cmd = l.strip().split(',')
@@ -106,6 +116,9 @@ class AdjustmentCoeffs:
                     t = int(cmd[1])
                     transforms[t].theta_coeffs_order = int(cmd[2])
                     transforms[t].theta_coeffs = np.array([float(s) for s in cmd[3:]])
+                if cmd[0] == 'matches':
+                    i = int(cmd[1])
+                    matches[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
 
             stitches = []
             for i in range(8):
@@ -114,7 +127,7 @@ class AdjustmentCoeffs:
                 st[:,1] = stitches_theta[i]
                 stitches.append(st)
 
-            return stitches, transforms
+            return stitches, transforms, matches
 
 class Debug:
     def __init__(self, options):
@@ -134,6 +147,9 @@ class Config:
         self.lens_centers = [(0,0)]*8
         self.exposure_match = 0
         self.exposure_fuse = []
+        self.color_mean = False
+        self.color_seams = 0
+        self.contrast_equ = None
 
         f = open(file_path, 'r')
         for l in f.readlines():
@@ -155,6 +171,15 @@ class Config:
                 self.aperture = float(cmd[1])
             if cmd[0] == 'exposure_fuse' and len(cmd) == 2:
                 self.exposure_fuse.append(cmd[1])
+            if cmd[0] == 'color_correction' and len(cmd) >= 2:
+                if cmd[1] == 'mean':
+                    self.color_mean = True
+                    self.color_seams = 0
+                elif cmd[1] == 'seams' and len(cmd) == 3:
+                    self.color_mean = False
+                    self.color_seams = float(cmd[2])
+            if cmd[0] == 'contrast_equilization' and len(cmd) == 4:
+                self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
 
     def valid(self):
         return self.input != '' and self.radius != 0
@@ -190,7 +215,7 @@ def main():
 
     debug = Debug(options)
 
-    np.set_printoptions(suppress=True)
+    np.set_printoptions(suppress=True, threshold=sys.maxsize)
     print('loading images')
     images = []
     fish = fisheye.FisheyeImage(debug)
@@ -214,8 +239,6 @@ def main():
                 fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
                 images_exp.append(fish.to_equirect())
 
-            alignMTB = cv.createAlignMTB()
-            alignMTB.process(images_exp, images_exp)
             mergeMertens = cv.createMergeMertens()
             merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
             images[l-1] = merged.astype(np.uint8)
@@ -233,14 +256,23 @@ def main():
 
     stitches = []
     ts = []
+    matches = []
+    cc = None
     if options.read_equation != '':
         print('loading seams')
-        stitches, ts = AdjustmentCoeffs(options.read_equation, debug).read()
+        stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
     else:
         print('computing seams')
         seam = refine_seams.RefineSeams(images, debug)
-        stitches = seam.align()
-        ts = seam._transforms;
+        stitches, matches = seam.align()
+        ts = seam._transforms
+
+    if config.color_mean:
+        color = color_correction.ColorCorrection(images, debug)
+        cc = color.match_colors(matches)
+    elif config.color_seams > 0:
+        color = color_correction.ColorCorrection(images, debug)
+        cc = color.fade_colors(matches, stitches, config.color_seams * math.pi / 180)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_right = splice.SpliceImages(images[1:8:2], debug)
@@ -256,17 +288,33 @@ def main():
         splice_right.set_stitch(s, st_r)
         splice_right.set_transform(s, ts[2*s+1])
 
+        if cc is not None:
+            splice_left.set_color_transform(s, cc[2*s])
+            splice_right.set_color_transform(s, cc[2*s+1])
+
+
     print('generate left eye')
     left = splice_left.generate(config.resolution)
-
     print('generate right eye')
     right = splice_right.generate(config.resolution)
 
-    combined = np.concatenate([left, right])
-    cv.imwrite(config.output + '.JPG', combined, [int(cv.IMWRITE_JPEG_QUALITY), 100])
+    if config.contrast_equ is not None:
+        clahe = cv.createCLAHE(clipLimit=config.contrast_equ[0], \
+                               tileGridSize=config.contrast_equ[1:3])
+        combined = np.concatenate([left, right])
+        combined_hsv = cv.cvtColor(combined, cv.COLOR_BGR2HSV)
+        combined_hsv[:,:,2] = clahe.apply(combined_hsv[:,:,2:3])
+        combined = cv.cvtColor(combined_hsv, cv.COLOR_HSV2BGR)
+        left = combined[:left.shape[0]]
+        right = combined[left.shape[0]:]
+
+    fvr = FormatVR(left, right)
+    #fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
+    fvr.write_over_under(config.output + '.JPG')
+    #fvr.write_cardboard(config.output + '_gpano.JPG')
 
     if options.write_equation != '':
-        AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts)
+        AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts, matches)
 
     plt.show()
 
