@@ -72,5 +72,5 @@ def eqr_interp(eqr, img):
     x = np.concatenate([eqr[:, 0], padding]).reshape(s, s).astype(np.float32)
     y = np.concatenate([eqr[:, 1], padding]).reshape(s, s).astype(np.float32)
 
-    pixels = cv.remap(img, x, y, cv.INTER_LINEAR, borderMode=cv.BORDER_WRAP)
+    pixels = cv.remap(img, x, y, cv.INTER_CUBIC, borderMode=cv.BORDER_WRAP)
     return pixels.reshape(s * s, 3)[:l,:]

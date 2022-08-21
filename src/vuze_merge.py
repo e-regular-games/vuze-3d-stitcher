@@ -21,25 +21,30 @@ def usage():
     print('')
     print('usage: vuze_merge.py -v -h -c config.dat')
     print('')
-    print('-c,--config\t\t(required) Specify the config file.')
-    print('-v,--verbose\t\tMore detailed output to the console.')
-    print('-d,--display\t\tShow intermediate progress images. Enums separated by "|" or "all". {regression|exposure|fisheye|seams|matches}')
+    print('-c,--config\t\tSpecify the config file.')
+    print('-i,--image\t\tOverride the input and output config options.')
+    print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
     print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
     print('-r,--read-equation\t\tRead the alignment equation constants to the provided file.')
+    print('-v,--verbose\t\tMore detailed output to the console.')
+    print('-d,--display\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
     print('-h,--help\t\tDisplay this message.')
     print('\n')
     print('--Config File Format--    A comma separated value format file with various options.')
     print('')
     print('input,<image_prefix>\t\t\tThe prefix used by the Vuze camera.')
     print('output,<image>\t\t\t\tA file name without the extension.')
+    print('format,<fmt>\t\t\t\tEnable output format: {gpano, stereo, over-under}')
     print('radius,<pixels>\t\t\t\tNumber of pixels for all fisheye lenses.')
     print('aperture,<degrees>\t\t\tAperture angle of all fisheye lenses. (degrees)')
     print('resolution,<pixels>\t\t\tOutput verticle resolution.')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
-    print('exposure_fuse,<image_prefix>\t\t\tFile name to include in the exposure fusion stack.')
-    print('color_correction,mean\t\t\t\tAdjust colors of all lenses using the mean between lenses.')
-    print('color_correction,seams,<dist_deg>\t\t\tUse the mean between lenses, but fade the effect from the seam.')
-    print('contrast_equlization,<clip>,<gridx>,<gridy>\t\tEnable adaptive hsv-value histogram equalization.')
+    print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
+    print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
+    print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
+    print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
+    print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
+    print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
     print('lens,<1-8>,<x_pixels>,<y_pixels>\tThe center of the fisheye for each lens.')
     print('\n')
 
@@ -50,11 +55,22 @@ class ProgramOptions:
         self.display = {}
         self.read_equation = ''
         self.write_equation = ''
+        self.image_override = ''
+        self.format = []
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hw:r:vc:',
-            ['help', 'write-equation=', 'read-equation=', 'config=', 'verbose', 'display='])
+            'd:hw:r:vc:i:f:',
+            [
+                'help',
+                'image=',
+                'format=',
+                'write-equation=',
+                'read-equation=',
+                'config=',
+                'verbose',
+                'display='
+            ])
 
         for o, a in options:
             if o in ("-c", "--config"):
@@ -65,15 +81,19 @@ class ProgramOptions:
                 self.read_equation = a
             elif o in ("-w", "--write-equation"):
                 self.write_equation = a
+            elif o in ("-i", "--image"):
+                self.image_override = a
+            elif o in ("-f", "--format"):
+                self.format = a.split(",")
             elif o in ("-d", "--display"):
-                for s in a.split('|'):
+                for s in a.split(','):
                     self.display[s] = True
             elif o in ("-h", "--help"):
                 usage()
                 exit(0)
 
     def valid(self):
-        return len(self.config) > 0
+        return len(self.config) > 0 or len(self.image_override) > 0
 
 class AdjustmentCoeffs:
     def __init__(self, fname, debug):
@@ -141,48 +161,76 @@ class Config:
     def __init__(self, file_path):
         self.input = ""
         self.output = ""
-        self.radius = 0
-        self.aperture = 180
-        self.resolution = 1080
-        self.lens_centers = [(0,0)]*8
+        self.radius = 734
+        self.format = {}
+        self.aperture = 179
+        self.resolution = 2160
+        self.lens_centers = [
+            (544,778),
+            (560,778),
+            (500,800),
+            (570,770),
+            (490,830),
+            (580,800),
+            (544,778),
+            (580,800)
+        ]
         self.exposure_match = 0
         self.exposure_fuse = []
         self.color_mean = False
-        self.color_seams = 0
+        self.color_seams = 15 * math.pi / 180
         self.contrast_equ = None
+        self.seam_blend_margin = 5 * math.pi / 180
+        self.seam_pyramid_depth = 0
 
-        f = open(file_path, 'r')
-        for l in f.readlines():
-            cmd = l.strip().split(',')
-            if cmd[0] == 'input' and len(cmd) == 2:
-                self.input = cmd[1]
-            if cmd[0] == 'output' and len(cmd) == 2:
-                self.output = cmd[1]
-            if cmd[0] == 'lens' and len(cmd) == 4:
-                l = int(cmd[1]) - 1
-                self.lens_centers[l] = (int(cmd[2]), int(cmd[3]))
-            if cmd[0] == 'radius' and len(cmd) == 2:
-                self.radius = int(cmd[1])
-            if cmd[0] == 'resolution' and len(cmd) == 2:
+        if len(file_path) > 0:
+            f = open(file_path, 'r')
+            for l in f.readlines():
+                cmd = l.strip().split(',')
+                self.process_line(cmd)
+
+        if len(self.format) == 0:
+            self.format['over-under'] = True
+
+    def process_line(self, cmd):
+        if cmd[0] == 'input' and len(cmd) == 2:
+            self.input = cmd[1]
+        elif cmd[0] == 'output' and len(cmd) == 2:
+            self.output = cmd[1]
+        elif cmd[0] == 'lens' and len(cmd) == 4:
+            l = int(cmd[1]) - 1
+            self.lens_centers[l] = (int(cmd[2]), int(cmd[3]))
+        elif cmd[0] == 'radius' and len(cmd) == 2:
+            self.radius = int(cmd[1])
+        elif cmd[0] == 'resolution' and len(cmd) == 2:
                 self.resolution = int(cmd[1])
-            if cmd[0] == 'exposure_match' and len(cmd) == 2:
+        elif cmd[0] == 'exposure_match' and len(cmd) == 2:
                 self.exposure_match = int(cmd[1])
-            if cmd[0] == 'aperture' and len(cmd) == 2:
+        elif cmd[0] == 'aperture' and len(cmd) == 2:
                 self.aperture = float(cmd[1])
-            if cmd[0] == 'exposure_fuse' and len(cmd) == 2:
+        elif cmd[0] == 'exposure_fuse' and len(cmd) == 2:
                 self.exposure_fuse.append(cmd[1])
-            if cmd[0] == 'color_correction' and len(cmd) >= 2:
-                if cmd[1] == 'mean':
-                    self.color_mean = True
-                    self.color_seams = 0
-                elif cmd[1] == 'seams' and len(cmd) == 3:
-                    self.color_mean = False
-                    self.color_seams = float(cmd[2])
-            if cmd[0] == 'contrast_equilization' and len(cmd) == 4:
-                self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
+        elif cmd[0] == 'color_correction' and len(cmd) > 2:
+            if cmd[1] == 'mean':
+                self.color_mean = True
+                self.color_seams = 0
+            elif cmd[1] == 'seams' and len(cmd) == 3:
+                self.color_mean = False
+                self.color_seams = float(cmd[2]) * math.pi / 180
+        elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
+            self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
+        elif cmd[0] == 'seam' and len(cmd) == 3:
+            if cmd[1] == 'blend':
+                self.seam_blend_margin = float(cmd[2]) * math.pi / 180
+                self.seam_pyramid_depth = 0
+            elif cmd[1] == 'pyramid':
+                self.seam_pyramid_depth = int(cmd[2])
+                self.seam_blend_margin = 0
+        elif cmd[0] == 'format' and len(cmd) == 2:
+                self.format[cmd[1]] = True
 
     def valid(self):
-        return self.input != '' and self.radius != 0
+        return self.input != '' and self.output != ''
 
 def get_middle(img):
     width = img.shape[1]
@@ -206,11 +254,24 @@ def main():
     options = ProgramOptions()
     if not options.valid():
         usage()
+        print('\nERROR: The image file or config must be specified.')
         exit(1)
 
+    # generate the config, if the file is empty a default config is used.
+    # override some of the config options which can be provide by the command line
     config = Config(options.config)
+    if len(options.image_override) > 0:
+        config.input = options.image_override
+        config.output = options.image_override
+
+    if len(options.format) > 0:
+        config.format = {}
+        for c in options.format:
+            config.format[c] = True
+
     if not config.valid():
         usage()
+        print('The config file is invalid, missing input or output.')
         exit(1)
 
     debug = Debug(options)
@@ -232,16 +293,16 @@ def main():
     if len(config.exposure_fuse) > 0:
         for l in range(1, 9):
             print('fusing exposures lens ' + str(l))
-            images_exp = [images[l-1]]
+            images_exp = [get_middle(images[l-1])]
             for exp in config.exposure_fuse:
                 img = cv.imread(exp + '_' + str(l) + '.JPG')
                 img = np.rot90(img)
                 fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
-                images_exp.append(fish.to_equirect())
+                images_exp.append(get_middle(fish.to_equirect()))
 
             mergeMertens = cv.createMergeMertens()
             merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
-            images[l-1] = merged.astype(np.uint8)
+            set_middle(images[l-1], merged.astype(np.uint8))
         if debug.enable('exposure'): plot_lenses(images, '2) Exposures Fused')
 
     if config.exposure_match != 0:
@@ -268,11 +329,13 @@ def main():
         ts = seam._transforms
 
     if config.color_mean:
+        print('computing color mean')
         color = color_correction.ColorCorrection(images, debug)
         cc = color.match_colors(matches)
     elif config.color_seams > 0:
+        print('computing color seam fade')
         color = color_correction.ColorCorrection(images, debug)
-        cc = color.fade_colors(matches, stitches, config.color_seams * math.pi / 180)
+        cc = color.fade_colors(matches, stitches, config.color_seams)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_right = splice.SpliceImages(images[1:8:2], debug)
@@ -293,12 +356,20 @@ def main():
             splice_right.set_color_transform(s, cc[2*s+1])
 
 
-    print('generate left eye')
-    left = splice_left.generate(config.resolution)
-    print('generate right eye')
-    right = splice_right.generate(config.resolution)
+    if config.seam_pyramid_depth > 0:
+        print('generate left eye - pyramid blending')
+        left = splice_left.generate_pyramid(config.resolution, config.seam_pyramid_depth)
+        print('generate right eye - pyramid blending')
+        right = splice_right.generate_pyramid(config.resolution, config.seam_pyramid_depth)
+    elif config.seam_blend_margin >= 0:
+        print('generate left eye - seam blending')
+        left = splice_left.generate_fade(config.resolution, config.seam_blend_margin)
+        print('generate right eye - seam blending')
+        right = splice_right.generate_fade(config.resolution, config.seam_blend_margin)
+
 
     if config.contrast_equ is not None:
+        print('equilizing value histogram')
         clahe = cv.createCLAHE(clipLimit=config.contrast_equ[0], \
                                tileGridSize=config.contrast_equ[1:3])
         combined = np.concatenate([left, right])
@@ -308,10 +379,14 @@ def main():
         left = combined[:left.shape[0]]
         right = combined[left.shape[0]:]
 
+    print('writing output files')
     fvr = FormatVR(left, right)
-    #fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
-    fvr.write_over_under(config.output + '.JPG')
-    #fvr.write_cardboard(config.output + '_gpano.JPG')
+    if 'stereo' in config.format:
+        fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
+    if 'over-under' in config.format:
+        fvr.write_over_under(config.output + '.JPG')
+    if 'gpano' in config.format:
+        fvr.write_cardboard(config.output + '_gpano.JPG')
 
     if options.write_equation != '':
         AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts, matches)

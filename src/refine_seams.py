@@ -159,8 +159,7 @@ class RefineSeams():
             inc = np.full((match.shape[0]), True)
             for i in range(4):
                 if self._debug.enable('sanitize'):
-                    shift = math.pi / 2 if (i % 2 == 1) else 0
-                    shist_pre.add_subplot(4, 4, 4*m+i+1).hist(match[:,2*i+1] - shift)
+                    shist_pre.add_subplot(4, 4, 4*m+i+1).hist(match[:,2*i+1])
                 _, inc_i = self._trim_outliers(match[:,2*i+1], 5)
                 inc = np.logical_and(inc, inc_i)
 

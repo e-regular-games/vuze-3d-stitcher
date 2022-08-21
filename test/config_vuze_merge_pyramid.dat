@@ -1,15 +1,15 @@
 # execute this config file using: ../src/vuze_merge.py -c config_vuze_merge.dat
 
 input,HET_0014
-output,HET_0014_vuze
+output,HET_0014_vuze_pyramid
 format,over-under
 
-resolution,1080
+resolution,1024
 
 aperture,179
 radius,734
 
-seam,blend,3
+seam,pyramid,4
 color_correction,seams,15
 
 lens,1,544,778
