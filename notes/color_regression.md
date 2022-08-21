@@ -41,7 +41,7 @@ Below is an example of the $\Delta\sin(h)$ before and after regression. The lack
 | :----: |
   | <img src="color_regression_linear.png" alt="Lens 1 change in sin(h) in 3d and histogram." width="400px" /> |
 
-The standard deviation of the error between the target value and the approximation $\left{ h_a, s_a, v_a \right}$ for each component of the color is provided below. The mean for each was in most cases zero, or near zero.
+The standard deviation of the error between the target value and the approximation $\left\\{ h_a, s_a, v_a \right\\}$ for each component of the color is provided below. The mean for each was in most cases zero, or near zero.
 
 | Lens | $\sigma_{\sin(h_f)-\sin(h_a)}$ | $\sigma_{\cos(h_f)-\cos(h_a)}$ | $\sigma_{s_f-s_a}$ | $\sigma_{v_f-v_a}$ |
 | ----- | ----- | ----- | ----- | ----- |
@@ -58,7 +58,7 @@ The standard deviation of the error between the target value and the approximati
 
 Some scenes have too few feature points in order to compute accurate transformation coefficients for the coordinate and color adjustments. Given that the same camera is used and leveled for each scene, it should be possible to apply the coefficients determined in one scene to another scene. The coefficients are saved to a file and this file can be read in during processing of a second scene. Reading the saved coefficients bypasses the feature dectection and regression steps for coordinate transforms. The color adjustment regression must still be performed using the matching feature points from the previous image.
 
-### Enter Lens Color Correction
+### Entire Lens Color Correction
 
 The color correction applied to the images from the woods removes the appearance of seam lines almost entirely. There is a slight color distortion introduced in the green leaves. Some of the leaves now appear more yellow in color.
 
