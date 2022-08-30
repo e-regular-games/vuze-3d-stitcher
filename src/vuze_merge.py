@@ -153,9 +153,15 @@ class Debug:
     def __init__(self, options):
         self.display = options.display
         self.verbose = options.verbose
+        self._figures = {}
 
     def enable(self, opt):
         return opt in self.display and self.display[opt]
+
+    def figure(self, id, reset=False):
+        if id not in self._figures or reset:
+            self._figures[id] = plt.figure()
+        return self._figures[id]
 
 class Config:
     def __init__(self, file_path):
@@ -178,10 +184,12 @@ class Config:
         self.exposure_match = 0
         self.exposure_fuse = []
         self.color_mean = False
+        self.color_kmeans = False
         self.color_seams = 15 * math.pi / 180
         self.contrast_equ = None
         self.seam_blend_margin = 5 * math.pi / 180
         self.seam_pyramid_depth = 0
+        self.denoise = ()
 
         if len(file_path) > 0:
             f = open(file_path, 'r')
@@ -203,20 +211,32 @@ class Config:
         elif cmd[0] == 'radius' and len(cmd) == 2:
             self.radius = int(cmd[1])
         elif cmd[0] == 'resolution' and len(cmd) == 2:
-                self.resolution = int(cmd[1])
+            self.resolution = int(cmd[1])
         elif cmd[0] == 'exposure_match' and len(cmd) == 2:
-                self.exposure_match = int(cmd[1])
+            self.exposure_match = int(cmd[1])
         elif cmd[0] == 'aperture' and len(cmd) == 2:
-                self.aperture = float(cmd[1])
+            self.aperture = float(cmd[1])
+        elif cmd[0] == 'denoise' and len(cmd) == 4:
+            self.denoise = (int(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'exposure_fuse' and len(cmd) == 2:
-                self.exposure_fuse.append(cmd[1])
-        elif cmd[0] == 'color_correction' and len(cmd) > 2:
+            self.exposure_fuse.append(cmd[1])
+        elif cmd[0] == 'color_correction' and len(cmd) >= 2:
             if cmd[1] == 'mean':
                 self.color_mean = True
                 self.color_seams = 0
+                self.color_kmeans = False
+            elif cmd[1] == 'kmeans':
+                self.color_mean = False
+                self.color_seams = 0
+                self.color_kmeans = True
             elif cmd[1] == 'seams' and len(cmd) == 3:
                 self.color_mean = False
                 self.color_seams = float(cmd[2]) * math.pi / 180
+                self.color_kmeans = False
+            elif cmd[1] == 'none':
+                self.color_mean = False
+                self.color_seams = 0
+                self.color_kmeans = False
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:
@@ -288,7 +308,7 @@ def main():
         fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
         images.append(fish.to_equirect())
 
-    if debug.enable('fisheye'): plot_lenses(images, '1) Equirectangular')
+    if debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
 
     if len(config.exposure_fuse) > 0:
         for l in range(1, 9):
@@ -303,7 +323,7 @@ def main():
             mergeMertens = cv.createMergeMertens()
             merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
             set_middle(images[l-1], merged.astype(np.uint8))
-        if debug.enable('exposure'): plot_lenses(images, '2) Exposures Fused')
+        if debug.enable('exposure'): plot_lenses(images, 'Exposures Fused')
 
     if config.exposure_match != 0:
         print('matching exposure')
@@ -313,7 +333,20 @@ def main():
             if i != (config.exposure_match - 1):
                 mid = get_middle(images[i])
                 set_middle(images[i], exposure.match_histograms(mid, ref, channel_axis=2))
-        if debug.enable('exposure'): plot_lenses(images, '3) Exposures Matched')
+        if debug.enable('exposure'): plot_lenses(images, 'Exposures Matched')
+
+    if len(config.denoise) == 3:
+        print('denoising images')
+        for i, img in enumerate(images):
+            mid = get_middle(img)
+            midd = cv.fastNlMeansDenoisingColored(mid, None, \
+                                                  config.denoise[0], \
+                                                  config.denoise[0], \
+                                                  config.denoise[1], \
+                                                  config.denoise[2])
+            set_middle(images[i], midd)
+
+        if debug.enable('denoise'): plot_lenses(images, 'Denoise')
 
     stitches = []
     ts = []
@@ -331,11 +364,15 @@ def main():
     if config.color_mean:
         print('computing color mean')
         color = color_correction.ColorCorrection(images, debug)
-        cc = color.match_colors(matches)
+        cc = color.match_colors(matches, stitches)
     elif config.color_seams > 0:
         print('computing color seam fade')
         color = color_correction.ColorCorrection(images, debug)
         cc = color.fade_colors(matches, stitches, config.color_seams)
+    elif config.color_kmeans:
+        print('computing color mean - kmeans')
+        color = color_correction.ColorCorrection(images, debug)
+        cc = color.match_colors_kmeans(matches, stitches)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_right = splice.SpliceImages(images[1:8:2], debug)

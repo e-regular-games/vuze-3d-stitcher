@@ -64,7 +64,7 @@ def equirect_points(resolution):
 
     return eq
 
-def eqr_interp(eqr, img):
+def eqr_interp(eqr, img, method=cv.INTER_CUBIC):
     l = eqr.shape[0]
     s = math.floor(math.sqrt(l) + 1)
     padding = np.zeros(s*s - l, dtype=np.float32)
@@ -72,5 +72,7 @@ def eqr_interp(eqr, img):
     x = np.concatenate([eqr[:, 0], padding]).reshape(s, s).astype(np.float32)
     y = np.concatenate([eqr[:, 1], padding]).reshape(s, s).astype(np.float32)
 
-    pixels = cv.remap(img, x, y, cv.INTER_CUBIC, borderMode=cv.BORDER_WRAP)
-    return pixels.reshape(s * s, 3)[:l,:]
+    pixels = cv.remap(img, x, y, method, borderMode=cv.BORDER_WRAP)
+    if len(img.shape) > 2:
+        return pixels.reshape(s * s, img.shape[-1])[:l]
+    return pixels.reshape(s * s)[:l]

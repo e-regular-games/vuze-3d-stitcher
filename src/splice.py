@@ -116,7 +116,7 @@ class SpliceImages():
             pixels = coordinates.eqr_interp(local_pts_eqr, images[s])
             if self._color_transforms[s] is not None:
                 pixels = self._color_transforms[s] \
-                             .correct_bgr(pixels, pts[:,0:2] - [0, math.pi])
+                             .correct_bgr(pixels, pts[:,0:2] - [0, math.pi], local_pts_polar[:,0:2])
             result[local_pts_eqr[:,2].astype(np.int)] += (pixels * pts[:,3:4]).astype(np.uint8)
 
         return result.reshape(shape)
