@@ -5,12 +5,12 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 
 def choose_closest(r, x):
-    final = r[:,0]
-    delta = np.absolute(r[:,0] - x)
-    for i in range(1, r.shape[1]):
-        pick = np.absolute(r[:,i] - x) < delta
-        final[pick] = r[:,i][pick]
-        delta[pick] = np.absolute(r[:,i] - x)[pick]
+    final = r[...,0]
+    delta = np.absolute(r[...,0] - x)
+    for i in range(1, r.shape[-1]):
+        pick = np.absolute(r[...,i] - x) < delta
+        final[pick] = r[...,i][pick]
+        delta[pick] = np.absolute(r[...,i] - x)[pick]
     return final
 
 # where all inputs are np.array objects
@@ -22,16 +22,16 @@ def cubic_roots(a, b, c, d):
 
     D = np.ones(ds.shape)*b/(3*a)
 
-    root = np.zeros((ds.shape[0],3))
+    root = np.zeros(ds.shape + (3,))
 
     s = ds > 0
     if np.count_nonzero(s) > 0:
-        root[s,:] = (np.cbrt(-q[s]/2 - np.sqrt(ds[s])) + np.cbrt(-q[s]/2 + np.sqrt(ds[s])) - D[s])[:,None] * np.ones((ds.shape[0],3))[s,:]
+        root[s,:] = (np.cbrt(-q[s]/2 - np.sqrt(ds[s])) + np.cbrt(-q[s]/2 + np.sqrt(ds[s])) - D[s])[...,None] * np.ones((root.shape))[s,:]
 
     m = np.logical_and(ds == 0, p != 0)
     if np.count_nonzero(m) > 0:
         root[m,0] = 3*q[m]/p[m]
-        root[m,1:3] = -3*q[m]/(2*p[m])[:,None] * np.ones((ds.shape[0],2))[m,:]
+        root[m,1:3] = -3*q[m]/(2*p[m])[...,None] * np.ones(ds.shape + (2,))[m,:]
 
     t = np.logical_and(ds < 0, p < 0)
     if np.count_nonzero(t) > 0:
@@ -43,20 +43,20 @@ def cubic_roots(a, b, c, d):
 def quadratic_roots(a, b, c):
     C = b * b - 4 * a * c
 
-    res = np.zeros((C.shape[0], 2))
-    res[:,0] = (-b + np.sqrt(C)) / (2 * a)
-    res[:,1] = (-b - np.sqrt(C)) / (2 * a)
+    res = np.zeros(C.shape + (2,))
+    res[...,0] = (-b + np.sqrt(C)) / (2 * a)
+    res[...,1] = (-b - np.sqrt(C)) / (2 * a)
     return res
 
 def roots(c, x):
     if c.shape[1] == 4:
-        rts = cubic_roots(c[:,3], c[:,2], c[:,1], c[:,0])
+        rts = cubic_roots(c[...,3], c[...,2], c[...,1], c[...,0])
         return choose_closest(rts, x)
     elif c.shape[1] == 3:
-        rts = quadratic_roots(c[:,2], c[:,1], c[:,0])
+        rts = quadratic_roots(c[...,2], c[...,1], c[...,0])
         return choose_closest(rts, x)
     elif c.shape[1] == 2:
-        return -c[:,0] / c[:,1]
+        return -c[...,0] / c[...,1]
 
 class Transform():
     """
@@ -93,14 +93,14 @@ class Transform():
     def _reverse(self, x1f, x2, order, c):
         cnt = order + 1
 
-        coeffs = c * np.ones((x1f.shape[0], c.shape[0]))
-        coeffs[:,0] -= x1f
-        coeffs[:,1] += 1
+        coeffs = c * np.ones(x1f.shape + (cnt * cnt,))
+        coeffs[...,0] -= x1f
+        coeffs[...,1] += 1
 
-        C = np.zeros((x1f.shape[0], cnt))
+        C = np.zeros(x1f.shape + (cnt,))
         for t in range(cnt):
             for p in range(cnt):
-                C[:,p] += coeffs[:,t*cnt+p] * np.power(x2, t)
+                C[...,p] += coeffs[...,t*cnt+p] * np.power(x2, t)
 
         # compute the original x1
         return roots(C, x1f)
@@ -159,10 +159,10 @@ class Transform():
 
     def reverse_theta_c(self, c):
         r = c.copy()
-        phi = r[:,0] - math.pi / 2
-        theta = r[:,1] - math.pi
+        phi = r[...,0] - math.pi / 2
+        theta = r[...,1] - math.pi
 
-        r[:,1] = self._reverse(theta, phi, self.theta_coeffs_order, self.theta_coeffs) + math.pi
+        r[...,1] = self._reverse(theta, phi, self.theta_coeffs_order, self.theta_coeffs) + math.pi
         return r
 
     def calculate_phi_c(self, c_0, c_1):
@@ -180,10 +180,10 @@ class Transform():
 
     def reverse_phi_c(self, c):
         r = c.copy()
-        phi = r[:,0] - math.pi / 2
-        theta = r[:,1] - math.pi
+        phi = r[...,0] - math.pi / 2
+        theta = r[...,1] - math.pi
 
-        r[:,0] = self._reverse(phi, theta, self.phi_coeffs_order, self.phi_coeffs) + math.pi / 2
+        r[...,0] = self._reverse(phi, theta, self.phi_coeffs_order, self.phi_coeffs) + math.pi / 2
         return r
 
     def apply(self, c):

@@ -240,6 +240,10 @@ class RefineSeams():
             c = 4 * (i % 2) # column within the matched set of 4 images.
             target = self._transforms[l].apply(matches[m][:,c:c+2])
 
+            if target.shape[0] == 0:
+                seams.append([])
+                continue
+
             target = target[target[:,0] < math.pi]
             target = target[target[:,0].argsort()]
             target = np.concatenate([np.array([[0, target[0,1]]]), target, np.array([[math.pi, target[-1,1]]])])

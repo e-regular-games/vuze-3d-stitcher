@@ -42,6 +42,7 @@ def usage():
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
     print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
+    print('color_correction,kmeans,<num>\tCompute the adjustment based on the kmeans colors.')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -184,7 +185,7 @@ class Config:
         self.exposure_match = 0
         self.exposure_fuse = []
         self.color_mean = False
-        self.color_kmeans = False
+        self.color_kmeans = 0
         self.color_seams = 15 * math.pi / 180
         self.contrast_equ = None
         self.seam_blend_margin = 5 * math.pi / 180
@@ -224,11 +225,11 @@ class Config:
             if cmd[1] == 'mean':
                 self.color_mean = True
                 self.color_seams = 0
-                self.color_kmeans = False
-            elif cmd[1] == 'kmeans':
+                self.color_kmeans = 0
+            elif cmd[1] == 'kmeans' and len(cmd) == 3:
                 self.color_mean = False
                 self.color_seams = 0
-                self.color_kmeans = True
+                self.color_kmeans = int(cmd[2])
             elif cmd[1] == 'seams' and len(cmd) == 3:
                 self.color_mean = False
                 self.color_seams = float(cmd[2]) * math.pi / 180
@@ -236,7 +237,7 @@ class Config:
             elif cmd[1] == 'none':
                 self.color_mean = False
                 self.color_seams = 0
-                self.color_kmeans = False
+                self.color_kmeans = 0
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:
@@ -355,6 +356,10 @@ def main():
     if options.read_equation != '':
         print('loading seams')
         stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
+        seam = refine_seams.RefineSeams(images, debug)
+        _, matches_new = seam.align()
+        for i, m in enumerate(matches):
+            matches[i] = np.concatenate([m, matches_new[i]], axis=0)
     else:
         print('computing seams')
         seam = refine_seams.RefineSeams(images, debug)
@@ -369,10 +374,10 @@ def main():
         print('computing color seam fade')
         color = color_correction.ColorCorrection(images, debug)
         cc = color.fade_colors(matches, stitches, config.color_seams)
-    elif config.color_kmeans:
+    elif config.color_kmeans > 0:
         print('computing color mean - kmeans')
         color = color_correction.ColorCorrection(images, debug)
-        cc = color.match_colors_kmeans(matches, stitches)
+        cc = color.match_colors_kmeans(matches, stitches, config.color_kmeans)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_right = splice.SpliceImages(images[1:8:2], debug)

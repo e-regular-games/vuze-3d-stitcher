@@ -18,6 +18,15 @@ def eqr_to_polar(c, shape):
     theta = c[:, 0:1] / w * shape[1] / shape[0] * math.pi;
     return np.concatenate([phi, theta], axis=-1)
 
+# @param c a 3D matrix with N rows and M columns of (x, y) pairs
+# @returns a 3D matrix with N rows and M columns of (phi, theta) pairs
+def eqr_to_polar_3d(c):
+    w = c.shape[1] - 1
+    h = c.shape[0] - 1
+    phi = (c[:,:,1:2] / h) * math.pi;
+    theta = c[:,:,0:1] / w * c.shape[1] / c.shape[0] * math.pi;
+    return np.concatenate([phi, theta], axis=-1)
+
 # @param c a matrix with N rows and 2 columns, (phi, theta)
 # @param r the radius to use during the conversion to cartesian.
 # @returns a matrix with N rows and 3 columns, (x, y, z)
@@ -38,6 +47,15 @@ def polar_to_eqr(c, shape):
     r[:, 0] = w * c[:, 1] / math.pi * shape[0] / shape[1]
     r[:, 1] = h * (c[:, 0] / math.pi)
     return r
+
+# @param c a 3d matrix with N rows and M columns of (phi, theta) pairs
+# @returns a 3d matrix with N rows and M columns of (x, y) pairs
+def polar_to_eqr_3d(c):
+    w = c.shape[1] - 1
+    h = c.shape[0] - 1
+    x = w * c[:,:,1:2] / math.pi * c.shape[0] / c.shape[1]
+    y = h * (c[:,:,0:1] / math.pi)
+    return np.concatenate([x, y], axis=-1)
 
 # @param c a matrix with N rows and 3 columns, (x, y, z)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -76,3 +94,6 @@ def eqr_interp(eqr, img, method=cv.INTER_CUBIC):
     if len(img.shape) > 2:
         return pixels.reshape(s * s, img.shape[-1])[:l]
     return pixels.reshape(s * s)[:l]
+
+def eqr_interp_3d(eqr, img, method=cv.INTER_CUBIC):
+    return cv.remap(img, eqr[...,:,0], eqr[...,:,1], method, borderMode=cv.BORDER_WRAP)

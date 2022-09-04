@@ -42,26 +42,26 @@ class SpliceImages():
         self._st_slopes[idx] = slope
         self._st_offset[idx] = offset
 
+    # polar is assumed to be an N x M x 2 matrix with each row
+    # having the same value of phi.
     def _compute_left_side(self, polar, idx, margin):
         slope = self._st_slopes[idx]
         offset = self._st_offset[idx]
 
-        seam_theta = np.zeros(polar.shape[0])
+        seam_theta = np.zeros((polar.shape[0]))
+        phi = polar[:,0,0:1]
+        phi_n = phi.shape[0]
+        slope_n = slope.shape[0]
 
-        COMP_SIZE = 1000000
-        for i in range(0, polar.shape[0], COMP_SIZE):
-            p = polar[i:i+COMP_SIZE,:]
-            f_mat = np.ones((p.shape[0], slope.shape[0] + 1)) * self._stitches[idx][:, 0]
-            in_range = np.logical_and(p[:,0:1] < f_mat[:,1:], p[:,0:1] >= f_mat[:,:-1])
+        f_mat = np.ones((phi_n, slope_n + 1)) * self._stitches[idx][:, 0]
+        in_range = np.logical_and(phi < f_mat[:,1:], phi >= f_mat[:,:-1])
+        f_slope = (np.ones((phi_n, slope_n)) * slope)[in_range]
+        f_offset = (np.ones((phi_n, offset.shape[0])) * offset)[in_range]
 
-            f_slope = (np.ones((p.shape[0], slope.shape[0])) * slope)[in_range]
-            f_offset = (np.ones((p.shape[0], offset.shape[0])) * offset)[in_range]
+        in_range = np.any(in_range, axis=1)
+        seam_theta[in_range] = phi[in_range,0] * f_slope + f_offset
 
-            in_range = np.any(in_range, axis=1)
-
-            seam_theta[i:i+COMP_SIZE][in_range] = p[in_range,0] * f_slope + f_offset
-
-        delta = seam_theta - polar[:,1]
+        delta = seam_theta.reshape((phi_n,1)) - polar[:,:,1]
         if margin == 0:
             delta[delta >= 0] = 1
             delta[delta < 0] = 0
@@ -87,39 +87,40 @@ class SpliceImages():
             f = left * right
 
         flt = f > 0
-        f = f.reshape(f.shape[0], 1)
-        indices = np.arange(0, polar.shape[0]).reshape(polar.shape[0], 1)
-        return np.concatenate([polar.copy()[flt], indices[flt], f[flt]], axis=-1)
+        return f, flt
 
     def _generate(self, v_res, images, margin):
         shape = (v_res, 2 * v_res, 3)
-        px_count = shape[1] * shape[0]
-        eq = np.zeros((px_count, 2), dtype=np.float)
+        mesh = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
+        eq = np.concatenate([x.reshape((x.shape[0], x.shape[1], 1)) for x in mesh], axis=2)
 
-        x_range = range(shape[1])
-        y_range = range(shape[0])
-        for y in y_range:
-            for x in x_range:
-                i = y * len(x_range) + x
-                eq[i] = [x, y]
-
-        polar = coordinates.eqr_to_polar(eq, shape)
-        result = np.zeros((px_count, 3), dtype=np.uint8)
+        polar = coordinates.eqr_to_polar_3d(eq)
+        result = np.zeros(shape, dtype=np.uint8)
         for s in range(len(self._stitches)):
             print('compute segment ' + str(s))
-            pts = self._filter_to_stitch(polar, s, margin)
-            pts[:,1] -= s * math.pi / 2
-            pts[:,1] += math.pi
-            pts[:,1] = pts[:,1] % (2 * math.pi)
-            local_pts_polar = self._transforms[s].reverse(pts)
-            local_pts_eqr = coordinates.polar_to_eqr(local_pts_polar, images[s].shape)
-            pixels = coordinates.eqr_interp(local_pts_eqr, images[s])
+            global_pts_polar = polar.copy()
+            local_pts_polar = np.zeros(polar.shape)
+            local_pts_eqr = np.zeros(polar.shape)
+            pixels = np.zeros(polar.shape[:-1] + (3,))
+            weight, flt = self._filter_to_stitch(polar, s, margin)
+
+            global_pts_polar[flt,1] -= s * math.pi / 2
+            global_pts_polar[flt,1] += math.pi
+            global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
+            local_pts_polar[flt] = self._transforms[s].reverse(global_pts_polar[flt])
+            local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], shape)
+            pixels[flt] = coordinates.eqr_interp(local_pts_eqr[flt], images[s])
             if self._color_transforms[s] is not None:
                 pixels = self._color_transforms[s] \
-                             .correct_bgr(pixels, pts[:,0:2] - [0, math.pi], local_pts_polar[:,0:2])
-            result[local_pts_eqr[:,2].astype(np.int)] += (pixels * pts[:,3:4]).astype(np.uint8)
+                             .correct_bgr(pixels, \
+                                          global_pts_polar[...,0:2] - [0, math.pi], \
+                                          local_pts_polar[...,0:2])
 
-        return result.reshape(shape)
+
+            n = np.count_nonzero(flt)
+            result[flt] += (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
+
+        return result
 
     def generate(self, v_res):
         return self._generate(v_res, self._images, 0)
