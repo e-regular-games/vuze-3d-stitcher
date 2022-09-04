@@ -20,7 +20,6 @@ class RefineSeams():
         self._images = images
         self._transforms = []
         self._feature_points = []
-        self._color_corrections = []
         self._debug = debug
 
         self.seam_points = 50
@@ -30,8 +29,6 @@ class RefineSeams():
             t = transform.Transform(debug)
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
-            c = color_correction.ColorCorrection(images, debug)
-            self._color_corrections.append(c)
 
     def _match_between_eyes(self, imgs_left, imgs_right, threshold):
         sift = cv.SIFT_create()
@@ -273,47 +270,6 @@ class RefineSeams():
             seams.append(seam)
 
         return seams
-
-    def _match_colors(self, matches):
-        size = 1
-        resolution = 1080
-        colors = []
-        targets = []
-        left = [0, 0, 0, math.pi / 2]
-        fig = plt.figure() if self._debug.enable('color') else None
-        for i, m in enumerate(matches):
-            ll = (2*i-2) % 8
-            lr = 2*i % 8
-            rl = (2*i-1) % 8
-            rr = (2*i+1) % 8
-
-            color = np.zeros((size*size*m.shape[0], 4, 3))
-            color[:,0,:] = self._get_hsv(m[:,0:2], self._images[ll], size, resolution)
-            color[:,1,:] = self._get_hsv(m[:,2:4] - [0, math.pi/2], self._images[lr], size, resolution)
-            color[:,2,:] = self._get_hsv(m[:,4:6], self._images[rl], size, resolution)
-            color[:,3,:] = self._get_hsv(m[:,6:8] - [0, math.pi/2], self._images[rr], size, resolution)
-            colors.append(color)
-            target = color_correction.average_hsv(color)
-            #target = np.mean(color, axis=1)
-            targets.append(target)
-
-            if self._debug.enable('color'):
-                t = target[:,0:3].reshape(target.shape[0], 1, 3)
-                img = np.concatenate([color, t], axis=1).astype(np.uint8)
-                print(img)
-                fig.add_subplot(1, 4, i+1).imshow(cv.cvtColor(img, cv.COLOR_HSV2RGB))
-
-        fig = plt.figure()
-        for i in range(8):
-            l = int(i/2)
-            r = (l+1) % 4
-            cl = 2 * (i % 2) + 1 # column within the matched set of 4 images.
-            cr = 2 * (i % 2) # column within the matched set of 4 images.
-            color = np.concatenate([colors[l][:,cl], colors[r][:,cr]])
-            target = np.concatenate([targets[l], targets[r]])
-            inc = target[:,3] > 0.97
-            self._color_corrections[i].compute_hsv(color[inc], target[inc,:3])
-
 
     # compute the alignment coefficients
     def align(self, match_thres=0.75, err_thres=0.0075):

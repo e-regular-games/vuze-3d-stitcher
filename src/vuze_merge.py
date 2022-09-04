@@ -43,6 +43,7 @@ def usage():
     print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
     print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
     print('color_correction,kmeans,<num>\tCompute the adjustment based on the kmeans colors.')
+    print('color_correction_align,<hue>,<sat_val>\tMinimum alignment for color correction to consider the point correctable.')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -191,6 +192,7 @@ class Config:
         self.seam_blend_margin = 5 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
+        self.color_correction_align = (0.9, 30)
 
         if len(file_path) > 0:
             f = open(file_path, 'r')
@@ -221,6 +223,8 @@ class Config:
             self.denoise = (int(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'exposure_fuse' and len(cmd) == 2:
             self.exposure_fuse.append(cmd[1])
+        elif cmd[0] == 'color_correction_align' and len(cmd) == 3:
+            self.color_correction_align = (float(cmd[1]), float(cmd[2]))
         elif cmd[0] == 'color_correction' and len(cmd) >= 2:
             if cmd[1] == 'mean':
                 self.color_mean = True
@@ -366,17 +370,15 @@ def main():
         stitches, matches = seam.align()
         ts = seam._transforms
 
+    color = color_correction.ColorCorrection(images, config, debug)
     if config.color_mean:
         print('computing color mean')
-        color = color_correction.ColorCorrection(images, debug)
         cc = color.match_colors(matches, stitches)
     elif config.color_seams > 0:
         print('computing color seam fade')
-        color = color_correction.ColorCorrection(images, debug)
         cc = color.fade_colors(matches, stitches, config.color_seams)
     elif config.color_kmeans > 0:
         print('computing color mean - kmeans')
-        color = color_correction.ColorCorrection(images, debug)
         cc = color.match_colors_kmeans(matches, stitches, config.color_kmeans)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
