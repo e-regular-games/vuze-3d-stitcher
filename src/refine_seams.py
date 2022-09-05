@@ -54,6 +54,7 @@ class RefineSeams():
             kp_indices = np.zeros((len(kp[0]), 4), dtype=np.int) - 1
             kp_indices[:, 0] = np.arange(0, len(kp[0]))
             for i in range(1, 4):
+                if des[i] is None or des[0] is None: continue
                 matches[i] = self._determine_matches(des[i], des[0], threshold)
                 for m in matches[i]:
                     kp_indices[m.trainIdx, i] = m.queryIdx
@@ -93,9 +94,9 @@ class RefineSeams():
             return e.distance
 
         good_matches = []
-        for m,n in matches:
-            if m.distance < threshold * n.distance:
-                good_matches.append(m)
+        for ma in matches:
+            if len(ma) == 2 and ma[0].distance < threshold * ma[1].distance:
+                good_matches.append(ma[0])
 
         good_matches.sort(key=by_distance)
         return good_matches

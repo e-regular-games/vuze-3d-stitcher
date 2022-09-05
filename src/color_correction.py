@@ -214,7 +214,7 @@ class ColorTransformArea():
         return i
 
     def compute_hsv_coeffs(self, i, f, c):
-        inc = trim_diff_outliers(i, f, 2, 2, 2)
+        inc = trim_diff_outliers(i, f, 3, 3, 3)
         i = i[inc]
         f = f[inc]
         c = c[inc]
@@ -223,8 +223,10 @@ class ColorTransformArea():
         y = self._arrange_hsv(f, c)
 
         if self._debug[0].enable('color_regression'):
-            ax = self._debug[0].figure('color_regression_0') \
-                                 .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, projection='3d')
+            ax = self._debug[0] \
+                     .figure('color_regression_0') \
+                     .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, \
+                                  projection='3d')
             plot_color_errors(ax, i, f)
 
         Q, R = np.linalg.qr(x)
@@ -233,8 +235,10 @@ class ColorTransformArea():
         y_a = self._correct_hsv(i, c)
 
         if self._debug[0].enable('color_regression'):
-            ax = self._debug[0].figure('color_regression_1') \
-                                 .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, projection='3d')
+            ax = self._debug[0] \
+                     .figure('color_regression_1') \
+                     .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, \
+                                  projection='3d')
             plot_color_errors(ax, y_a, f)
 
         err_i = hsv_error(i, f)
@@ -304,7 +308,6 @@ class ColorTransformKMeansRegression(ColorTransformArea):
         self._debug_h = math.ceil(self._debug_w * 2 / 3)
         self._k = np.zeros((self._num_means, self._x_size, self._x_size))
         self._k_range = np.zeros((self._num_means, 2, 3))
-        self._k_target = np.zeros((self._num_means, 3))
         self._k_valid = np.full((self._num_means), False)
 
         self._kmeans_image = None
@@ -336,10 +339,6 @@ class ColorTransformKMeansRegression(ColorTransformArea):
 
     def get_target_hsv(self, i, c):
         return super().get_target_hsv(i, c)
-        #self._kmeans()
-        #c_eqr = coordinates.polar_to_eqr(c, self._image.shape).astype(np.float32)
-        #labels = coordinates.eqr_interp(c_eqr, self._kmeans_label, cv.INTER_NEAREST)
-        #return self._kmeans_center[labels.astype(np.int)]
 
     def compute_hsv_coeffs(self, i, f, c):
         self._kmeans()
@@ -363,14 +362,14 @@ class ColorTransformKMeansRegression(ColorTransformArea):
             inc_c = np.count_nonzero(inc)
             if inc_c == 0: continue
 
-            in_range = np.logical_and(trim_outliers(i[inc], 2.5, 2.5, 2.5),
-                                          trim_outliers(f[inc], 2.5, 2.5, 2.5))
+            in_range = np.logical_and(trim_outliers(i[inc], 2.5, 3, 3),
+                                      trim_outliers(f[inc], 2.5, 3, 3))
             in_range_c = np.count_nonzero(in_range)
 
             if dbg[0].verbose and (inc_c - in_range_c) / inc_c > 0.15:
                 print('trim exceeds 0.15: ', inc_c - in_range_c, inc_c)
 
-            if in_range_c < 100:
+            if in_range_c < 200:
                 print('skip kmean:', l, 'too few inputs:', in_range_c)
                 continue
 
@@ -378,9 +377,8 @@ class ColorTransformKMeansRegression(ColorTransformArea):
 
             err[l] = super().compute_hsv_coeffs(i[inc][in_range], f[inc][in_range], c[inc][in_range])
             self._k[l] = self._c
-            self._k_range[l] = hsv_range(i[inc][in_range], 2, 2, 2)
+            self._k_range[l] = hsv_range(i[inc][in_range], 2.5, 3, 3)
             self._k_valid[l] = True
-            self._k_target[l] = mean_hsv(f[inc][in_range])
 
         if self._debug[0].enable('color_regression_result'):
             fig = self._debug[0].figure('color_regression_result', True)
@@ -393,7 +391,7 @@ class ColorTransformKMeansRegression(ColorTransformArea):
 
         self._debug = dbg
 
-    def correct_hsv(self, hsv, c_global, c_local, weight=None):
+    def correct_hsv(self, hsv, c_global, c_local):
         self._kmeans()
         c_eqr = coordinates.polar_to_eqr_3d(c_local).astype(np.float32)
         labels = coordinates.eqr_interp_3d(c_eqr, self._kmeans_label, cv.INTER_NEAREST)
@@ -403,64 +401,37 @@ class ColorTransformKMeansRegression(ColorTransformArea):
                 .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1) \
                 .hist(labels, self._num_means, [0, self._num_means])
 
-        kernel = np.ones((7,7),np.float32)/(7*7)
-        total_weight = np.ones(hsv.shape[:-1])
-        for l in range(0, self._num_means):
-            inc = labels == l
-            if np.count_nonzero(inc) == 0: continue
-
-            if not self._k_valid[l]:
-                continue
-
-            in_range = np.full(hsv.shape[:-1], False)
-            in_range[inc] = hsv_in_range(hsv[inc], self._k_range[l])
-            weight = np.clip(cv.filter2D(in_range.astype(np.float32), -1, kernel), 0, 1)
-            total_weight[np.logical_not(in_range)] += weight[np.logical_not(in_range)]
-
-        if self._debug[0].enable('color_weight_total'):
-            plt.figure()
-            plt.imshow((total_weight / np.max(total_weight)).reshape(hsv.shape[:-1] + (1,)) * np.ones(hsv.shape))
-
-        fig = self._debug[0].figure('color_weight', True) if self._debug[0].enable('color_weight') else None
-        tnorm = hsv_to_trig_norm(hsv)
-        result = np.zeros(tnorm.shape)
+        delta = np.zeros(hsv.shape[:-1] + (4,))
         corrected = np.zeros((self._num_means))
         for l in range(0, self._num_means):
             inc = labels == l
             if np.count_nonzero(inc) == 0: continue
 
             if not self._k_valid[l]:
-                result[inc] += tnorm[inc] / total_weight[inc].reshape((np.count_nonzero(inc), 1))
                 continue
 
             in_range = np.full(hsv.shape[:-1], False)
             in_range[inc] = hsv_in_range(hsv[inc], self._k_range[l])
+            corrected[l] = np.count_nonzero(in_range)
 
-            weight = np.clip(cv.filter2D(in_range.astype(np.float32),-1,kernel), 0, 1)
-            around_label = np.logical_and(np.logical_not(in_range), weight != 0)
-            base = np.logical_and(inc, np.logical_not(in_range))
+            x = self._arrange_hsv(hsv[in_range], c_local[in_range])
+            dc = np.clip(x @ self._k[l], 0, 1) - x
+            delta[in_range] = dc[:,0:4]
 
-            corrected[l] = np.count_nonzero(weight)
-            self._c = self._k[l]
-
-            if self._debug[0].enable('color_weight'):
-                fig.add_subplot(self._debug_h, self._debug_w, l + 1) \
-                   .imshow((weight).reshape(result.shape[:-1] + (1,)) * np.ones(result.shape))
-
-            hsv_r = super().correct_hsv(hsv[in_range], c_global[in_range], c_local[in_range])
-            result[in_range] += hsv_to_trig_norm(hsv_r) * (weight[in_range] / total_weight[in_range]).reshape((hsv_r.shape[0], 1))
-            result[in_range] += hsv_to_trig_norm(self._k_target[l]) * np.ones((np.count_nonzero(in_range), 4)) \
-                * ((1 - weight[in_range]) / total_weight[in_range]).reshape((np.count_nonzero(in_range), 1))
-            result[around_label] += hsv_to_trig_norm(self._k_target[l]) * np.ones((np.count_nonzero(around_label), 4)) \
-                * (weight[around_label] / total_weight[around_label]).reshape((np.count_nonzero(around_label), 1))
-            result[base] += tnorm[base] / total_weight[base].reshape((np.count_nonzero(base), 1))
+        kernel = np.ones((11,11),np.float32)/(11*11)
+        delta = cv.filter2D(delta, -1, kernel)
+        if self._debug[0].enable('color_delta'):
+            norm = (delta + 1) / 2
+            f = plt.figure()
+            for i in range(4):
+                f.add_subplot(2, 2, i + 1).imshow(norm[...,i:i+1] * np.ones((1, 1, 3)))
 
         if self._debug[0].enable('color_correction'):
             fig = self._debug[0].figure('color_correction')
             fig.add_subplot(2, 4, self._debug[1] + 1) \
                .bar(range(0, self._num_means), corrected, color=hsv_to_rgb_hex(self._kmeans_center))
 
-        return trig_norm_to_hsv(result)
+        return trig_norm_to_hsv(np.clip(hsv_to_trig_norm(hsv) + delta, 0, 1))
 
 class ColorTransitionMeaned(ColorTransformMeaned):
     def __init__(self, image, seam_left, seam_right, debug):
@@ -527,7 +498,7 @@ class ColorCorrection():
             added[:,6:8] = seams[(2*i+1) % 8] + [0, math.pi]
             mm = np.vstack([m, added])
 
-            S = 10
+            S = 5
             for i in range(S):
                 mid = i / S * added[:-1] + (S - i) / S * added[1:]
                 mm = np.vstack([mm, mid])
