@@ -272,8 +272,7 @@ class RefineSeams():
 
         return seams
 
-    # compute the alignment coefficients
-    def align(self, match_thres=0.75, err_thres=0.0075):
+    def matches(self, match_thres=0.75, err_thres=0.0075):
         matches, targets = self._determine_matches_and_targets(match_thres)
         within_error = self._compute_transforms(matches, targets, err_thres)
 
@@ -281,5 +280,10 @@ class RefineSeams():
             closest = within_error[i].all(axis=1)
             matches[i] = matches[i][closest]
 
-        seams = self._compute_seams(matches)
-        return seams, matches
+        return matches
+
+    # compute the alignment coefficients
+    def align(self, match_thres=0.75, err_thres=0.0075):
+        m = self.matches(match_thres, err_thres)
+        seams = self._compute_seams(m)
+        return seams, m

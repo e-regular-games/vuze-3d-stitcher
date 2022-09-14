@@ -23,6 +23,8 @@ def usage():
     print('')
     print('-c,--config\t\tSpecify the config file.')
     print('-i,--image\t\tOverride the input and output config options.')
+    print('-I,--in\t\tOverride the input config option.')
+    print('-O,--out\t\tOverride the output config option.')
     print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
     print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
     print('-r,--read-equation\t\tRead the alignment equation constants to the provided file.')
@@ -42,8 +44,7 @@ def usage():
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
     print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
-    print('color_correction,kmeans,<num>\tCompute the adjustment based on the kmeans colors.')
-    print('color_correction_align,<hue>,<sat_val>\tMinimum alignment for color correction to consider the point correctable.')
+    print('color_correction,kmeans\tCompute the adjustment based on the kmeans colors.')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -58,14 +59,18 @@ class ProgramOptions:
         self.read_equation = ''
         self.write_equation = ''
         self.image_override = ''
+        self.in_override = ''
+        self.out_override = ''
         self.format = []
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hw:r:vc:i:f:',
+            'd:hw:r:vc:i:f:I:O:',
             [
                 'help',
                 'image=',
+                'in=',
+                'out=',
                 'format=',
                 'write-equation=',
                 'read-equation=',
@@ -85,6 +90,10 @@ class ProgramOptions:
                 self.write_equation = a
             elif o in ("-i", "--image"):
                 self.image_override = a
+            elif o in ("-I", "--in"):
+                self.in_override = a
+            elif o in ("-O", "--out"):
+                self.out_override = a
             elif o in ("-f", "--format"):
                 self.format = a.split(",")
             elif o in ("-d", "--display"):
@@ -95,7 +104,9 @@ class ProgramOptions:
                 exit(0)
 
     def valid(self):
-        return len(self.config) > 0 or len(self.image_override) > 0
+        return len(self.config) > 0 or len(self.image_override) > 0 \
+            or (len(self.in_override) > 0 and len(self.out_override) > 0)
+
 
 class AdjustmentCoeffs:
     def __init__(self, fname, debug):
@@ -165,6 +176,12 @@ class Debug:
             self._figures[id] = plt.figure()
         return self._figures[id]
 
+    def cleared(self):
+        disable = ProgramOptions()
+        disable.display = {}
+        disable.verbose = False
+        return Debug(disable)
+
 class Config:
     def __init__(self, file_path):
         self.input = ""
@@ -185,14 +202,12 @@ class Config:
         ]
         self.exposure_match = 0
         self.exposure_fuse = []
-        self.color_mean = False
-        self.color_kmeans = 0
+        self.color_correct = 'kmeans'
         self.color_seams = 15 * math.pi / 180
         self.contrast_equ = None
-        self.seam_blend_margin = 5 * math.pi / 180
+        self.seam_blend_margin = 8 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
-        self.color_correction_align = (0.9, 30)
 
         if len(file_path) > 0:
             f = open(file_path, 'r')
@@ -223,25 +238,10 @@ class Config:
             self.denoise = (int(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'exposure_fuse' and len(cmd) == 2:
             self.exposure_fuse.append(cmd[1])
-        elif cmd[0] == 'color_correction_align' and len(cmd) == 3:
-            self.color_correction_align = (float(cmd[1]), float(cmd[2]))
         elif cmd[0] == 'color_correction' and len(cmd) >= 2:
-            if cmd[1] == 'mean':
-                self.color_mean = True
-                self.color_seams = 0
-                self.color_kmeans = 0
-            elif cmd[1] == 'kmeans' and len(cmd) == 3:
-                self.color_mean = False
-                self.color_seams = 0
-                self.color_kmeans = int(cmd[2])
-            elif cmd[1] == 'seams' and len(cmd) == 3:
-                self.color_mean = False
+            self.color_correct = cmd[1]
+            if cmd[1] == 'seams' and len(cmd) == 3:
                 self.color_seams = float(cmd[2]) * math.pi / 180
-                self.color_kmeans = False
-            elif cmd[1] == 'none':
-                self.color_mean = False
-                self.color_seams = 0
-                self.color_kmeans = 0
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:
@@ -288,6 +288,10 @@ def main():
     if len(options.image_override) > 0:
         config.input = options.image_override
         config.output = options.image_override
+    if len(options.in_override) > 0:
+        config.input = options.in_override
+    if len(options.out_override) > 0:
+        config.output = options.out_override
 
     if len(options.format) > 0:
         config.format = {}
@@ -359,11 +363,10 @@ def main():
     cc = None
     if options.read_equation != '':
         print('loading seams')
-        stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
-        seam = refine_seams.RefineSeams(images, debug)
-        _, matches_new = seam.align()
-        for i, m in enumerate(matches):
-            matches[i] = np.concatenate([m, matches_new[i]], axis=0)
+        stitches, ts, _ = AdjustmentCoeffs(options.read_equation, debug).read()
+        if config.color_correct != 'none':
+            seam = refine_seams.RefineSeams(images, debug)
+            matches = seam.matches()
     else:
         print('computing seams')
         seam = refine_seams.RefineSeams(images, debug)
@@ -371,15 +374,15 @@ def main():
         ts = seam._transforms
 
     color = color_correction.ColorCorrection(images, config, debug)
-    if config.color_mean:
+    if config.color_correct == 'mean':
         print('computing color mean')
         cc = color.match_colors(matches, stitches)
-    elif config.color_seams > 0:
+    elif config.color_correct == 'seams':
         print('computing color seam fade')
         cc = color.fade_colors(matches, stitches, config.color_seams)
-    elif config.color_kmeans > 0:
+    elif config.color_correct == 'kmeans':
         print('computing color mean - kmeans')
-        cc = color.match_colors_kmeans(matches, stitches, config.color_kmeans)
+        cc = color.match_colors_kmeans(matches, stitches)
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_right = splice.SpliceImages(images[1:8:2], debug)

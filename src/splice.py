@@ -45,21 +45,9 @@ class SpliceImages():
     # polar is assumed to be an N x M x 2 matrix with each row
     # having the same value of phi.
     def _compute_left_side(self, polar, idx, margin):
-        slope = self._st_slopes[idx]
-        offset = self._st_offset[idx]
-
-        seam_theta = np.zeros((polar.shape[0]))
         phi = polar[:,0,0:1]
         phi_n = phi.shape[0]
-        slope_n = slope.shape[0]
-
-        f_mat = np.ones((phi_n, slope_n + 1)) * self._stitches[idx][:, 0]
-        in_range = np.logical_and(phi < f_mat[:,1:], phi >= f_mat[:,:-1])
-        f_slope = (np.ones((phi_n, slope_n)) * slope)[in_range]
-        f_offset = (np.ones((phi_n, offset.shape[0])) * offset)[in_range]
-
-        in_range = np.any(in_range, axis=1)
-        seam_theta[in_range] = phi[in_range,0] * f_slope + f_offset
+        seam_theta = coordinates.seam_intersect(self._stitches[idx], phi)
 
         delta = seam_theta.reshape((phi_n,1)) - polar[:,:,1]
         if margin == 0:
@@ -114,7 +102,8 @@ class SpliceImages():
                 pixels = self._color_transforms[s] \
                              .correct_bgr(pixels, \
                                           global_pts_polar[...,0:2] - [0, math.pi], \
-                                          local_pts_polar[...,0:2])
+                                          local_pts_polar[...,0:2],
+                                          flt)
 
 
             n = np.count_nonzero(flt)

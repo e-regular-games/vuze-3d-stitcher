@@ -44,16 +44,17 @@ def polar_to_eqr(c, shape):
     w = shape[1] - 1
     h = shape[0] - 1
     r = c.copy()
-    r[:, 0] = w * c[:, 1] / math.pi * shape[0] / shape[1]
-    r[:, 1] = h * (c[:, 0] / math.pi)
+    r[..., 0] = w * c[..., 1] / math.pi * shape[0] / shape[1]
+    r[..., 1] = h * (c[..., 0] / math.pi)
     return r
 
 # @param c a 3d matrix with N rows and M columns of (phi, theta) pairs
 # @returns a 3d matrix with N rows and M columns of (x, y) pairs
-def polar_to_eqr_3d(c):
-    w = c.shape[1] - 1
-    h = c.shape[0] - 1
-    x = w * c[:,:,1:2] / math.pi * c.shape[0] / c.shape[1]
+def polar_to_eqr_3d(c, shape=None):
+    shape = c.shape if shape is None else shape
+    w = shape[1] - 1
+    h = shape[0] - 1
+    x = w * c[:,:,1:2] / math.pi * shape[0] / shape[1]
     y = h * (c[:,:,0:1] / math.pi)
     return np.concatenate([x, y], axis=-1)
 
@@ -81,6 +82,29 @@ def equirect_points(resolution):
             eq[i, 1] = y
 
     return eq
+
+# determine the theta value for each phi at which the seam
+# is intersected.
+def seam_intersect(seam, phi):
+    s_phi = seam[:, 0]
+    s_theta = seam[:, 1]
+
+    slope = (s_theta[1:] - s_theta[:-1]) / (s_phi[1:] - s_phi[:-1])
+    offset = s_theta[:-1] - slope * s_phi[:-1]
+
+    phi = phi.reshape((phi.shape[0], 1))
+    theta = np.zeros((phi.shape[0]))
+    phi_n = phi.shape[0]
+    slope_n = slope.shape[0]
+
+    f_mat = np.ones((phi_n, slope_n + 1)) * seam[:, 0]
+    in_range = np.logical_and(phi < f_mat[:,1:], phi >= f_mat[:,:-1])
+    f_slope = (np.ones((phi_n, slope_n)) * slope)[in_range]
+    f_offset = (np.ones((phi_n, offset.shape[0])) * offset)[in_range]
+
+    in_range = np.any(in_range, axis=1)
+    theta[in_range] = phi[in_range,0] * f_slope + f_offset
+    return theta
 
 def eqr_interp(eqr, img, method=cv.INTER_CUBIC):
     l = eqr.shape[0]
