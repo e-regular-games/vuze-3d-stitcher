@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
+from scipy.spatial import KDTree
 
 # opencv uses HSV ranges: (0, 179), (0, 255), (0, 255)
 def normal_hsv(hsv):
@@ -449,6 +450,7 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
         self._k = None
         self._k_range = None
         self._k_valid = None
+        self._k_range_den = None
 
         self._kmeans_center = None
         self._kmeans = None
@@ -464,20 +466,14 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
     def _coeffs_for_label(self, i, f, c, flt, transform, center):
         flt_c = np.count_nonzero(flt)
         if flt_c < 100:
-            return np.sum(hsv_error(i[flt], f[flt])), False, 0, 0
+            return np.sum(hsv_error(i[flt], f[flt])), False, None, 0
 
         err = transform.compute_hsv_coeffs(i[flt], f[flt], c[flt])
 
-        d = hsv_to_trig_norm(i[flt]) - hsv_to_trig_norm(center)
-        dist = np.sqrt(np.sum(d * d, axis=-1))
-        lim_d = bottom_nth(dist, 0.9)
-
-        area = self.get_uncorrected_hsv_area(c[flt])
-        da = hsv_to_trig_norm(area) - hsv_to_trig_norm(i[flt])
-        dist_a = np.sqrt(np.sum(da * da, axis=-1))
-        lim_da = bottom_nth(dist_a, 0.9)
-
-        return np.sum(err), True, lim_d, lim_da
+        tnorm = hsv_to_trig_norm(i[flt])
+        kdt = KDTree(tnorm)
+        knn = np.array(kdt.query_ball_point(tnorm, 0.1, return_length=True))
+        return np.sum(err), True, kdt, np.max(knn)
 
     def compute_hsv_coeffs(self, i, f, c):
         if self._debug[0].verbose:
@@ -491,11 +487,12 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
             errs = np.zeros((n))
             k = np.zeros((n, self._x_size, self._x_size))
             valid = np.full((n), False)
-            rg = np.zeros((n, 2))
+            rg = [None] * n
+            rg_den = [0] * n
 
             for l in range(0, n):
                 inc = labels == l
-                errs[l], valid[l], rg[l,0], rg[l,1] = self._coeffs_for_label(i, f, c, inc, self._temp_transform, centers[l])
+                errs[l], valid[l], rg[l], rg_den[l] = self._coeffs_for_label(i, f, c, inc, self._temp_transform, centers[l])
                 k[l] = self._temp_transform._c
 
             if best is None or best[1] > np.sum(errs) / i.shape[0]:
@@ -505,6 +502,7 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
                 self._k_valid = valid
                 self._kmeans = kmeans
                 self._k_range = rg
+                self._k_range_den = rg_den
             n += 1
 
         if self._debug[0].verbose:
@@ -531,13 +529,18 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
         tnorm = hsv_to_trig_norm(cv.filter2D(hsv, -1, avg_5))
 
         labels = np.full(hsv.shape[:-1], -1) # use -1 because labels can be 0
-
+        weight = np.zeros(hsv.shape[:-1])
         labels[flt] = self._kmeans.predict(tnorm[flt])
-        diff = tnorm[flt] - hsv_to_trig_norm(self._kmeans_center)[labels[flt]]
-        dist = np.sqrt(np.sum(diff * diff, axis=-1))
-        outlier = np.full(hsv.shape[:-1], False)
-        outlier[flt] = dist >= self._k_range[labels[flt],0]
-        labels[outlier] = -1
+        for l in range(self._num_means):
+            flt_l = labels == l
+            out_range = np.full(labels.shape, False)
+            if self._k_range[l] is not None:
+                density = np.array(self._k_range[l].query_ball_point(tnorm[flt_l], 0.1, return_length=True))
+                density = density / self._k_range_den[l]
+                density[density > 1] = 1
+                weight[flt_l] = density
+                out_range[flt_l] = density < 0.1
+            labels[out_range] = -1
 
         if self._debug[0].enable('color_correction'):
             _, _, bars = self._debug[0] \
@@ -549,21 +552,18 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
                 if j == 0: continue # first bar is the non-labeled
                 b.set_facecolor(colors[j-1])
 
+        if self._debug[0].enable('color_correction'):
+            self._debug[0].figure('color_correction_weight') \
+                          .add_subplot(2, 4, self._debug[1] + 1) \
+                          .imshow(weight.reshape(weight.shape + (1,)) * np.ones((1, 1, 3)))
+
         delta = np.zeros(hsv.shape[:-1] + (4,))
         corrected = np.zeros((self._num_means))
-        for l in range(0, self._num_means):
+        for l in range(self._num_means):
             if not self._k_valid[l]:
                 continue
 
             in_range = labels == l
-            if np.count_nonzero(in_range) == 0:
-                continue
-
-            area = self.get_uncorrected_hsv_area(c_local[in_range])
-            da = hsv_to_trig_norm(area) - tnorm[in_range]
-            dist_a = np.sqrt(np.sum(da * da, axis=-1))
-            in_range[in_range] = dist_a < self._k_range[l,1]
-
             if np.count_nonzero(in_range) == 0:
                 continue
 
@@ -578,8 +578,8 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
 
             x = self._arrange_hsv(trig_norm_to_hsv(tnorm[in_range]), c_local[in_range])
             dc = np.clip(x @ self._k[l], 0, 1) - x
-            #delta[in_range] = weight.reshape((dc.shape[0], 1)) * dc[:,0:4]
-            delta[in_range] = dc[:,0:4]
+            delta[in_range] = weight.reshape(weight.shape + (1,))[in_range] * dc[:,0:4]
+            #delta[in_range] = dc[:,0:4]
 
         kernel = np.ones((11,11),np.float32)/(11*11)
         delta = cv.filter2D(delta, -1, kernel)
@@ -711,7 +711,7 @@ class ColorCorrection():
             p += 3-o
 
 
-        k = 10
+        k = 15
         kmeans = KMeans(n_clusters=k, random_state=0).fit(dist)
         labels = kmeans.labels_
         centers = kmeans.cluster_centers_
@@ -722,7 +722,7 @@ class ColorCorrection():
         for center in centers_sorted:
             centers_keep.append(center)
             kept += np.count_nonzero(labels == center)
-            if kept > 0.3 * labels.shape[0]:
+            if kept > 0.5 * labels.shape[0]:
                 break
 
         centers_keep = np.array(centers_keep)
