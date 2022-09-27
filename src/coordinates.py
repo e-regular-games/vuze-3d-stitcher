@@ -120,4 +120,7 @@ def eqr_interp(eqr, img, method=cv.INTER_CUBIC):
     return pixels.reshape(s * s)[:l]
 
 def eqr_interp_3d(eqr, img, method=cv.INTER_CUBIC):
-    return cv.remap(img, eqr[...,:,0], eqr[...,:,1], method, borderMode=cv.BORDER_WRAP)
+    return cv.remap(img, \
+                    eqr[...,:,0].astype(np.float32), \
+                    eqr[...,:,1].astype(np.float32), \
+                    method, borderMode=cv.BORDER_WRAP)

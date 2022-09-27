@@ -373,7 +373,7 @@ def main():
         stitches, matches = seam.align()
         ts = seam._transforms
 
-    color = color_correction.ColorCorrection(images, config, debug)
+    color = color_correction.ColorCorrectionRegion(images, ts, config, debug)
     if config.color_correct == 'mean':
         print('computing color mean')
         cc = color.match_colors(matches, stitches)
