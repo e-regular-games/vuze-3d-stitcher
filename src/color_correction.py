@@ -2,6 +2,7 @@
 
 import coordinates
 import cv2 as cv
+from datetime import datetime
 import math
 import numpy as np
 from matplotlib import pyplot as plt
@@ -10,6 +11,14 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
 from scipy.spatial import KDTree
 from skimage.exposure import match_histograms
+
+class StopWatch():
+    def __init__(self, name):
+        self._a = datetime.now()
+        self._name = name
+
+    def stop(self):
+        print(self._name, datetime.now() - self._a)
 
 # opencv uses HSV ranges: (0, 179), (0, 255), (0, 255)
 def normal_hsv(hsv):
@@ -218,7 +227,7 @@ class ColorTransform():
         densities = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
         self._range_max_density = bottom_nth(densities, 0.25)
 
-        y_a = self._correct_hsv(i, c)
+        y_a = trig_norm_to_hsv(self._delta_tnorm(x[:,:4], c) + x[:,:4])
 
         if self._debug[0].enable('color_regression'):
             ax = self._debug[0] \
@@ -235,9 +244,10 @@ class ColorTransform():
         return hsv_error(y_a, f)
 
     def correct_hsv(self, hsv, c_global, c_local, flt):
-        tnorm = hsv_to_trig_norm(hsv)
-        delta = np.zeros(tnorm.shape)
-        delta[flt] = hsv_to_trig_norm(self._correct_hsv(hsv[flt], c_local[flt])) - tnorm[flt]
+        return trig_norm_to_hsv(self.correct_tnorm(hsv_to_trig_norm(hsv), c_global, c_local, flt))
+
+    def correct_tnorm(self, tnorm, c_global, c_local, flt):
+        delta = self.delta_tnorm(tnorm, c_global, c_local, flt)
 
         kernel = np.ones((11,11),np.float32)/(11*11)
         delta = cv.filter2D(delta, -1, kernel)
@@ -247,29 +257,41 @@ class ColorTransform():
             for i in range(4):
                 f.add_subplot(2, 2, i + 1).imshow(norm[...,i:i+1] * np.ones((1, 1, 3)))
 
-        return trig_norm_to_hsv(np.clip(tnorm + delta, 0, 1))
+        return np.clip(tnorm + delta, 0, 1)
 
-    def _correct_hsv(self, hsv, c_local):
-        x = self._arrange_hsv(hsv, c_local)
-        density = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
+    def delta_tnorm(self, tnorm, c_global, c_local, flt):
+        delta = np.zeros(tnorm.shape)
+        delta[flt] = self._delta_tnorm(tnorm[flt], c_local[flt])
+        return delta
+
+    def _delta_tnorm(self, tnorm, c_local):
+        x = self._arrange_tnorm(tnorm, c_local)
+        density = np.array(self._range.query_ball_point(tnorm, 0.1, return_length=True))
         density = density.reshape(density.shape + (1,)) / self._range_max_density
         density = np.clip((density - 0.05) / 0.95, 0, 1)
-        return trig_norm_to_hsv(x[:,:4] +  density * (x @ self._c - x)[:,:4])
+        return density * ((x @ self._c)[:,:4] - tnorm)
 
     def _arrange_hsv(self, hsv, c):
-        hue = hsv[...,0:1] * math.pi / 180.0 * 2.0
+        return self._arrange_tnorm(hsv_to_trig_norm(hsv), c)
+
+    def _arrange_tnorm(self, tnorm, c):
         means = self.get_uncorrected_hsv_area(c)
         return np.concatenate([
-            hsv_to_trig_norm(hsv),
-            np.full(hsv.shape[:-1] + (1,), 1),
-            (np.sin(hue) / 2 + 0.5) * (np.cos(hue) / 2 + 0.5),
+            tnorm,
+            np.full(tnorm.shape[:-1] + (1,), 1),
+            tnorm[...,0:1] * tnorm[...,1:2],
             hsv_to_trig_norm(means)
         ], axis=-1)
 
     def correct_bgr(self, bgr, c_global, c_local, flt):
+        st = StopWatch('correct_bgr')
         hsv = cv.cvtColor(bgr.astype(np.uint8), cv.COLOR_BGR2HSV)
-        hsv_c = self.correct_hsv(hsv, c_global, c_local, flt).astype(np.uint8)
-        return cv.cvtColor(hsv_c, cv.COLOR_HSV2BGR)
+        tnorm = hsv_to_trig_norm(hsv)
+        tnorm_c = self.correct_tnorm(tnorm, c_global, c_local, flt)
+        hsv_c = trig_norm_to_hsv(tnorm_c).astype(np.uint8)
+        r = cv.cvtColor(hsv_c, cv.COLOR_HSV2BGR)
+        st.stop()
+        return r
 
 class ColorTransformArea(ColorTransform):
     def __init__(self, size, image, debug):
@@ -666,12 +688,8 @@ class ColorTransformKMeansFixed(ColorTransform):
 
         return errors
 
-    def correct_hsv(self, hsv, c_global, c_local, flt):
-        #avg_5 = np.ones((5,5),np.float32)/(5*5)
-        #tnorm = hsv_to_trig_norm(cv.filter2D(hsv, -1, avg_5))
-        tnorm = hsv_to_trig_norm(hsv)
-
-        labels = np.full(hsv.shape[:-1], -1) # use -1 because labels can be 0
+    def delta_tnorm(self, tnorm, c_global, c_local, flt):
+        labels = np.full(tnorm.shape[:-1], -1) # use -1 because labels can be 0
         labels[flt] = self._kmeans.predict(tnorm[flt])
 
         if self._debug[0].enable('color_correction'):
@@ -693,10 +711,9 @@ class ColorTransformKMeansFixed(ColorTransform):
             if np.count_nonzero(in_range) == 0:
                 continue
 
-            corrected = self._transforms[l].correct_hsv(hsv, c_global, c_local, in_range)
-            delta += hsv_to_trig_norm(corrected) - tnorm
+            delta += self._transforms[l].delta_tnorm(tnorm, c_global, c_local, in_range)
 
-        return trig_norm_to_hsv(np.clip(tnorm + delta, 0, 1))
+        return delta
 
 class ColorTransformSided(ColorTransform):
     def __init__(self, image, debug):
@@ -720,23 +737,16 @@ class ColorTransformSided(ColorTransform):
 
         return errors
 
-    def correct_hsv(self, hsv, c_global, c_local, flt):
-        tnorm = hsv_to_trig_norm(hsv)
-
-        left_tnorm = hsv_to_trig_norm(self._left.correct_hsv(hsv, c_global, c_local, flt))
-        left_delta = left_tnorm - tnorm
-
-        right_tnorm = hsv_to_trig_norm(self._right.correct_hsv(hsv, c_global, c_local, flt))
-        right_delta = right_tnorm - tnorm
+    def delta_tnorm(self, tnorm, c_global, c_local, flt):
+        left_delta = self._left.delta_tnorm(tnorm, c_global, c_local, flt)
+        right_delta = self._right.delta_tnorm(tnorm, c_global, c_local, flt)
 
         right_weight = np.zeros(flt.shape + (1,))
         right_weight[flt,0] = np.clip((c_local[flt,1] - 3*math.pi/4) / (math.pi/2), 0, 1)
         left_weight = np.zeros(flt.shape + (1,))
         left_weight[flt,0] = 1.0 - right_weight[flt,0]
 
-        delta = left_weight * left_delta + right_weight * right_delta
-
-        return trig_norm_to_hsv(tnorm + delta)
+        return left_weight * left_delta + right_weight * right_delta
 
 class ColorTransitionMeaned(ColorTransformMeaned):
     def __init__(self, image, seam_left, seam_right, debug):
