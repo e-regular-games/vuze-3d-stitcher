@@ -91,13 +91,13 @@ class FormatVR():
         self._meta['EXIF:DateTimeOriginal'] = d
 
     def set_gps(self, gps):
-        self._meta['Composite:GPSLatitude'] = gps.latitude
-        self._meta['Composite:GPSLongitude'] = gps.longitude
-        self._meta['Composite:GPSPosition'] = str(gps.latitude) + ' ' + str(gps.longitude)
-        self._meta['EXIF:GPSLatitudeRef'] = 'N' if gps.latitude > 0 else 'S'
-        self._meta['EXIF:GPSLatitude'] = abs(gps.latitude)
-        self._meta['EXIF:GPSLongitudeRef'] = 'W' if gps.longitude < 0 else 'E'
-        self._meta['EXIF:GPSLongitude'] = abs(gps.longitude)
+        self._meta['Composite:GPSLatitude'] = gps['latitude']
+        self._meta['Composite:GPSLongitude'] = gps['longitude']
+        self._meta['Composite:GPSPosition'] = str(gps['latitude']) + ' ' + str(gps['longitude'])
+        self._meta['EXIF:GPSLatitudeRef'] = 'N' if gps['latitude'] > 0 else 'S'
+        self._meta['EXIF:GPSLatitude'] = abs(gps['latitude'])
+        self._meta['EXIF:GPSLongitudeRef'] = 'W' if gps['longitude'] < 0 else 'E'
+        self._meta['EXIF:GPSLongitude'] = abs(gps['longitude'])
 
     def write_stereo(self, file_left, file_right):
         self._set_dimensions(self._left.shape[1], self._left.shape[0])

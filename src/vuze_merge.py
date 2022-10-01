@@ -14,6 +14,7 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 from skimage import exposure
 import threading
+from exiftool import ExifToolHelper
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -312,6 +313,28 @@ def plot_lenses(images, title):
         axs[int(i/3), i%3].axes.xaxis.set_ticklabels([])
         axs[int(i/3), i%3].axes.yaxis.set_ticklabels([])
 
+def read_image_metadata(fname):
+    data_map = {}
+    with open(fname + ".CSV", 'r') as f:
+        for l in f:
+            pairs = l.split(',')
+            for p in pairs:
+                var = p.split('=')
+                if var[0] == 'serial_number' or var[0] == 'fw':
+                    data_map[var[0]] = var[1]
+                elif var[0] == 'last_position':
+                    coords = var[1].split('|')
+                    data_map[var[0] + '_latitude'] = float(coords[0])
+                    data_map[var[0] + '_longitude'] = float(coords[1])
+                    data_map[var[0] + '_elevation'] = float(coords[2])
+                else:
+                    data_map[var[0]] = float(var[1])
+
+    exif = ExifToolHelper()
+    meta = exif.get_metadata([fname + '_1.JPG'])[0]
+    data_map['date'] = meta['EXIF:DateTimeOriginal']
+    return data_map
+
 class ComputeSplice(threading.Thread):
     def __init__(self, splice, resolution, margin):
         threading.Thread.__init__(self)
@@ -406,6 +429,9 @@ def main():
 
         if debug.enable('denoise'): plot_lenses(images, 'Denoise')
 
+    # contains gps, date, and camera orientation information.
+    meta_map = read_image_metadata(config.input)
+
     stitches = []
     ts = []
     matches = []
@@ -483,6 +509,10 @@ def main():
 
     print('writing output files')
     fvr = FormatVR(left, right)
+    fvr.set_date(meta_map['date'])
+    fvr.set_gps({'latitude': meta_map['last_position_latitude'], \
+                 'longitude': meta_map['last_position_longitude']})
+
     if 'stereo' in config.format:
         fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
     if 'over-under' in config.format:
