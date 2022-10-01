@@ -4,8 +4,81 @@ import coordinates
 import math
 import numpy as np
 import cv2 as cv
+import threading
 from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
+
+# polar is assumed to be an N x M x 2 matrix with each row
+# having the same value of phi.
+def compute_left_side(polar, stitch, margin):
+    phi = polar[:,0,0:1]
+    phi_n = phi.shape[0]
+    seam_theta = coordinates.seam_intersect(stitch, phi)
+
+    delta = seam_theta.reshape((phi_n,1)) - polar[:,:,1]
+    if margin == 0:
+        delta[delta >= 0] = 1
+        delta[delta < 0] = 0
+        return delta
+
+    delta = delta / np.absolute(margin / 2)
+    if margin > 0:
+        border = np.logical_and(delta < 1, delta >= -1)
+        delta[delta >= 1] = 1
+        delta[border] = (delta[border] + 1) / 2
+        delta[delta < -1] = 0
+    return delta
+
+def filter_to_stitch(polar, l, margin, stitches):
+    f = None
+    if l == 0:
+        right = compute_left_side(polar, stitches[l], margin)
+        left = 1.0 - compute_left_side(polar, stitches[-1], margin)
+        f = left + right
+    else:
+        left = compute_left_side(polar, stitches[l], margin)
+        right = 1.0 - compute_left_side(polar, stitches[l - 1], margin)
+        f = left * right
+
+    flt = f > 0
+    return f, flt
+
+class ComputeSegment(threading.Thread):
+    def __init__(self, image, polar, stitches, idx, margin, pt_transform, clr_transform):
+        threading.Thread.__init__(self)
+        self._image = image
+        self._polar = polar
+        self._stitches = stitches
+        self._idx = idx
+        self._margin = margin
+        self._pt_transform = pt_transform
+        self._clr_transform = clr_transform
+
+        self.result = np.zeros(polar.shape[:-1] + (3,), dtype=np.uint8)
+
+    def run(self):
+        global_pts_polar = self._polar.copy()
+        local_pts_polar = np.zeros(self._polar.shape)
+        local_pts_eqr = np.zeros(self._polar.shape)
+        pixels = np.zeros(self._polar.shape[:-1] + (3,))
+        weight, flt = filter_to_stitch(self._polar, self._idx, self._margin, self._stitches)
+
+        global_pts_polar[flt,1] -= self._idx * math.pi / 2
+        global_pts_polar[flt,1] += math.pi
+        global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
+        local_pts_polar[flt] = self._pt_transform.reverse(global_pts_polar[flt])
+        local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], self._polar.shape)
+        pixels[flt] = coordinates.eqr_interp(local_pts_eqr[flt], self._image)
+        if self._clr_transform is not None:
+            pixels = self._clr_transform \
+                         .correct_bgr(pixels, \
+                                      global_pts_polar[...,0:2] - [0, math.pi], \
+                                      local_pts_polar[...,0:2],
+                                      flt)
+
+        n = np.count_nonzero(flt)
+        self.result[flt] = (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
+        print('compute segment finish: ' + str(self._idx))
 
 class SpliceImages():
     def __init__(self, images, debug):
@@ -42,71 +115,23 @@ class SpliceImages():
         self._st_slopes[idx] = slope
         self._st_offset[idx] = offset
 
-    # polar is assumed to be an N x M x 2 matrix with each row
-    # having the same value of phi.
-    def _compute_left_side(self, polar, idx, margin):
-        phi = polar[:,0,0:1]
-        phi_n = phi.shape[0]
-        seam_theta = coordinates.seam_intersect(self._stitches[idx], phi)
-
-        delta = seam_theta.reshape((phi_n,1)) - polar[:,:,1]
-        if margin == 0:
-            delta[delta >= 0] = 1
-            delta[delta < 0] = 0
-            return delta
-
-        delta = delta / np.absolute(margin / 2)
-        if margin > 0:
-            border = np.logical_and(delta < 1, delta >= -1)
-            delta[delta >= 1] = 1
-            delta[border] = (delta[border] + 1) / 2
-            delta[delta < -1] = 0
-        return delta
-
-    def _filter_to_stitch(self, polar, l, margin):
-        f = None
-        if l == 0:
-            right = self._compute_left_side(polar, l, margin)
-            left = 1.0 - self._compute_left_side(polar, len(self._stitches) - 1, margin)
-            f = left + right
-        else:
-            left = self._compute_left_side(polar, l, margin)
-            right = 1.0 - self._compute_left_side(polar, l - 1, margin)
-            f = left * right
-
-        flt = f > 0
-        return f, flt
-
     def _generate(self, v_res, images, margin):
         shape = (v_res, 2 * v_res, 3)
         mesh = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
         eq = np.concatenate([x.reshape((x.shape[0], x.shape[1], 1)) for x in mesh], axis=2)
 
         polar = coordinates.eqr_to_polar_3d(eq)
-        result = np.zeros(shape, dtype=np.uint8)
+        threads = []
         for s in range(len(self._stitches)):
-            print('compute segment ' + str(s))
-            global_pts_polar = polar.copy()
-            local_pts_polar = np.zeros(polar.shape)
-            local_pts_eqr = np.zeros(polar.shape)
-            pixels = np.zeros(polar.shape[:-1] + (3,))
-            weight, flt = self._filter_to_stitch(polar, s, margin)
+            t = ComputeSegment(images[s], polar, self._stitches, s, margin, \
+                               self._transforms[s], self._color_transforms[s])
+            t.start()
+            threads.append(t)
 
-            global_pts_polar[flt,1] -= s * math.pi / 2
-            global_pts_polar[flt,1] += math.pi
-            global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
-            local_pts_polar[flt] = self._transforms[s].reverse(global_pts_polar[flt])
-            local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], shape)
-            pixels[flt] = coordinates.eqr_interp(local_pts_eqr[flt], images[s])
-            if self._color_transforms[s] is not None:
-                pixels = self._color_transforms[s] \
-                             .correct_bgr(pixels, \
-                                          global_pts_polar[...,0:2] - [0, math.pi], \
-                                          local_pts_polar[...,0:2],
-                                          flt)
-
-            n = np.count_nonzero(flt)
-            result[flt] += (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
+        result = np.zeros(shape, dtype=np.uint8)
+        for t in threads:
+            t.join()
+            result += t.result
 
         return result
 

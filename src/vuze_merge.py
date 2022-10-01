@@ -13,6 +13,7 @@ import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
 from skimage import exposure
+import threading
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -225,7 +226,7 @@ class Config:
         self.radius = 734
         self.format = {}
         self.aperture = 179
-        self.resolution = 720
+        self.resolution = 2160
         self.lens_centers = [
             (544,778),
             (560,778),
@@ -310,6 +311,18 @@ def plot_lenses(images, title):
         axs[int(i/3), i%3].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
         axs[int(i/3), i%3].axes.xaxis.set_ticklabels([])
         axs[int(i/3), i%3].axes.yaxis.set_ticklabels([])
+
+class ComputeSplice(threading.Thread):
+    def __init__(self, splice, resolution, margin):
+        threading.Thread.__init__(self)
+        self._splice = splice
+        self._resolution = resolution
+        self._margin = margin
+
+        self.result = None
+
+    def run(self):
+        self.result = self._splice.generate_fade(self._resolution, self._margin)
 
 def main():
     options = ProgramOptions()
@@ -442,10 +455,19 @@ def main():
         print('generate right eye - pyramid blending')
         right = splice_right.generate_pyramid(config.resolution, config.seam_pyramid_depth)
     elif config.seam_blend_margin >= 0:
-        print('generate left eye - seam blending')
-        left = splice_left.generate_fade(config.resolution, config.seam_blend_margin)
-        print('generate right eye - seam blending')
-        right = splice_right.generate_fade(config.resolution, config.seam_blend_margin)
+        print('generate eyes - seam blending')
+        t_left = ComputeSplice(splice_left, config.resolution, config.seam_blend_margin)
+        t_right = ComputeSplice(splice_right, config.resolution, config.seam_blend_margin)
+
+        # must be done one at a time else, will run the computer out of memory.
+        t_left.start()
+        t_left.join()
+
+        t_right.start()
+        t_right.join()
+
+        left = t_left.result
+        right = t_right.result
 
 
     if config.contrast_equ is not None:
