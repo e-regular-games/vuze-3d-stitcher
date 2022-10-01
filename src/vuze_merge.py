@@ -163,10 +163,12 @@ class AdjustmentCoeffs:
             return stitches, transforms, matches
 
 class Debug:
-    def __init__(self, options):
-        self.display = options.display
-        self.verbose = options.verbose
+    def __init__(self, options=None):
+        self.display = options.display if options is not None else {}
+        self.verbose = options.verbose if options is not None else False
+        self._window_title = ''
         self._figures = {}
+        self._subplot = (1, 1, 1)
 
     def enable(self, opt):
         return opt in self.display and self.display[opt]
@@ -174,13 +176,47 @@ class Debug:
     def figure(self, id, reset=False):
         if id not in self._figures or reset:
             self._figures[id] = plt.figure()
+            self._figures[id].canvas.set_window_title(self._window_title + ' - ' + id)
         return self._figures[id]
 
-    def cleared(self):
-        disable = ProgramOptions()
-        disable.display = {}
-        disable.verbose = False
-        return Debug(disable)
+    def subplot(self, id, projection=None):
+        return self.figure(id) \
+                   .add_subplot(self._subplot[0], self._subplot[1], \
+                                self._subplot[2], projection=projection)
+
+    # create a new figure window for each figure
+    def window(self, prefix):
+        # avoid the full clone because we want to reset the figures and subplot
+        d = Debug(self)
+        d._window_title = self._window_title + ' - ' + prefix
+        return d
+
+    def set_subplot(self, h, w, idx):
+        d = self.clone()
+
+        # parent row and column
+        rp = int((self._subplot[2] - 1) / self._subplot[1])
+        cp = (self._subplot[2] - 1) % self._subplot[1]
+
+        # child row and column
+        rc = int((idx - 1) / w)
+        cc = (idx - 1) % w
+
+        rowcells = h * w * self._subplot[1]
+        i = rp * rowcells + rc * w * self._subplot[1] + cp * w + cc + 1
+
+        d._subplot = (self._subplot[0] * h, self._subplot[1] * w, i)
+        return d
+
+    def clone(self):
+        d = Debug(self)
+        d._figures = self._figures
+        d._subplot = self._subplot
+        d._window_title = self._window_title
+        return d
+
+    def none(self):
+        return Debug()
 
 class Config:
     def __init__(self, file_path):
@@ -189,7 +225,7 @@ class Config:
         self.radius = 734
         self.format = {}
         self.aperture = 179
-        self.resolution = 2160
+        self.resolution = 720
         self.lens_centers = [
             (544,778),
             (560,778),
@@ -363,10 +399,7 @@ def main():
     cc = None
     if options.read_equation != '':
         print('loading seams')
-        stitches, ts, _ = AdjustmentCoeffs(options.read_equation, debug).read()
-        if config.color_correct != 'none':
-            seam = refine_seams.RefineSeams(images, debug)
-            matches = seam.matches()
+        stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
     else:
         print('computing seams')
         seam = refine_seams.RefineSeams(images, debug)

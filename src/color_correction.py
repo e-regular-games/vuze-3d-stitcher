@@ -213,30 +213,24 @@ class ColorTransform():
         x = self._arrange_hsv(i, c)
         y = self._arrange_hsv(f, c)
 
-        if self._debug[0].enable('color_regression'):
-            ax = self._debug[0] \
-                     .figure('color_regression_0') \
-                     .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, \
-                                  projection='3d')
-            plot_color_errors(ax, i, f)
+        if self._debug.enable('color_regression'):
+            ax = self._debug.subplot('color_regression_before')
+            ax.hist(hsv_error(i, f))
 
         Q, R = np.linalg.qr(x)
         self._c = np.linalg.inv(R).dot(np.transpose(Q)) @ y
 
         self._range = KDTree(x[:,:4])
         densities = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
-        self._range_max_density = bottom_nth(densities, 0.25)
+        self._range_max_density = bottom_nth(densities, 0.4)
 
         y_a = trig_norm_to_hsv(self._delta_tnorm(x[:,:4], c) + x[:,:4])
 
-        if self._debug[0].enable('color_regression'):
-            ax = self._debug[0] \
-                     .figure('color_regression_1') \
-                     .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1, \
-                                  projection='3d')
-            plot_color_errors(ax, y_a, f)
+        if self._debug.enable('color_regression'):
+            ax = self._debug.subplot('color_regression_after')
+            ax.hist(hsv_error(y_a, f))
 
-        if self._debug[0].verbose:
+        if self._debug.verbose:
             print('regression error', i.shape[0], \
                   np.sum(hsv_error(i, f)) / i.shape[0], \
                   np.sum(hsv_error(y_a, f)) / i.shape[0])
@@ -251,7 +245,7 @@ class ColorTransform():
 
         kernel = np.ones((11,11),np.float32)/(11*11)
         delta = cv.filter2D(delta, -1, kernel)
-        if self._debug[0].enable('color_delta'):
+        if self._debug.enable('color_delta'):
             norm = (delta + 1) / 2
             f = plt.figure()
             for i in range(4):
@@ -259,11 +253,17 @@ class ColorTransform():
 
         return np.clip(tnorm + delta, 0, 1)
 
+    # operates on a matrix of trig norm, global coords, local coords, and
+    # a boolean filter of which elements to calculate.
     def delta_tnorm(self, tnorm, c_global, c_local, flt):
         delta = np.zeros(tnorm.shape)
         delta[flt] = self._delta_tnorm(tnorm[flt], c_local[flt])
         return delta
 
+    # operates on a list of trig norm and coordinates.
+    # will use the density of the initial regression at that color point
+    # to decrease the influence of the regression on the estimated delta.
+    # @returns a list of changes to trig norm values.
     def _delta_tnorm(self, tnorm, c_local):
         x = self._arrange_tnorm(tnorm, c_local)
         density = np.array(self._range.query_ball_point(tnorm, 0.1, return_length=True))
@@ -284,14 +284,9 @@ class ColorTransform():
         ], axis=-1)
 
     def correct_bgr(self, bgr, c_global, c_local, flt):
-        st = StopWatch('correct_bgr')
         hsv = cv.cvtColor(bgr.astype(np.uint8), cv.COLOR_BGR2HSV)
-        tnorm = hsv_to_trig_norm(hsv)
-        tnorm_c = self.correct_tnorm(tnorm, c_global, c_local, flt)
-        hsv_c = trig_norm_to_hsv(tnorm_c).astype(np.uint8)
-        r = cv.cvtColor(hsv_c, cv.COLOR_HSV2BGR)
-        st.stop()
-        return r
+        hsv = self.correct_hsv(hsv, c_global, c_local, flt).astype(np.uint8)
+        return cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
 
 class ColorTransformArea(ColorTransform):
     def __init__(self, size, image, debug):
@@ -392,9 +387,8 @@ class ColorTransformKMeansRegression(ColorTransform):
         center = np.uint8(center)
         img_meaned = center[label.flatten()].reshape((self._image.shape))
 
-        if self._debug[0].enable('kmeans'):
-            self._debug[0].figure('kmeans') \
-                .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1) \
+        if self._debug.enable('kmeans'):
+            self._debug.subplot('kmeans') \
                 .imshow(cv.cvtColor(img_meaned, cv.COLOR_BGR2RGB))
 
         self._kmeans_image = img_meaned
@@ -411,18 +405,16 @@ class ColorTransformKMeansRegression(ColorTransform):
         c_eqr = coordinates.polar_to_eqr(c, self._image.shape).astype(np.float32)
         labels = coordinates.eqr_interp(c_eqr, self._kmeans_label, cv.INTER_NEAREST)
 
-        if self._debug[0].enable('color_regression_kmeans'):
-            _, _, bars = self._debug[0] \
-                             .figure('color_regression_kmeans') \
-                             .add_subplot(self._debug[2], self._debug[3], self._debug[1] + 1) \
+        if self._debug.enable('color_regression_kmeans'):
+            _, _, bars = self._debug.subplot('color_regression_kmeans') \
                              .hist(labels, self._num_means, [0, self._num_means])
             colors = hsv_to_rgb_hex(self._kmeans_center)
             for j, b in enumerate(bars):
                 b.set_facecolor(colors[j])
 
-        if self._debug[0].enable('color_regression'):
-            self._debug[0].figure('color_regression_0', True)
-            self._debug[0].figure('color_regression_1', True)
+        if self._debug.enable('color_regression'):
+            self._debug.figure('color_regression_0', True)
+            self._debug.figure('color_regression_1', True)
 
         dbg = self._debug
         err = np.zeros((self._num_means, 6))
@@ -517,7 +509,7 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
 
         self._kmeans_center = None
         self._kmeans = None
-        self._temp_transform = ColorTransformAreaMeaned(3, image, (debug[0].cleared(),))
+        self._temp_transform = ColorTransformAreaMeaned(3, image, self._debug.none())
 
     def _kmeans_n(self, i, n):
         I = hsv_to_trig_norm(i)
@@ -655,12 +647,42 @@ class ColorTransformKMeansReducedRegression(ColorTransformAreaMeaned):
 
         return trig_norm_to_hsv(np.clip(hsv_to_trig_norm(hsv) + delta, 0, 1))
 
+class ColorTransformKMeansDynamic(ColorTransform):
+    def __init__(self, image, debug):
+        super().__init__(image, debug);
+
+        self._kmeans_fixed = None
+
+    def compute_hsv_coeffs(self, i, f, c):
+        n = 4
+        best = None # (num_means, errors, transform)
+        while best is None or best[0] > n - 5:
+            t = ColorTransformKMeansFixed(n, self._image, self._debug.none())
+            errors = t.compute_hsv_coeffs(i, f, c)
+
+            if best is None or np.sum(best[1]) > np.sum(errors):
+                best = (n, errors, t)
+            n += 1
+
+        # re-compute to get the proper debug output.
+        n = best[0]
+        print('kmeans dynamic', n)
+        self._kmeans_fixed = ColorTransformKMeansFixed(n, self._image, self._debug)
+        return self._kmeans_fixed.compute_hsv_coefffs(i, f, c)
+
+    def delta_tnorm(self, tnorm, c_global, c_local, flt):
+        return self._kmeans_fixed.delta_tnorm(tnorm, c_global, c_local, flt)
+
 class ColorTransformKMeansFixed(ColorTransform):
     def __init__(self, num_means, image, debug):
         super().__init__(image, debug);
 
         self._num_means = num_means
-        self._transforms = [ColorTransform(image, debug) for i in range(num_means)]
+
+        dbg_w = math.ceil(math.sqrt(3 * num_means / 2))
+        dbg_h = math.ceil(dbg_w * 2 / 3)
+        self._transforms = [ColorTransform(image, debug.set_subplot(dbg_h, dbg_w, i+1)) \
+                            for i in range(num_means)]
 
         self._kmeans_center = None
         self._kmeans = None
@@ -672,6 +694,13 @@ class ColorTransformKMeansFixed(ColorTransform):
         self._kmeans_center = trig_norm_to_hsv(self._kmeans.cluster_centers_)
         labels = self._kmeans.labels_
 
+        if self._debug.enable('color_regression_kmeans'):
+            _, _, bars = self._debug.subplot('color_regression_kmeans') \
+                             .hist(labels, n, [0, n])
+            colors = hsv_to_rgb_hex(self._kmeans_center)
+            for j, b in enumerate(bars):
+                b.set_facecolor(colors[j])
+
         errors = np.zeros(i.shape[:-1])
         for l in range(n):
             flt = labels == l
@@ -681,7 +710,7 @@ class ColorTransformKMeansFixed(ColorTransform):
                 self._transforms[l] = None
                 errors[flt] = hsv_error(i[flt], f[flt])
 
-        if self._debug[0].verbose:
+        if self._debug.verbose:
             print('regression error kmeans', i.shape[0], \
                   np.sum(hsv_error(i, f)) / i.shape[0], \
                   np.sum(errors) / i.shape[0])
@@ -692,10 +721,9 @@ class ColorTransformKMeansFixed(ColorTransform):
         labels = np.full(tnorm.shape[:-1], -1) # use -1 because labels can be 0
         labels[flt] = self._kmeans.predict(tnorm[flt])
 
-        if self._debug[0].enable('color_correction'):
-            _, _, bars = self._debug[0] \
+        if self._debug.enable('color_correction'):
+            _, _, bars = self._debug \
                              .figure('color_correction_raw') \
-                             .add_subplot(2, 4, self._debug[1] + 1) \
                              .hist(labels[flt], self._num_means + 1, [-1, self._num_means])
             colors = hsv_to_rgb_hex(self._kmeans_center)
             for j, b in enumerate(bars):
@@ -719,8 +747,8 @@ class ColorTransformSided(ColorTransform):
     def __init__(self, image, debug):
         super().__init__(image, debug)
 
-        self._left = ColorTransformKMeansFixed(10, image, debug)
-        self._right = ColorTransformKMeansFixed(10, image, debug)
+        self._left = ColorTransformKMeansFixed(10, image, debug.set_subplot(1, 2, 1))
+        self._right = ColorTransformKMeansFixed(10, image, debug.set_subplot(1, 2, 2))
 
     def compute_hsv_coeffs(self, i, f, c):
         left = c[...,1] <= math.pi
@@ -730,7 +758,7 @@ class ColorTransformSided(ColorTransform):
         errors[left] = self._left.compute_hsv_coeffs(i[left], f[left], c[left])
         errors[right] = self._right.compute_hsv_coeffs(i[right], f[right], c[right])
 
-        if self._debug[0].verbose:
+        if self._debug.verbose:
             print('regression error sided', i.shape[0], \
                   np.sum(hsv_error(i, f)) / i.shape[0], \
                   np.sum(errors) / i.shape[0])
@@ -747,52 +775,6 @@ class ColorTransformSided(ColorTransform):
         left_weight[flt,0] = 1.0 - right_weight[flt,0]
 
         return left_weight * left_delta + right_weight * right_delta
-
-class ColorTransitionMeaned(ColorTransformMeaned):
-    def __init__(self, image, seam_left, seam_right, debug):
-        super().__init__(5, image, debug);
-        self._fade_dist = 10 * math.pi / 180
-
-        self._seam_left = seam_left
-        self._seam_right = seam_right
-
-    def _distance_from_seam(self, seam, polar):
-        phi = seam[:, 0]
-        theta = seam[:, 1]
-        slope = (theta[1:] - theta[:-1]) / (phi[1:] - phi[:-1])
-        offset = theta[:-1] - slope * phi[:-1]
-
-        seam_theta = np.zeros((polar.shape[0]))
-        phi = polar[:,0,0:1]
-        phi_n = phi.shape[0]
-        slope_n = slope.shape[0]
-
-        f_mat = np.ones((phi_n, slope_n + 1)) * seam[:, 0]
-        in_range = np.logical_and(phi < f_mat[:,1:], phi >= f_mat[:,:-1])
-        f_slope = (np.ones((phi_n, slope_n)) * slope)[in_range]
-        f_offset = (np.ones((phi_n, offset.shape[0])) * offset)[in_range]
-
-        in_range = np.any(in_range, axis=1)
-        seam_theta[in_range] = phi[in_range,0] * f_slope + f_offset
-
-        return seam_theta.reshape(polar.shape[0], 1) * np.ones(polar.shape[:-1]) - polar[...,1]
-
-
-    def correct_hsv(self, hsv, c_global, c_local):
-        df = np.zeros(hsv.shape[:-1])
-        d_left = self._distance_from_seam(self._seam_left - [0, math.pi/2], c_global)
-        d_right = self._distance_from_seam(self._seam_right, c_global)
-
-        df += 1.0 - np.clip(np.absolute(d_left / self._fade_dist), 0, 1)
-        df += 1.0 - np.clip(np.absolute(d_right / self._fade_dist), 0, 1)
-
-        x = self._arrange_hsv(hsv, c_local)
-        cor = x + df.reshape(df.shape + (1,)) * (np.clip(x @ self._c, 0, 1) - x)
-
-        r = np.zeros(hsv.shape)
-        r[...,0] = 180 / (2 * math.pi) * (np.arctan2(cor[...,0] * 2 - 1, cor[...,1] * 2 - 1) % (2 * math.pi))
-        r[...,1:3] = np.clip(cor[...,2:4], 0, 1) * 255
-        return r
 
 class ColorCorrection():
     def __init__(self, images, config, debug):
@@ -969,10 +951,7 @@ class ColorCorrectionRegion():
         self._debug = debug
         self._transforms = transforms
 
-    def match_colors_kmeans(self, matches, seams):
-        return self.match_colors(matches, seams)
-
-    def match_colors(self, matches, seams):
+    def _generate_regions(self, seams):
         h = self._images[0].shape[0]
         w = self._images[0].shape[1]
         y = np.arange(0, h)
@@ -982,7 +961,6 @@ class ColorCorrectionRegion():
         x_delta = np.arange(math.floor(-1 * x_range / 2), math.ceil(x_range / 2))
         theta_delta = x_delta / (w-1) * 2 * math.pi
 
-        hists = []
         regions = []
         coords = []
         for i, seam in enumerate(seams):
@@ -1005,22 +983,15 @@ class ColorCorrectionRegion():
                                  .astype(np.uint8)
                 regions.append(bgr)
 
-                hist = np.zeros((256, 3))
-                for c, clr in enumerate(['b', 'g', 'r']):
-                    hist[:,c] = cv.calcHist([bgr], [c], None, [256], [0,256])[:,0]
-                hists.append(hist)
-
         if self._debug.enable('color'):
-            plt.figure()
+            f = plt.figure()
+            f.canvas.set_window_title('color_slices')
             img = np.concatenate(regions, axis=1).astype(np.uint8)
             plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
 
-        hist_targets = []
-        for i in range(4):
-            hist_mean = hists[4*i] + hists[4*i+1] + hists[4*i+2] + hists[4*i+3]
-            hist_mean /= np.sum(hist_mean, axis=0)
-            hist_targets.append(hist_mean)
+        return regions, coords
 
+    def _regression(self, regions, coords, hists, hist_targets):
         transforms = []
         dbg_color = []
         for i in range(8):
@@ -1042,7 +1013,7 @@ class ColorCorrectionRegion():
             target_hsv = cv.cvtColor(target, cv.COLOR_BGR2HSV)
             coord = np.concatenate([left_coord, right_coord])
 
-            t = ColorTransformSided(self._images[i], (self._debug, i, 3, 3))
+            t = ColorTransformSided(self._images[i], self._debug.window('image ' + str(i)))
             pick = np.random.choice(hsv.shape[0] * hsv.shape[1], size=8000, replace=False)
             t.compute_hsv_coeffs(to_1d(hsv)[pick], to_1d(target_hsv)[pick], to_1d(coord)[pick])
             transforms.append(t)
@@ -1063,8 +1034,45 @@ class ColorCorrectionRegion():
                 dbg_color.append(black)
 
         if self._debug.enable('color'):
-            plt.figure()
+            f = plt.figure()
+            f.canvas.set_window_title('color_with_target')
             img = np.concatenate(dbg_color, axis=1).astype(np.uint8)
             plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
 
         return transforms
+
+    def match_colors_kmeans(self, matches, seams):
+        return self.match_colors(matches, seams)
+
+    def match_colors(self, matches, seams):
+        regions, coords = self._generate_regions(seams)
+
+        hists = []
+        for bgr in regions:
+            hist = np.zeros((256, 3))
+            for c, clr in enumerate(['b', 'g', 'r']):
+                hist[:,c] = cv.calcHist([bgr], [c], None, [256], [0,256])[:,0]
+            hists.append(hist)
+
+        hist_targets = []
+        for i in range(4):
+            hist_mean = hists[4*i] + hists[4*i+1] + hists[4*i+2] + hists[4*i+3]
+            hist_mean /= np.sum(hist_mean, axis=0)
+            hist_targets.append(hist_mean)
+
+        if self._debug.enable('color_histogram'):
+            f, axs = plt.subplots(4, 5)
+            f.canvas.set_window_title('color_histogram')
+            for c, clr in enumerate(['b', 'g', 'r']):
+                for i in range(4):
+                    for j in range(4):
+                        axs[i, j].plot(hists[4*i+j][:,c], color=clr)
+                    axs[i, 4].plot(hist_targets[i][:,c], color=clr)
+
+            axs[0, 0].title.set_text('Left Eye - Left of Seam')
+            axs[0, 1].title.set_text('Left Eye - Right of Seam')
+            axs[0, 2].title.set_text('Right Eye - Left of Seam')
+            axs[0, 3].title.set_text('Right Eye - Right of Seam')
+            axs[0, 4].title.set_text('Target')
+
+        return self._regression(regions, coords, hists, hist_targets)

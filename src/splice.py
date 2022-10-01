@@ -105,7 +105,6 @@ class SpliceImages():
                                           local_pts_polar[...,0:2],
                                           flt)
 
-
             n = np.count_nonzero(flt)
             result[flt] += (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
 
