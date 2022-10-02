@@ -28,6 +28,7 @@ def usage():
     print('-I,--in\t\tOverride the input config option.')
     print('-O,--out\t\tOverride the output config option.')
     print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
+    print('-q,--quality\t\tVertical resolution of the full output image.')
     print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
     print('-r,--read-equation\t\tRead the alignment equation constants to the provided file.')
     print('-v,--verbose\t\tMore detailed output to the console.')
@@ -38,15 +39,16 @@ def usage():
     print('')
     print('input,<image_prefix>\t\t\tThe prefix used by the Vuze camera.')
     print('output,<image>\t\t\t\tA file name without the extension.')
-    print('format,<fmt>\t\t\t\tEnable output format: {gpano, stereo, over-under}')
+    print('format,<fmt>\t\t\t\tEnable output format: {gpano[:<spec>], stereo, over-under[:<spec>], anaglyph:<spec>}. This option can be repeated.\n\t\t\t\t\t\t anaglyph:<spec> --> "anaglyph:<fov>:<phi>:<theta>:<x-res>:<y-res>" with angles in degrees\n\t\t\t\t\t\t gpano:<spec> --> "gpano:<latitude>:<longitude>:<vertical-fov>:<horizontal-fov>" with angles in degrees\n\t\t\t\t\t\t over-under:<spec> --> "over-under:<fov>:<phi>:<theta>:<xres>:<yres>" with angles in degrees')
     print('radius,<pixels>\t\t\t\tNumber of pixels for all fisheye lenses.')
     print('aperture,<degrees>\t\t\tAperture angle of all fisheye lenses. (degrees)')
-    print('resolution,<pixels>\t\t\tOutput verticle resolution.')
+    print('view_direction,<degrees>\t\tThe initial view direction which will be at the center of the generated image. (degrees)')
+    print('resolution,<pixels>\t\t\tOutput vertical resolution.')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
     print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
-    print('color_correction,kmeans\tCompute the adjustment based on the kmeans colors.')
+    print('color_correction,kmeans\t\t\tCompute the adjustment based on the kmeans colors.')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -64,10 +66,11 @@ class ProgramOptions:
         self.in_override = ''
         self.out_override = ''
         self.format = []
+        self.resolution = 0
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hw:r:vc:i:f:I:O:',
+            'd:hw:r:vc:i:f:I:O:q:',
             [
                 'help',
                 'image=',
@@ -78,7 +81,8 @@ class ProgramOptions:
                 'read-equation=',
                 'config=',
                 'verbose',
-                'display='
+                'display=',
+                'quality='
             ])
 
         for o, a in options:
@@ -96,6 +100,8 @@ class ProgramOptions:
                 self.in_override = a
             elif o in ("-O", "--out"):
                 self.out_override = a
+            elif o in ("-q", "--quality"):
+                self.resolution = int(a)
             elif o in ("-f", "--format"):
                 self.format = a.split(",")
             elif o in ("-d", "--display"):
@@ -228,6 +234,7 @@ class Config:
         self.format = {}
         self.aperture = 179
         self.resolution = 2160
+        self.view_direction = 180
         self.lens_centers = [
             (544,778),
             (560,778),
@@ -268,6 +275,8 @@ class Config:
             self.radius = int(cmd[1])
         elif cmd[0] == 'resolution' and len(cmd) == 2:
             self.resolution = int(cmd[1])
+        elif cmd[0] == 'view_direction' and len(cmd) == 2:
+            self.view_direction = float(cmd[1])
         elif cmd[0] == 'exposure_match' and len(cmd) == 2:
             self.exposure_match = int(cmd[1])
         elif cmd[0] == 'aperture' and len(cmd) == 2:
@@ -347,6 +356,86 @@ class ComputeSplice(threading.Thread):
     def run(self):
         self.result = self._splice.generate_fade(self._resolution, self._margin)
 
+def write_output(meta_map, left, right, config):
+    print('writing output files')
+    fvr = FormatVR(left, right)
+    fvr.set_date(meta_map['date'])
+    fvr.set_gps({'latitude': meta_map['last_position_latitude'], \
+                 'longitude': meta_map['last_position_longitude']})
+
+    if 'stereo' in config.format:
+        fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
+    if 'over-under' in config.format:
+        fvr.write_over_under(config.output + '.JPG')
+    if 'gpano' in config.format:
+        fvr.write_cardboard(config.output + '_gpano.JPG')
+
+    for f in config.format:
+        if not f.startswith('anaglyph'):
+            continue
+
+        anaglyph = f.split(':')
+        if len(anaglyph) != 6:
+            print('anaglyph format requires 5 parameters (degrees) in the format, anaglyph:fov:phi:theta:xres:yres')
+            continue
+
+        fvr.write_anaglyph(config.output + '_' + '_'.join(anaglyph) + '.JPG',\
+                           float(anaglyph[1]), \
+                           float(anaglyph[2]), \
+                           float(anaglyph[3]), \
+                           float(anaglyph[4]), \
+                           float(anaglyph[5]))
+
+    for f in config.format:
+        if not f.startswith('over-under:'):
+            continue
+
+        over_under = f.split(':')
+        if len(over_under) != 6:
+            print('over-under format requires 5 parameters (degrees) in the format, over-under:fov:phi:theta:xres:yres')
+            continue
+
+        fvr.write_over_under_cropped(config.output + '_' + '_'.join(over_under) + '.JPG',\
+                                     float(over_under[1]), \
+                                     float(over_under[2]), \
+                                     float(over_under[3]), \
+                                     float(over_under[4]), \
+                                     float(over_under[5]))
+
+    for f in config.format:
+        if not f.startswith('gpano:'):
+            continue
+
+        cardboard = f.split(':')
+        if len(cardboard) != 5:
+            print('carboard format requires 4 parameters (degrees) in the format, cardboard:lat:long:vfov:hfov')
+            continue
+
+        fvr.write_cardboard_cropped(config.output + '_' + '_'.join(cardboard) + '.JPG', \
+                                    float(cardboard[1]), \
+                                    float(cardboard[2]), \
+                                    float(cardboard[3]), \
+                                    float(cardboard[4]))
+
+    for f in config.format:
+        if not f.startswith('stereo:'):
+            continue
+
+        stereo = f.split(':')
+        if len(stereo) != 6:
+            print('stereo format requires 5 parameters (degrees) in the format, stereo:fov:phi:theta:xres:yres')
+            continue
+
+        fvr.write_stereo_cropped(config.output + '_' + '_'.join(stereo) + '_left.JPG', \
+                                 config.output + '_' + '_'.join(stereo) + '_right.JPG', \
+                                 float(stereo[1]), \
+                                 float(stereo[2]), \
+                                 float(stereo[3]), \
+                                 float(stereo[4]), \
+                                 float(stereo[5]))
+
+
+
 def main():
     options = ProgramOptions()
     if not options.valid():
@@ -364,6 +453,8 @@ def main():
         config.input = options.in_override
     if len(options.out_override) > 0:
         config.output = options.out_override
+    if options.resolution > 0:
+        config.resolution = options.resolution
 
     if len(options.format) > 0:
         config.format = {}
@@ -388,6 +479,8 @@ def main():
         img = np.rot90(img)
         fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
         images.append(fish.to_equirect())
+        print('.', end='', flush=True)
+    print('')
 
     if debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
 
@@ -404,17 +497,21 @@ def main():
             mergeMertens = cv.createMergeMertens()
             merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
             set_middle(images[l-1], merged.astype(np.uint8))
+            print('.', end='', flush=True)
         if debug.enable('exposure'): plot_lenses(images, 'Exposures Fused')
+        print('')
 
     if config.exposure_match != 0:
         print('matching exposure')
         # match histograms using the reference image.
         ref = get_middle(images[config.exposure_match])
         for i in range(len(images)):
+            print('.', end='', flush=True)
             if i != (config.exposure_match - 1):
                 mid = get_middle(images[i])
                 set_middle(images[i], exposure.match_histograms(mid, ref, channel_axis=2))
         if debug.enable('exposure'): plot_lenses(images, 'Exposures Matched')
+        print('')
 
     if len(config.denoise) == 3:
         print('denoising images')
@@ -426,7 +523,8 @@ def main():
                                                   config.denoise[1], \
                                                   config.denoise[2])
             set_middle(images[i], midd)
-
+            print('.', end='', flush=True)
+        print('')
         if debug.enable('denoise'): plot_lenses(images, 'Denoise')
 
     # contains gps, date, and camera orientation information.
@@ -455,9 +553,12 @@ def main():
     elif config.color_correct == 'kmeans':
         print('computing color mean - kmeans')
         cc = color.match_colors_kmeans(matches, stitches)
+    print('')
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
+    splice_left.set_initial_view(config.view_direction)
     splice_right = splice.SpliceImages(images[1:8:2], debug)
+    splice_right.set_initial_view(config.view_direction)
 
     for s in range(4):
         st_l = stitches[2*s].copy()
@@ -494,6 +595,7 @@ def main():
 
         left = t_left.result
         right = t_right.result
+        print('')
 
 
     if config.contrast_equ is not None:
@@ -507,18 +609,7 @@ def main():
         left = combined[:left.shape[0]]
         right = combined[left.shape[0]:]
 
-    print('writing output files')
-    fvr = FormatVR(left, right)
-    fvr.set_date(meta_map['date'])
-    fvr.set_gps({'latitude': meta_map['last_position_latitude'], \
-                 'longitude': meta_map['last_position_longitude']})
-
-    if 'stereo' in config.format:
-        fvr.write_stereo(config.output + '_left.JPG', config.output + '_right.JPG')
-    if 'over-under' in config.format:
-        fvr.write_over_under(config.output + '.JPG')
-    if 'gpano' in config.format:
-        fvr.write_cardboard(config.output + '_gpano.JPG')
+    write_output(meta_map, left, right, config)
 
     if options.write_equation != '':
         AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts, matches)

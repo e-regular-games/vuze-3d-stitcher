@@ -78,7 +78,7 @@ class ComputeSegment(threading.Thread):
 
         n = np.count_nonzero(flt)
         self.result[flt] = (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
-        print('compute segment finish: ' + str(self._idx))
+        print('.', end='', flush=True)
 
 class SpliceImages():
     def __init__(self, images, debug):
@@ -94,12 +94,16 @@ class SpliceImages():
         self._st_offset = [None]*len(images)
 
         self._debug = debug
+        self._view0 = 0
 
     def set_transform(self, idx, t):
         self._transforms[idx] = t
 
     def set_color_transform(self, idx, cc):
         self._color_transforms[idx] = cc
+
+    def set_initial_view(self, deg):
+        self._view0 = deg / 180 * math.pi
 
     # line is a numpy array of (phi, theta) rows
     # the first row should be phi = 0, and the last should be phi = pi
@@ -133,6 +137,13 @@ class SpliceImages():
             t.join()
             result += t.result
 
+        # adjust for view0 being a non-zero value
+        if self._view0 != 0:
+            view0_l = int(self._view0 / math.pi * v_res)
+            view0_r = 2 * v_res - view0_l
+            shift = result[:,:view0_l].copy()
+            result[:,:view0_r] = result[:,view0_l:]
+            result[:,view0_r:] = shift
         return result
 
     def generate(self, v_res):

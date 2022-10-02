@@ -1018,6 +1018,8 @@ class ColorCorrectionRegion():
             t.compute_hsv_coeffs(to_1d(hsv)[pick], to_1d(target_hsv)[pick], to_1d(coord)[pick])
             transforms.append(t)
 
+            print('.', end='', flush=True)
+
             if self._debug.enable('color'):
                 black = np.zeros((left_bgr.shape[0], 1, 3))
                 dbg_color.append(left_bgr)
