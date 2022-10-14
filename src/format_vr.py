@@ -31,7 +31,7 @@ class FormatVR():
       </rdf:Description>
       <rdf:Description xmlns:GPano="http://ns.google.com/photos/1.0/panorama/" rdf:about="">
          <GPano:CroppedAreaImageHeightPixels>__CROP_HEIGHT__</GPano:CroppedAreaImageHeightPixels>
-         <GPano:InitialViewHeadingDegrees>0</GPano:InitialViewHeadingDegrees>
+         <GPano:InitialViewHeadingDegrees>__HEADING__</GPano:InitialViewHeadingDegrees>
          <GPano:InitialHorizontalFOVDegrees>150</GPano:InitialHorizontalFOVDegrees>
          <GPano:CroppedAreaImageWidthPixels>__CROP_WIDTH__</GPano:CroppedAreaImageWidthPixels>
          <GPano:CroppedAreaLeftPixels>__CROP_LEFT__</GPano:CroppedAreaLeftPixels>
@@ -185,6 +185,7 @@ class FormatVR():
             right_encode = base64.b64encode(file.read()).decode('ascii')
 
         gpano = self._gpano \
+                    .replace('__HEADING__', str(theta)) \
                     .replace('__WIDTH__', str(self._left.shape[1])) \
                     .replace('__CROP_WIDTH__', str(abs(cr-cl))) \
                     .replace('__CROP_LEFT__', str(cl)) \

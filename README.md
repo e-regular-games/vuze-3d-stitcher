@@ -4,6 +4,15 @@ A python based script for combining 8 separate photos taken by the Vuze 4K 3D 36
 # Website
 [E-Regular Games](https://www.e-regular-games.com)
 
+# Requirements
+The following python models will need to be installed. The installation requires pip.
+```
+pip install opencv-python
+pip install -U scikit-learn
+python -m pip install -U scikit-image
+python -m pip install -U pyexiftool
+```
+
 # Repository Structure
 ## Notes
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.

@@ -129,12 +129,17 @@ class SpliceImages():
         for s in range(len(self._stitches)):
             t = ComputeSegment(images[s], polar, self._stitches, s, margin, \
                                self._transforms[s], self._color_transforms[s])
-            t.start()
+
+            if self._debug.enable_threads:
+                t.start()
+            else:
+                t.run()
             threads.append(t)
 
         result = np.zeros(shape, dtype=np.uint8)
         for t in threads:
-            t.join()
+            if self._debug.enable_threads:
+                t.join()
             result += t.result
 
         # adjust for view0 being a non-zero value

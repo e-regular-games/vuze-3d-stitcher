@@ -46,9 +46,8 @@ def usage():
     print('resolution,<pixels>\t\t\tOutput vertical resolution.')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
-    print('color_correction,mean\t\t\tAdjust colors of all lenses using the mean between lenses.')
-    print('color_correction,seams,<dist_deg>\tUse the mean between lenses, but fade the effect from the seam.')
-    print('color_correction,kmeans\t\t\tCompute the adjustment based on the kmeans colors.')
+    print('color_correction,mean-seams\t\t\tAdjust colors of all lenses using the mean between lenses along the entire seam.')
+    print('color_correction,mean-matches\t\t\tAdjust colors of all lenses using the mean between lenses for matching points between images.')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -174,6 +173,7 @@ class Debug:
     def __init__(self, options=None):
         self.display = options.display if options is not None else {}
         self.verbose = options.verbose if options is not None else False
+        self.enable_threads = len(self.display) == 0
         self._window_title = ''
         self._figures = {}
         self._subplot = (1, 1, 1)
@@ -184,7 +184,7 @@ class Debug:
     def figure(self, id, reset=False):
         if id not in self._figures or reset:
             self._figures[id] = plt.figure()
-            self._figures[id].canvas.set_window_title(self._window_title + ' - ' + id)
+            self._figures[id].canvas.manager.set_window_title(self._window_title + ' - ' + id)
         return self._figures[id]
 
     def subplot(self, id, projection=None):
@@ -195,7 +195,9 @@ class Debug:
     # create a new figure window for each figure
     def window(self, prefix):
         # avoid the full clone because we want to reset the figures and subplot
-        d = Debug(self)
+        d = self.clone()
+        d._figures = {}
+        d._subplot = (1, 1, 1)
         d._window_title = self._window_title + ' - ' + prefix
         return d
 
@@ -221,6 +223,7 @@ class Debug:
         d._figures = self._figures
         d._subplot = self._subplot
         d._window_title = self._window_title
+        d.enable_threads = self.enable_threads
         return d
 
     def none(self):
@@ -247,10 +250,9 @@ class Config:
         ]
         self.exposure_match = 0
         self.exposure_fuse = []
-        self.color_correct = 'kmeans'
-        self.color_seams = 15 * math.pi / 180
+        self.color_correct = 'mean-seams'
         self.contrast_equ = None
-        self.seam_blend_margin = 8 * math.pi / 180
+        self.seam_blend_margin = 5 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
 
@@ -287,8 +289,6 @@ class Config:
             self.exposure_fuse.append(cmd[1])
         elif cmd[0] == 'color_correction' and len(cmd) >= 2:
             self.color_correct = cmd[1]
-            if cmd[1] == 'seams' and len(cmd) == 3:
-                self.color_seams = float(cmd[2]) * math.pi / 180
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:
@@ -485,8 +485,8 @@ def main():
     if debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
 
     if len(config.exposure_fuse) > 0:
+        print('fusing exposures')
         for l in range(1, 9):
-            print('fusing exposures lens ' + str(l))
             images_exp = [get_middle(images[l-1])]
             for exp in config.exposure_fuse:
                 img = cv.imread(exp + '_' + str(l) + '.JPG')
@@ -537,22 +537,27 @@ def main():
     if options.read_equation != '':
         print('loading seams')
         stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
+        if config.color_correct == 'mean-matches':
+            print('computing matches')
+            seam = refine_seams.RefineSeams(images, debug)
+            addl = seam.matches()
+            for i, m in enumerate(matches):
+                matches[i] = np.concatenate([addl[i], m])
     else:
         print('computing seams')
         seam = refine_seams.RefineSeams(images, debug)
         stitches, matches = seam.align()
         ts = seam._transforms
 
-    color = color_correction.ColorCorrectionRegion(images, ts, config, debug)
-    if config.color_correct == 'mean':
-        print('computing color mean')
-        cc = color.match_colors(matches, stitches)
-    elif config.color_correct == 'seams':
-        print('computing color seam fade')
-        cc = color.fade_colors(matches, stitches, config.color_seams)
-    elif config.color_correct == 'kmeans':
-        print('computing color mean - kmeans')
-        cc = color.match_colors_kmeans(matches, stitches)
+    if config.color_correct == 'mean-seams':
+        color = color_correction.ColorCorrectionSeams(images, ts, stitches, debug)
+        print('computing color mean-seams')
+        cc = color.match_colors()
+    elif config.color_correct == 'mean-matches':
+        color = color_correction.ColorCorrectionMatches(images, matches, debug)
+        print('computing color mean-matches')
+        cc = color.match_colors()
+
     print('')
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
@@ -587,11 +592,8 @@ def main():
         t_right = ComputeSplice(splice_right, config.resolution, config.seam_blend_margin)
 
         # must be done one at a time else, will run the computer out of memory.
-        t_left.start()
-        t_left.join()
-
-        t_right.start()
-        t_right.join()
+        t_left.run()
+        t_right.run()
 
         left = t_left.result
         right = t_right.result
