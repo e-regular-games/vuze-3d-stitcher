@@ -255,7 +255,7 @@ class ColorTransformKMeansFixed(ColorTransform):
 
         if self._debug.enable('color_correction'):
             _, _, bars = self._debug \
-                             .figure('color_correction_raw') \
+                             .subplot('color_correction_raw') \
                              .hist(labels[flt], self._num_means + 1, [-1, self._num_means])
             colors = hsv_to_rgb_hex(self._kmeans_center)
             for j, b in enumerate(bars):
@@ -480,7 +480,7 @@ class ColorCorrectionMatches(ColorCorrection):
             f.canvas.manager.set_window_title('color_slices')
             for i in range(len(self._matches)):
                 img = np.concatenate(regions[4*i:4*i+4], axis=1).astype(np.uint8)
-                f.add_subplot(2, 2, i+1).imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
+                f.add_subplot(1, 4, i+1).imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
 
         return regions, coords
 

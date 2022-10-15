@@ -27,3 +27,5 @@
 [Color Matching with Regression](./color_regression.md) (August 11, 2022)
 
 [Seam Blending](./seam_blending.md) (August 12, 2022)
+
+[Color Matching Seams](./color_matching_seams.md) (October 14, 2022)
