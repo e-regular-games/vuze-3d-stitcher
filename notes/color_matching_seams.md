@@ -72,13 +72,13 @@ An example of the shift in error is seen below. For a single image, the left sid
 
 | Distance between Color and Corrected Color Before and After Adjustment for Lens 1, Left and Right Sides |
 | :------: |
-| <img src="color_kmeans_result.png" alt="lens 1, left and right side distance between actual and expected" width="600px" /> |
+| <img src="color_kmeans_result.png" alt="lens 1, left and right side distance between actual and expected" width="800px" /> |
 
 The initial slice, the desired target and the corrected slice are shown below. The color correction is occuring across each slice and the blues appear to be more consistent between images.
 
 | Slice, Target, and Corrected for each side of each image |
 | :------: |
-| <img src="color_slices_corrected.png" alt="slice, target, and corrected for each side of each image" width="600px" /> |
+| <img src="color_slices_corrected.png" alt="slice, target, and corrected for each side of each image" width="800px" /> |
 
 The corrected color within a single mean is computed using the coefficients $c$ from above and the hsv color space value of the other pixels within the image. All compuations are done using the trigonometric values of hue. The difference between the initial color and the corrected color is primarily used within the code. This difference we will call $\Delta_k$. The difference is scaled based on the maximum distance between $x$ and $y$ from above. It is also scaled based on the density of the color points used during the computation of the coefficients, $c$. As a point gets further from the cluster of intial colors $x$, the magnitude of the $\Delta_k$ will decrease. These two safety mechanisms work to ensure colors which were not present along the seam line are only minimally adjusted within the image.
 
