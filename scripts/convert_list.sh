@@ -23,9 +23,9 @@ do
     addl=("${split[@]:2}")
 
     echo "${dir}HETVR/HET_${pic}"
-    if test -f "config_${dir}_${pic}.dat"; then
-        ../project/src/vuze_merge.py -r coeffs_v1_color.dat -c "config_${dir}_${pic}.dat" ${addl[@]} ${args[@]}
+    if test -f "raw/config_${dir}_${pic}.dat"; then
+        project/src/vuze_merge.py -r raw/coeffs_v1_color.dat -c "raw/config_${dir}_${pic}.dat" ${addl[@]} ${args[@]}
     else
-        ../project/src/vuze_merge.py -f gpano,over-under -r coeffs_v1_color.dat -I "./${dir}HETVR/HET_${pic}" -O "HET${dir}_${pic}" ${addl[@]} ${args[@]}
+        project/src/vuze_merge.py -f gpano,over-under -r raw/coeffs_v1_color.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/HET${dir}_${pic}" ${addl[@]} ${args[@]}
     fi
 done < "$list_file"
