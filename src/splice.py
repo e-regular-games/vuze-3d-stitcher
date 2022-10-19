@@ -58,26 +58,29 @@ class ComputeSegment(threading.Thread):
 
     def run(self):
         global_pts_polar = self._polar.copy()
-        local_pts_polar = np.zeros(self._polar.shape)
-        local_pts_eqr = np.zeros(self._polar.shape)
-        pixels = np.zeros(self._polar.shape[:-1] + (3,))
         weight, flt = filter_to_stitch(self._polar, self._idx, self._margin, self._stitches)
 
         global_pts_polar[flt,1] -= self._idx * math.pi / 2
         global_pts_polar[flt,1] += math.pi
         global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
+
+        local_pts_polar = np.zeros(self._polar.shape)
         local_pts_polar[flt] = self._pt_transform.reverse(global_pts_polar[flt])
+
+        local_pts_eqr = np.zeros(self._polar.shape)
         local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], self._polar.shape)
+
+        pixels = np.zeros(self._polar.shape[:-1] + (3,), np.uint8)
         pixels[flt] = coordinates.eqr_interp(local_pts_eqr[flt], self._image)
+        local_pts_eqr = None
+
         if self._clr_transform is not None:
+            global_pts_polar -= [0, math.pi]
             pixels = self._clr_transform \
-                         .correct_bgr(pixels, \
-                                      global_pts_polar[...,0:2] - [0, math.pi], \
-                                      local_pts_polar[...,0:2],
-                                      flt)
+                         .correct_bgr(pixels, global_pts_polar, local_pts_polar, flt)
 
         n = np.count_nonzero(flt)
-        self.result[flt] = (pixels[flt] * weight[flt].reshape((n, 1))).astype(np.uint8)
+        self.result[flt] = (pixels[flt] * weight[flt].reshape((n, 1))).round().astype(np.uint8)
         print('.', end='', flush=True)
 
 class SpliceImages():

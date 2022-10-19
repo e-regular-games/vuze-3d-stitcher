@@ -23,7 +23,7 @@ def hsv_to_trig_norm(hsv):
         np.cos(hue) / 2 + 0.5,
         hsv[...,1:2] / 255,
         hsv[...,2:3] / 255
-    ], axis=-1)
+    ], axis=-1).astype(np.float32)
 
 def trig_norm_to_hsv(t):
     hue = 180 / (2 * math.pi) * (np.arctan2(t[...,0:1] * 2 - 1, t[...,1:2] * 2 - 1) % (2 * math.pi))
@@ -31,14 +31,14 @@ def trig_norm_to_hsv(t):
         hue,
         t[...,2:3] * 255,
         t[...,3:4] * 255
-    ], axis=-1)
+    ], axis=-1).astype(np.uint8)
 
 def hsv_error(i, f):
     it = hsv_to_trig_norm(i)
     ft = hsv_to_trig_norm(f)
 
     dt = ft - it
-    return np.sqrt(np.sum(dt*dt, axis=-1))
+    return np.sqrt(np.sum(dt*dt, axis=-1)).astype(np.float32)
 
 # expects: img as a 3d matrix with height, width, channels
 # expects: img_hist, target_hist as a 2d lists of pixels with value by channels
@@ -80,8 +80,12 @@ class ColorTransform():
         x = self._arrange_hsv(i, c)
         y = self._arrange_hsv(f, c)
 
-        Q, R = np.linalg.qr(x)
-        self._c = np.linalg.inv(R).dot(np.transpose(Q)) @ y
+        try:
+            Q, R = np.linalg.qr(x)
+            self._c = np.linalg.inv(R).dot(np.transpose(Q)) @ y
+        except:
+            print('error computing coefficients')
+            return hsv_error(i, f)
 
         self._range = KDTree(x[:,:4])
         densities = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
@@ -127,7 +131,7 @@ class ColorTransform():
     def correct_tnorm(self, tnorm, c_global, c_local, flt):
         delta = self.delta_tnorm(tnorm, c_global, c_local, flt)
 
-        kernel = np.ones((11,11),np.float32)/(11*11)
+        kernel = np.ones((11,11), np.float32)/(11*11)
         delta = cv.filter2D(delta, -1, kernel)
         if self._debug.enable('color_delta'):
             norm = (delta + 1) / 2
@@ -142,7 +146,7 @@ class ColorTransform():
     # operates on a matrix of trig norm, global coords, local coords, and
     # a boolean filter of which elements to calculate.
     def delta_tnorm(self, tnorm, c_global, c_local, flt):
-        delta = np.zeros(tnorm.shape)
+        delta = np.zeros(tnorm.shape, np.float32)
         delta[flt] = self._delta_tnorm(tnorm[flt], c_local[flt])
         return delta
 
@@ -151,17 +155,25 @@ class ColorTransform():
     # to decrease the influence of the regression on the estimated delta.
     # @returns a list of changes to trig norm values.
     def _delta_tnorm(self, tnorm, c_local):
+        if self._c is None:
+            return np.zeros(tnorm.shape, np.float32)
         x = self._arrange_tnorm(tnorm, c_local)
         density = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
         density = density.reshape(density.shape + (1,)) / self._range_max_density
         density = np.clip((density - 0.05) / 0.95, 0, 1)
 
         delta = (x @ self._c)[:,:4] - tnorm
+        x = None
+
         dist = np.sqrt(np.sum(delta * delta, axis=-1))
         out_of_bounds = dist > self._range_max_dist
         out_count = np.count_nonzero(out_of_bounds)
         if out_count > 0:
             delta[out_of_bounds] *= (self._range_max_dist / dist[out_of_bounds]).reshape((out_count, 1)) * np.ones((out_count, 4))
+
+        out_of_bounds = None
+        dist = None
+
         return density * delta
 
     def _arrange_hsv(self, hsv, c):
@@ -172,7 +184,7 @@ class ColorTransform():
             tnorm,
             np.full(tnorm.shape[:-1] + (1,), 1),
             tnorm[...,0:1] * tnorm[...,1:2]
-        ], axis=-1)
+        ], axis=-1).astype(np.float32)
 
     def correct_bgr(self, bgr, c_global, c_local, flt):
         hsv = cv.cvtColor(bgr.astype(np.uint8), cv.COLOR_BGR2HSV)

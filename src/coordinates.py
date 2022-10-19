@@ -56,7 +56,7 @@ def polar_to_eqr_3d(c, shape=None):
     h = shape[0] - 1
     x = w * c[:,:,1:2] / math.pi * shape[0] / shape[1]
     y = h * (c[:,:,0:1] / math.pi)
-    return np.concatenate([x, y], axis=-1)
+    return np.concatenate([x, y], axis=-1).astype(np.float32)
 
 # @param c a matrix with N rows and 3 columns, (x, y, z)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -73,7 +73,7 @@ def equirect_points(resolution):
     width = resolution * 2
     height = resolution
     shape = (width*height, 2)
-    eq = np.zeros(shape)
+    eq = np.zeros(shape, np.float32)
 
     for y in range(height):
         for x in range(width):
@@ -93,11 +93,11 @@ def seam_intersect(seam, phi):
     offset = s_theta[:-1] - slope * s_phi[:-1]
 
     phi = phi.reshape((phi.shape[0], 1))
-    theta = np.zeros((phi.shape[0]))
+    theta = np.zeros((phi.shape[0]), np.float32)
     phi_n = phi.shape[0]
     slope_n = slope.shape[0]
 
-    f_mat = np.ones((phi_n, slope_n + 1)) * seam[:, 0]
+    f_mat = np.ones((phi_n, slope_n + 1), np.float32) * seam[:, 0]
     in_range = np.logical_and(phi < f_mat[:,1:], phi >= f_mat[:,:-1])
     f_slope = (np.ones((phi_n, slope_n)) * slope)[in_range]
     f_offset = (np.ones((phi_n, offset.shape[0])) * offset)[in_range]
