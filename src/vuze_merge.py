@@ -3,7 +3,6 @@
 import color_correction
 import sys
 import getopt
-import fisheye
 from format_vr import FormatVR
 import splice
 import transform
@@ -15,6 +14,7 @@ from matplotlib import pyplot as plt
 from skimage import exposure
 import threading
 from exiftool import ExifToolHelper
+from image_loader import ImageLoader
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -250,6 +250,9 @@ class Config:
         ]
         self.exposure_match = 0
         self.exposure_fuse = []
+        self.super_res = []
+        self.super_res_config = {}
+        self.super_res_buckets = {}
         self.color_correct = 'mean-seams'
         self.contrast_equ = None
         self.seam_blend_margin = 5 * math.pi / 180
@@ -287,6 +290,15 @@ class Config:
             self.denoise = (int(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'exposure_fuse' and len(cmd) == 2:
             self.exposure_fuse.append(cmd[1])
+        elif cmd[0] == 'super_resolution' and len(cmd) == 2:
+            self.super_res.append(cmd[1])
+        elif cmd[0] == 'super_resolution' and len(cmd) == 3:
+            bucket = cmd[1]
+            if bucket not in self.super_res_buckets:
+                self.super_res_buckets[bucket] = []
+            self.super_res_buckets[bucket].append(cmd[2])
+        elif cmd[0] == 'super_resolution_config' and len(cmd) == 3:
+            self.super_res_config[cmd[1]] = cmd[2]
         elif cmd[0] == 'color_correction' and len(cmd) >= 2:
             self.color_correct = cmd[1]
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
@@ -303,24 +315,6 @@ class Config:
 
     def valid(self):
         return self.input != '' and self.output != ''
-
-def get_middle(img):
-    width = img.shape[1]
-    middle = range(int(width/4), int(width*3/4))
-    return img[:,middle]
-
-def set_middle(img, value):
-    width = img.shape[1]
-    middle = range(int(width/4), int(width*3/4))
-    img[:,middle] = value
-
-def plot_lenses(images, title):
-    f, axs = plt.subplots(3, 3, sharex=True, sharey=True)
-    f.canvas.manager.set_window_title(title)
-    for i, img in enumerate(images):
-        axs[int(i/3), i%3].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
-        axs[int(i/3), i%3].axes.xaxis.set_ticklabels([])
-        axs[int(i/3), i%3].axes.yaxis.set_ticklabels([])
 
 def read_image_metadata(fname):
     data_map = {}
@@ -355,6 +349,7 @@ class ComputeSplice(threading.Thread):
 
     def run(self):
         self.result = self._splice.generate_fade(self._resolution, self._margin)
+
 
 def write_output(meta_map, left, right, config):
     print('writing output files')
@@ -434,8 +429,6 @@ def write_output(meta_map, left, right, config):
                                  float(stereo[4]), \
                                  float(stereo[5]))
 
-
-
 def main():
     options = ProgramOptions()
     if not options.valid():
@@ -469,63 +462,9 @@ def main():
     debug = Debug(options)
 
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
-    print('loading images')
-    images = []
-    fish = fisheye.FisheyeImage(debug)
-    fish.set_output_resolution(config.resolution)
-    fish.restrict_to_image_angle(False)
-    for l in range(1, 9):
-        img = cv.imread(config.input + '_' + str(l) + '.JPG')
-        img = np.rot90(img)
-        fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
-        images.append(fish.to_equirect())
-        print('.', end='', flush=True)
-    print('')
 
-    if debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
-
-    if len(config.exposure_fuse) > 0:
-        print('fusing exposures')
-        for l in range(1, 9):
-            images_exp = [get_middle(images[l-1])]
-            for exp in config.exposure_fuse:
-                img = cv.imread(exp + '_' + str(l) + '.JPG')
-                img = np.rot90(img)
-                fish.set_image(img, config.lens_centers[l-1], config.radius, config.aperture)
-                images_exp.append(get_middle(fish.to_equirect()))
-
-            mergeMertens = cv.createMergeMertens()
-            merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
-            set_middle(images[l-1], merged.astype(np.uint8))
-            print('.', end='', flush=True)
-        if debug.enable('exposure'): plot_lenses(images, 'Exposures Fused')
-        print('')
-
-    if config.exposure_match != 0:
-        print('matching exposure')
-        # match histograms using the reference image.
-        ref = get_middle(images[config.exposure_match])
-        for i in range(len(images)):
-            print('.', end='', flush=True)
-            if i != (config.exposure_match - 1):
-                mid = get_middle(images[i])
-                set_middle(images[i], exposure.match_histograms(mid, ref, channel_axis=2))
-        if debug.enable('exposure'): plot_lenses(images, 'Exposures Matched')
-        print('')
-
-    if len(config.denoise) == 3:
-        print('denoising images')
-        for i, img in enumerate(images):
-            mid = get_middle(img)
-            midd = cv.fastNlMeansDenoisingColored(mid, None, \
-                                                  config.denoise[0], \
-                                                  config.denoise[0], \
-                                                  config.denoise[1], \
-                                                  config.denoise[2])
-            set_middle(images[i], midd)
-            print('.', end='', flush=True)
-        print('')
-        if debug.enable('denoise'): plot_lenses(images, 'Denoise')
+    loader = ImageLoader(config, debug)
+    images = loader.load()
 
     # contains gps, date, and camera orientation information.
     meta_map = read_image_metadata(config.input)
