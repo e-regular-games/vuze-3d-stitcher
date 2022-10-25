@@ -29,3 +29,5 @@
 [Seam Blending](./seam_blending.md) (August 12, 2022)
 
 [Color Matching Seams](./color_matching_seams.md) (October 14, 2022)
+
+[Super Resolution](./super_resolution.md) (October 21, 2022)

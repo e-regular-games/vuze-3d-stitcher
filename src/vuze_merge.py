@@ -51,6 +51,9 @@ def usage():
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
+    print('super_resolution,<image>\t\tSpecified at least 2 times. Each image will be merged into the result.')
+    print('super_resolution,<bucket>,<image>\t\tSpecified at least 4 times, 2 separate buckets. Buckets can be arbitrary, images within a bucket will be merged, then buckets will be exposure merged using Mertens.')
+    print('super_resolution_config,<variable>,<value>\t\tSupport variables {outlier_limit,sharpen}. Outlier limit is a number of standard deviations, and sharpen is "true" or "false". By default sharpen is "false" and outlier limit is not applied.')
     print('lens,<1-8>,<x_pixels>,<y_pixels>\tThe center of the fisheye for each lens.')
     print('\n')
 
@@ -531,8 +534,14 @@ def main():
         t_right = ComputeSplice(splice_right, config.resolution, config.seam_blend_margin)
 
         # must be done one at a time else, will run the computer out of memory.
-        t_left.run()
-        t_right.run()
+        if debug.enable_threads:
+            t_left.start()
+            t_right.start()
+            t_left.join()
+            t_right.join()
+        else:
+            t_left.run()
+            t_right.run()
 
         left = t_left.result
         right = t_right.result

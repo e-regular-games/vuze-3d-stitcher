@@ -82,12 +82,12 @@ class ImageLoader:
 
         return images
 
-    def _load_images(self, f):
+    def _load_images(self, f, parallel=4):
         threads = []
         images = []
 
         for l in range(1, 9):
-            if len(threads) >= 4:
+            if len(threads) >= parallel:
                 threads[0].join()
                 images.append(threads[0].result)
                 threads = threads[1:]
@@ -145,8 +145,7 @@ class ImageLoader:
             alignMTB = cv.createAlignMTB()
             alignMTB.process(images_exp, images_exp)
             mergeMertens = cv.createMergeMertens()
-            merged = np.clip(mergeMertens.process(images_exp) * 255, 0, 255)
-            images[l-1] = merged.astype(np.uint8)
+            images[l-1] = np.clip(mergeMertens.process(images_exp) * 255, 0, 255).round().astype(np.uint8)
             print('.', end='', flush=True)
         if self._debug.enable('exposure'): plot_lenses(images, 'Exposures Fused')
         print('')
@@ -191,7 +190,7 @@ class ImageLoader:
                 avg = None
                 std = None
 
-            result = np.mean(imgs, axis=0).astype(np.uint8)
+            result = np.mean(imgs, axis=0).round().astype(np.uint8)
 
             if 'sharpen' in self._config.super_res_config \
                and self._config.super_res_config['sharpen'] == 'true':
@@ -221,7 +220,7 @@ class ImageLoader:
             alignMTB = cv.createAlignMTB()
             alignMTB.process(lens, lens)
             mergeMertens = cv.createMergeMertens()
-            lens = np.clip(mergeMertens.process(lens) * 255, 0, 255).astype(np.uint8)
+            lens = np.clip(mergeMertens.process(lens) * 255, 0, 255).round().astype(np.uint8)
             images.append(lens)
             print('.', end='', flush=True)
 
