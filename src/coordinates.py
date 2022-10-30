@@ -8,6 +8,12 @@ import math
 import numpy as np
 import cv2 as cv
 
+def to_1d(a):
+    return a.reshape((a.shape[0] * a.shape[1],) + a.shape[2:])
+
+def to_2d(a):
+    return a.reshape((a.shape[0],) + (1,) + a.shape[1:])
+
 # @param c a matrix with N rows and 2 columns, (x, y)
 # @param shape a tuple with at least 2 values, (height, width)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -31,10 +37,10 @@ def eqr_to_polar_3d(c):
 # @param r the radius to use during the conversion to cartesian.
 # @returns a matrix with N rows and 3 columns, (x, y, z)
 def polar_to_cart(c, r):
-    res = np.zeros((c.shape[0], 3))
-    res[:,0] = r * np.sin(c[:,0]) * np.cos(c[:,1])
-    res[:,1] = r * np.sin(c[:,0]) * np.sin(c[:,1])
-    res[:,2] = r * np.cos(c[:,0])
+    res = np.zeros(c.shape[:-1] + (3,))
+    res[...,0] = r * np.sin(c[...,0]) * np.cos(c[...,1])
+    res[...,1] = r * np.sin(c[...,0]) * np.sin(c[...,1])
+    res[...,2] = r * np.cos(c[...,0])
     return res
 
 # @param c a matrix with N rows and 2 columns, (phi, theta)
@@ -61,10 +67,10 @@ def polar_to_eqr_3d(c, shape=None):
 # @param c a matrix with N rows and 3 columns, (x, y, z)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
 def cart_to_polar(c):
-    r = np.zeros((c.shape[0], 2))
-    r[:,1] = np.arctan2(c[:,1], c[:,0])
-    r[:,0] = np.arctan2(np.sqrt(c[:,0]*c[:,0] + c[:,1]*c[:,1]), c[:,2])
-    return phi, theta
+    r = np.zeros(c.shape[:-1] + (2,))
+    r[...,1] = np.arctan2(c[...,1], c[...,0])
+    r[...,0] = np.arctan2(np.sqrt(c[...,0]*c[...,0] + c[...,1]*c[...,1]), c[...,2])
+    return r
 
 # @returns a matrix of N rows by 2 columns, (x, y) where each row
 #   represents the pixel coordinate within an equirectangular image with

@@ -98,6 +98,8 @@ class SpliceImages():
 
         self._debug = debug
         self._view0 = 0
+        self._rotate_x = 0
+        self._rotate_y = 0
 
     def set_transform(self, idx, t):
         self._transforms[idx] = t
@@ -107,6 +109,10 @@ class SpliceImages():
 
     def set_initial_view(self, deg):
         self._view0 = deg / 180 * math.pi
+
+    def set_camera_rotations(self, x, y):
+        self._rotate_x = x
+        self._rotate_y = y
 
     # line is a numpy array of (phi, theta) rows
     # the first row should be phi = 0, and the last should be phi = pi
@@ -121,6 +127,25 @@ class SpliceImages():
 
         self._st_slopes[idx] = slope
         self._st_offset[idx] = offset
+
+    def _apply_rotations(self, image, eq):
+        if self._rotate_x == 0 and self._rotate_y == 0:
+            return image
+
+        plr = coordinates.eqr_to_polar(coordinates.to_1d(eq), image.shape)
+        cart = coordinates.polar_to_cart(plr, 2)
+        X = np.array([[math.cos(self._rotate_x), 0, math.sin(self._rotate_x)],
+                      [0, 1, 0],
+                      [-math.sin(self._rotate_x), 0, math.cos(self._rotate_x)]], dtype=np.float32)
+        Y = np.array([[1, 0, 0],
+                      [0, math.cos(self._rotate_y), math.sin(self._rotate_y)],
+                      [0, -math.sin(self._rotate_y), math.cos(self._rotate_y)]], dtype=np.float32)
+        cart = np.matmul(Y, np.matmul(X, cart.transpose())).transpose()
+
+        plr = coordinates.cart_to_polar(cart)
+        eq = coordinates.polar_to_eqr(plr, image.shape)
+
+        return coordinates.eqr_interp(eq, image).reshape(image.shape)
 
     def _generate(self, v_res, images, margin):
         shape = (v_res, 2 * v_res, 3)
@@ -144,6 +169,8 @@ class SpliceImages():
             if self._debug.enable_threads:
                 t.join()
             result += t.result
+
+        result = self._apply_rotations(result, eq)
 
         # adjust for view0 being a non-zero value
         if self._view0 != 0:

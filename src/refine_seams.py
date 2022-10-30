@@ -25,6 +25,10 @@ class RefineSeams():
         self.seam_points = 50
         self.seam_window = 10
 
+        self._targets = None
+        self._matches = None
+        self._seams = None
+
         for i, img in enumerate(images):
             t = transform.Transform(debug)
             t.label = 'lens:' + str(i+1)
@@ -179,6 +183,13 @@ class RefineSeams():
             target[:,7] = np.sum(matches[i][:,[5,7]], axis=1) * 0.5
             targets.append(target)
 
+        if self._matches is not None and self._targets is not None:
+            for i in range(4):
+                matches[i] = np.concatenate([matches[i], self._matches[i]])
+                targets[i] = np.concatenate([targets[i], self._targets[i]])
+
+        self._matches = matches
+        self._targets = targets
         return matches, targets
 
     def _compute_transforms(self, matches, targets, err_thres):
@@ -270,20 +281,84 @@ class RefineSeams():
 
             seams.append(seam)
 
+        self._seams = seams
         return seams
 
     def matches(self, match_thres=0.75, err_thres=0.0075):
         matches, targets = self._determine_matches_and_targets(match_thres)
         within_error = self._compute_transforms(matches, targets, err_thres)
 
-        for i in range(len(matches)):
+        matches = []
+        targets = []
+        for i in range(len(self._matches)):
             closest = within_error[i].all(axis=1)
-            matches[i] = matches[i][closest]
+            matches.append(self._matches[i][closest])
+            targets.append(self._targets[i][closest])
 
         return matches
 
     # compute the alignment coefficients
     def align(self, match_thres=0.75, err_thres=0.0075):
-        m = self.matches(match_thres, err_thres)
-        seams = self._compute_seams(m)
-        return seams, m
+        matches = self.matches(match_thres, err_thres)
+        seams = self._compute_seams(matches)
+        return seams, matches
+
+    def to_csv(self, f):
+        for i, s in enumerate(self._seams):
+            f.write(','.join(['seam', str(i), 'phi'] + np.char.mod('%f', s[:,0]).tolist()) + '\n')
+            f.write(','.join(['seam', str(i), 'theta'] + np.char.mod('%f', s[:,1]).tolist()) + '\n')
+
+        for i, t in enumerate(self._transforms):
+            f.write(','.join(['phi', str(i),str(t.phi_coeffs_order)] + np.char.mod('%f', t.phi_coeffs).tolist()) + '\n')
+            f.write(','.join(['theta', str(i), str(t.theta_coeffs_order)] + np.char.mod('%f', t.theta_coeffs).tolist()) + '\n')
+
+        for i, m in enumerate(self._matches):
+            l = m.shape[0] * m.shape[1]
+            f.write(','.join(['matches', str(i)] + np.char.mod('%f', m.reshape((l))).tolist()) + '\n')
+
+        for i, t in enumerate(self._targets):
+            l = t.shape[0] * t.shape[1]
+            f.write(','.join(['targets', str(i)] + np.char.mod('%f', t.reshape((l))).tolist()) + '\n')
+
+
+    def from_csv(self, f):
+        stitches_phi = [None]*8
+        stitches_theta = [None]*8
+        matches = [None]*4
+        transforms = [transform.Transform(self._debug) for t in range(8)]
+        targets = [None]*4
+
+        for l in f.readlines():
+            cmd = l.strip().split(',')
+            if cmd[0] == 'seam' and len(cmd) >= 3:
+                data = np.array([float(s) for s in cmd[3:]])
+                if cmd[2] == 'phi':
+                    stitches_phi[int(cmd[1])] = data
+                elif cmd[2] == 'theta':
+                    stitches_theta[int(cmd[1])] = data
+            if cmd[0] == 'phi':
+                t = int(cmd[1])
+                transforms[t].phi_coeffs_order = int(cmd[2])
+                transforms[t].phi_coeffs = np.array([float(s) for s in cmd[3:]])
+            if cmd[0] == 'theta':
+                t = int(cmd[1])
+                transforms[t].theta_coeffs_order = int(cmd[2])
+                transforms[t].theta_coeffs = np.array([float(s) for s in cmd[3:]])
+            if cmd[0] == 'matches':
+                i = int(cmd[1])
+                matches[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
+            if cmd[0] == 'targets':
+                i = int(cmd[1])
+                targets[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
+
+        stitches = []
+        for i in range(8):
+            st = np.zeros((stitches_phi[i].shape[0], 2))
+            st[:,0] = stitches_phi[i]
+            st[:,1] = stitches_theta[i]
+            stitches.append(st)
+
+        self._seams = stitches
+        self._transforms = transforms
+        self._matches = matches
+        self._targets = targets

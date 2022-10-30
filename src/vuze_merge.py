@@ -27,6 +27,7 @@ def usage():
     print('-i,--image\t\tOverride the input and output config options.')
     print('-I,--in\t\tOverride the input config option.')
     print('-O,--out\t\tOverride the output config option.')
+    print('-C,--color\t\tOverride the color_correction config option.')
     print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
     print('-q,--quality\t\tVertical resolution of the full output image.')
     print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
@@ -48,6 +49,7 @@ def usage():
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('color_correction,mean-seams\t\t\tAdjust colors of all lenses using the mean between lenses along the entire seam.')
     print('color_correction,mean-matches\t\t\tAdjust colors of all lenses using the mean between lenses for matching points between images.')
+    print('accel_align,<enabled>\t\t\tUse the accelerometer to rotate and translate the lens. default: false')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
@@ -69,10 +71,11 @@ class ProgramOptions:
         self.out_override = ''
         self.format = []
         self.resolution = 0
+        self.color_correction = None
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hw:r:vc:i:f:I:O:q:',
+            'd:hw:r:vc:i:f:I:O:q:C:',
             [
                 'help',
                 'image=',
@@ -84,7 +87,8 @@ class ProgramOptions:
                 'config=',
                 'verbose',
                 'display=',
-                'quality='
+                'quality=',
+                'color=',
             ])
 
         for o, a in options:
@@ -102,6 +106,8 @@ class ProgramOptions:
                 self.in_override = a
             elif o in ("-O", "--out"):
                 self.out_override = a
+            elif o in ("-C", "--color"):
+                self.color_correction = a
             elif o in ("-q", "--quality"):
                 self.resolution = int(a)
             elif o in ("-f", "--format"):
@@ -117,60 +123,6 @@ class ProgramOptions:
         return len(self.config) > 0 or len(self.image_override) > 0 \
             or (len(self.in_override) > 0 and len(self.out_override) > 0)
 
-
-class AdjustmentCoeffs:
-    def __init__(self, fname, debug):
-        self._fname = fname
-        self._debug = debug
-
-    def write(self, stitches, transforms, matches):
-        with open(self._fname, 'w') as f:
-            for i, s in enumerate(stitches):
-                f.write(','.join(['seam', str(i), 'phi'] + np.char.mod('%f', s[:,0]).tolist()) + '\n')
-                f.write(','.join(['seam', str(i), 'theta'] + np.char.mod('%f', s[:,1]).tolist()) + '\n')
-
-            for i, t in enumerate(transforms):
-                f.write(','.join(['phi', str(i), str(t.phi_coeffs_order)] + np.char.mod('%f', t.phi_coeffs).tolist()) + '\n')
-                f.write(','.join(['theta', str(i), str(t.theta_coeffs_order)] + np.char.mod('%f', t.theta_coeffs).tolist()) + '\n')
-
-            for i, m in enumerate(matches):
-                l = m.shape[0] * m.shape[1]
-                f.write(','.join(['matches', str(i)] + np.char.mod('%f', m.reshape((l))).tolist()) + '\n')
-
-    def read(self):
-        with open(self._fname, 'r') as f:
-            stitches_phi = [None]*8
-            stitches_theta = [None]*8
-            matches = [None]*4
-            transforms = [transform.Transform(self._debug) for t in range(8)]
-            for l in f.readlines():
-                cmd = l.strip().split(',')
-                if cmd[0] == 'seam' and len(cmd) >= 3:
-                    data = np.array([float(s) for s in cmd[3:]])
-                    if cmd[2] == 'phi':
-                        stitches_phi[int(cmd[1])] = data
-                    elif cmd[2] == 'theta':
-                        stitches_theta[int(cmd[1])] = data
-                if cmd[0] == 'phi':
-                    t = int(cmd[1])
-                    transforms[t].phi_coeffs_order = int(cmd[2])
-                    transforms[t].phi_coeffs = np.array([float(s) for s in cmd[3:]])
-                if cmd[0] == 'theta':
-                    t = int(cmd[1])
-                    transforms[t].theta_coeffs_order = int(cmd[2])
-                    transforms[t].theta_coeffs = np.array([float(s) for s in cmd[3:]])
-                if cmd[0] == 'matches':
-                    i = int(cmd[1])
-                    matches[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
-
-            stitches = []
-            for i in range(8):
-                st = np.zeros((stitches_phi[i].shape[0], 2))
-                st[:,0] = stitches_phi[i]
-                st[:,1] = stitches_theta[i]
-                stitches.append(st)
-
-            return stitches, transforms, matches
 
 class Debug:
     def __init__(self, options=None):
@@ -257,6 +209,7 @@ class Config:
         self.super_res_config = {}
         self.super_res_buckets = {}
         self.color_correct = 'mean-seams'
+        self.accel_align = True
         self.contrast_equ = None
         self.seam_blend_margin = 5 * math.pi / 180
         self.seam_pyramid_depth = 0
@@ -302,6 +255,8 @@ class Config:
             self.super_res_buckets[bucket].append(cmd[2])
         elif cmd[0] == 'super_resolution_config' and len(cmd) == 3:
             self.super_res_config[cmd[1]] = cmd[2]
+        elif cmd[0] == 'accel_align' and len(cmd) == 2:
+            self.accel_align = (cmd[1] == 'true')
         elif cmd[0] == 'color_correction' and len(cmd) >= 2:
             self.color_correct = cmd[1]
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
@@ -451,6 +406,8 @@ def main():
         config.output = options.out_override
     if options.resolution > 0:
         config.resolution = options.resolution
+    if options.color_correction is not None:
+        config.color_correct = options.color_correction
 
     if len(options.format) > 0:
         config.format = {}
@@ -466,30 +423,28 @@ def main():
 
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
 
-    loader = ImageLoader(config, debug)
-    images = loader.load()
-
     # contains gps, date, and camera orientation information.
     meta_map = read_image_metadata(config.input)
 
+    loader = ImageLoader(config, debug)
+    images = loader.load()
+
     stitches = []
     ts = []
-    matches = []
+    matches = None
     cc = None
+    seam = refine_seams.RefineSeams(images, debug)
+
     if options.read_equation != '':
         print('loading seams')
-        stitches, ts, matches = AdjustmentCoeffs(options.read_equation, debug).read()
-        if config.color_correct == 'mean-matches':
-            print('computing matches')
-            seam = refine_seams.RefineSeams(images, debug)
-            addl = seam.matches()
-            for i, m in enumerate(matches):
-                matches[i] = np.concatenate([addl[i], m])
-    else:
-        print('computing seams')
-        seam = refine_seams.RefineSeams(images, debug)
-        stitches, matches = seam.align()
-        ts = seam._transforms
+        with open(options.read_equation, 'r') as f:
+            seam.from_csv(f)
+
+    print('computing seams')
+    seam.align()
+    stitches = seam._seams
+    matches = seam._matches
+    ts = seam._transforms
 
     if config.color_correct == 'mean-seams':
         color = color_correction.ColorCorrectionSeams(images, ts, stitches, debug)
@@ -506,6 +461,14 @@ def main():
     splice_left.set_initial_view(config.view_direction)
     splice_right = splice.SpliceImages(images[1:8:2], debug)
     splice_right.set_initial_view(config.view_direction)
+
+    if config.accel_align:
+        # x range -0.982422 -> 1.01662, 1.99042, center: 0.017009
+        # y range -0.99414 -> 1.002441, 1.996582, center: 0.00414
+        rotate_x = (meta_map['xAccel'] - 0.017009) / 1.99042 * math.pi
+        rotate_y = (meta_map['yAccel'] - 0.00414) / 1.996582 * math.pi
+        splice_left.set_camera_rotations(rotate_x, rotate_y)
+        splice_right.set_camera_rotations(rotate_x, rotate_y)
 
     for s in range(4):
         st_l = stitches[2*s].copy()
@@ -562,7 +525,8 @@ def main():
     write_output(meta_map, left, right, config)
 
     if options.write_equation != '':
-        AdjustmentCoeffs(options.write_equation, debug).write(stitches, ts, matches)
+        with open(options.write_equation, 'w') as f:
+            seam.to_csv(f)
 
     plt.show()
 
