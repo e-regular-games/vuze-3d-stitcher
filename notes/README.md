@@ -32,4 +32,6 @@
 
 [Super Resolution](./super_resolution.md) (October 21, 2022)
 
+[Horizon Leveling](./horizon_leveling.md) (October 31, 2022)
+
 [Lens Alignment](./lens_alignment.md) (November 16, 2022)

@@ -466,10 +466,8 @@ def main():
     splice_right.set_initial_view(config.view_direction)
 
     if config.accel_align:
-        # x range -0.982422 -> 1.01662, 1.99042, center: 0.017009
-        # y range -0.99414 -> 1.002441, 1.996582, center: 0.00414
-        rotate_x = (meta_map['xAccel'] - 0.017009) / 1.99042 * math.pi
-        rotate_y = (meta_map['yAccel'] - 0.00414) / 1.996582 * math.pi
+        rotate_x = math.atan2(meta_map['xAccel'], abs(meta_map['zAccel']))
+        rotate_y = math.atan2(meta_map['yAccel'], abs(meta_map['zAccel']))
         splice_left.set_camera_rotations(rotate_x, rotate_y)
         splice_right.set_camera_rotations(rotate_x, rotate_y)
 
