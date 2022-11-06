@@ -1,8 +1,8 @@
 serial_number=VUZ1178200318
 fw=2.1.38670
 zero_direction=0
-last_position=41.2821537|-73.3864073|83.93572998046875
-temperature=38.935123
-xAccel=0.005127,yAccel=0.003662,zAccel=-1.008789
-xGyro=0.427246, yGyro=0.473022,zGyro=0.747681
-xMagnet=-0.241343,yMagnet=0.145405,zMagnet=0.783989
+last_position=41.2822161|-73.3864438|99.905517578125
+temperature=39.321503
+xAccel=0.004150,yAccel=0.006592,zAccel=-1.009521
+xGyro=0.381470, yGyro=0.518799,zGyro=0.732422
+xMagnet=-0.206865,yMagnet=0.158896,zMagnet=0.816968

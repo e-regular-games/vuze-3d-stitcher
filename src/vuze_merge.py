@@ -17,6 +17,7 @@ import threading
 from exiftool import ExifToolHelper
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
+from depth_mesh import DepthMesh
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -455,6 +456,11 @@ def main():
 
     images = loader.load(calibration)
     calibration = loader.get_calibration()
+
+    depth = DepthMesh(images, debug)
+    depth.generate()
+    plt.show()
+    exit(0)
 
     stitches = []
     ts = []
