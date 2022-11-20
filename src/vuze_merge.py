@@ -118,7 +118,8 @@ class ProgramOptions:
             elif o in ("-q", "--quality"):
                 self.resolution = int(a)
             elif o in ("-f", "--format"):
-                self.format = a.split(",")
+                for f in a.split(","):
+                    self.format.append(f)
             elif o in ("-d", "--display"):
                 for s in a.split(','):
                     self.display[s] = True
@@ -419,7 +420,7 @@ def main():
 
     saved_data = None
     if options.read_equation != '':
-        print('loading seams')
+        print('loading saved coefficients')
         with open(options.read_equation, 'r') as f:
             saved_data = json.load(f)
     elif not options.write_ellipse:
@@ -440,7 +441,6 @@ def main():
     seam = refine_seams.RefineSeams(images, debug)
 
     if options.read_equation != '':
-        print('loading seams')
         seam.from_dict(saved_data['seam'])
 
     print('computing seams')
