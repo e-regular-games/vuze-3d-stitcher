@@ -76,3 +76,21 @@ A bright day at the Putnam Railroad Station in Yorktown Heights, NY. The solid b
     <td><img src="HET_0017_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
   </tr>
 </table>
+
+### HET_0025
+A cloudy day on top of Sleeping Giant in Hamden, CT. The camera was rotated to allow obvious utilization of post-processing horizon leveling functionality.
+
+<table>
+  <tr>
+    <td><img src="HET_0025_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0025_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0025_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0025_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
+  </tr>
+  <tr>
+    <td><img src="HET_0025_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0025_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0025_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0025_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
+  </tr>
+</table>
