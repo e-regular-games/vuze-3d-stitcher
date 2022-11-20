@@ -173,8 +173,8 @@ class CalibrationParams():
         gray = cv.medianBlur(gray, 5)
         thres = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, \
                                      cv.THRESH_BINARY, 11, 2)
-        thres = cv.GaussianBlur(thres, (31,31), sigmaX=0, sigmaY=0)
-        thres = cv.threshold(thres, 180, 255, cv.THRESH_BINARY)[1]
+        thres = cv.GaussianBlur(thres, (23,23), sigmaX=0, sigmaY=0)
+        thres = cv.threshold(thres, 170, 255, cv.THRESH_BINARY)[1]
 
         # create an (img.shape[:-1]) of short int aligned
         x = np.arange(0, img.shape[1])

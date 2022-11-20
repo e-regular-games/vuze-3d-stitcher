@@ -79,7 +79,7 @@ The adjustment produces a slightly different image by horizontally expanding the
 | Pixels within each Lens | Left Eye | Right Eye |
 | :----: | :----: | :----: |
 | Before | <img src="align_left_before.JPG" alt="Before Left Eye" width="300px" /> | <img src="align_right_before.JPG" alt="Before Right Eye" width="300px" /> |
-| Before | <img src="align_left_after.JPG" alt="After Left Eye" width="300px" /> | <img src="align_right_after.JPG" alt="After Right Eye" width="300px" /> |
+| After | <img src="align_left_after.JPG" alt="After Left Eye" width="300px" /> | <img src="align_right_after.JPG" alt="After Right Eye" width="300px" /> |
 
 ### Rotation
 
