@@ -10,6 +10,14 @@ from matplotlib import pyplot as plt
 from sklearn.neighbors import KDTree
 
 
+def trim_outliers(i, d):
+    m = np.mean(i)
+    std = np.std(i)
+
+    inc = np.logical_and(m - d*std < i, i < m + d*std)
+    return i[inc], inc
+
+
 class RegionFeatures():
     def __init__(self):
         self.to_equ = None
@@ -24,62 +32,131 @@ class DepthMesh():
         self._images = images
         self._debug = debug
 
-        self._d_eyes = 0.06
-        self._d_center = 0.06
+        # the position of the camera assuming the ground under
+        # the camera is 0,0,0. The center of the camera is at (0,0,_Z)
+        self._X = 0.03
+        self._Y = 0.06
+        self._Z = 1.7
+
+        self._d_close = 2
+        self._d_far = 30
 
         self._features = None
 
     def generate(self):
         matches = self._features_determine()
-
-
         pass
 
 
+    # the left and right theta values as 1d vectors
     def _radius_compute(self, left, right):
-        h_right = self._d_eyes / np.cos(right) / (1 - np.sin(right) * np.cos(left) / np.sin(left) / np.cos(right))
-        print(left[:10], right[:10], h_right[:10])
-        o = h_right * np.sin(right) + self._d_center
-        a = h_right * np.cos(right) - self._d_eyes / 2
-        r = np.sqrt(o * o + a * a)
+        n = left.shape[0]
+        m_l = np.zeros((n, 3))
+        m_r = np.zeros((n, 3))
 
-        return r
+        print('left')
+        print(left)
+        print('right')
+        print(right)
+
+        m_l[:,0] = np.sin(left[:,0]) * np.cos(math.pi/2 - left[:,1])
+        a_l = m_l[:,0:1]
+        m_l[:,1] = np.sin(left[:,0]) * np.sin(math.pi/2 - left[:,1])
+        b_l = m_l[:,1:2]
+        m_l[:,2] = np.cos(left[:,0])
+        c_l = m_l[:,2:3]
+
+        print('m_l')
+        print(m_l)
+
+        m_r[:,0] = np.sin(right[:,0]) * np.cos(math.pi/2 - right[:,1])
+        a_r = m_r[:,0:1]
+        m_r[:,1] = np.sin(right[:,0]) * np.sin(math.pi/2 - right[:,1])
+        b_r = m_r[:,1:2]
+        m_r[:,2] = np.cos(right[:,0])
+        c_r = m_r[:,2:3]
+
+        print('m_r')
+        print(m_r)
+
+        p_l = np.array([[-self._X, self._Y, self._Z]])
+        p_r = np.array([[self._X, self._Y, self._Z]])
+
+        # v = p + r * m
+        # find the point on v_l and v_r such that the points are closest
+        # r_l and r_r are the radius along each line that results in the closest point
+        # if the point is r_l = r_r = 0, ignore the point,
+        m_d = np.cross(m_r, m_l)
+        a_d = m_d[:,0:1]
+        b_d = m_d[:,1:2]
+        c_d = m_d[:,2:3]
+
+        A = (b_l*c_r - c_l*b_r) / (c_d*b_r - b_d*c_r)
+        r_l = (2 * self._X / (a_l + A*a_d - c_l*a_r/c_r - A*c_d*a_r/c_r)).reshape((n,1))
+        print('r_l')
+        print(r_l)
+        r_r = r_l*c_l/c_r + r_l*A*c_d/c_r
+        print('r_r')
+        print(r_r)
+        r_d = A * r_l
+
+        v_l = p_l + r_l * m_l
+        v_r = p_r + r_r * m_r
+
+        print(v_l)
+        print(v_r)
+
+        d = v_l - v_r
+        d = np.sqrt(np.sum(d*d, axis=1))
+
+        v = (v_l + v_r) / 2
+        inc = np.logical_and(r_r > 0, r_l > 0)[:,0]
+        print(inc.shape)
+        return v[inc]
+
+        polar = np.zeros((v.shape[0], 3))
+        polar[:,2] = np.sqrt(np.sum(v*v, axis=1))
+        polar[:,1] = np.arctan2(v[:,1], v[:,0])
+        polar[:,0] = np.arccos(v[:,2] / polar[:,2])
+        return polar
 
     def _features_determine(self):
-        all_matches_plr = np.zeros((0, 2, 2), dtype=np.float32)
-        for i in range(0, len(self._images), 2):
+        points = np.zeros((0, 3), dtype=np.float32)
+        for i in range(0, 2, 2):
             matches_plr = self._match_between_eyes(self._images[i], self._images[i+1], 0.75)
-            matches_plr += [0, i / 2 * math.pi / 2]
-            all_matches_plr = np.concatenate([all_matches_plr, matches_plr])
 
-        all_matches_plr = all_matches_plr.reshape((all_matches_plr.shape[0], 4))
-        tree = KDTree(all_matches_plr)
-        overlapping = tree.query_radius(all_matches_plr, 0.0001)
+            p = self._radius_compute(matches_plr[:,0], matches_plr[:,1])
+            p[:,1] += i / 2 * math.pi / 2
 
-        include = np.full((all_matches_plr.shape[0],), True, dtype=np.bool)
+            points = np.concatenate([points, p])
+
+        points_flat = points.reshape((points.shape[0], 3))
+        tree = KDTree(points_flat)
+        overlapping = tree.query_radius(points_flat, 0.0001)
+
+        include = np.full((points_flat.shape[0],), True, dtype=np.bool)
+        skip = np.full((points_flat.shape[0],), False, dtype=np.bool)
         for i, near in enumerate(overlapping):
+            if skip[i]: continue
             for o in near:
                 if o != i:
                     include[o] = False
+                    skip[o] = True
 
         if self._debug.verbose:
-            print('overlapping features', np.count_nonzero(include), all_matches_plr.shape[0])
+            print('overlapping features', np.count_nonzero(include), points.shape[0])
 
-        all_matches_plr = all_matches_plr[include]
-        all_matches_plr = all_matches_plr.reshape((all_matches_plr.shape[0], 2, 2))
-
-        if self._debug.enable('depth_sphere'):
-            self.show_polar_plot(all_matches_plr[:,0], all_matches_plr[:,1])
-
-        r = self._radius_compute(all_matches_plr[:,0,1], all_matches_plr[:,1,1])
-
-        left = np.concatenate([all_matches_plr[:,0], r.reshape((r.shape[0], 1))], axis=1)
-        right = np.concatenate([all_matches_plr[:,1], r.reshape((r.shape[0], 1))], axis=1)
+        points_flat = points_flat[include]
+        points = points_flat.reshape(points_flat.shape[0:1] + points.shape[1:])
 
         if self._debug.enable('depth_points'):
-            self.show_polar_points(left)
-            self.show_polar_points(right)
+            plt.figure()
+            ax = plt.axes(projection ='3d')
+            ax.plot3D(points[:,0], points[:,1], points[:,2], 'bo', markersize=1)
 
+            plt.xlim([-self._d_far, self._d_far])
+            plt.ylim([-self._d_far, self._d_far])
+            ax.set_zlim(-self._d_far, self._d_far)
 
     def _match_between_eyes(self, img_left, img_right, threshold):
         sift = cv.SIFT_create()
@@ -88,7 +165,7 @@ class DepthMesh():
 
         imgs = [img_left] + [img_right]
         thetas = [-45, 0, 45]
-        phis = [0]
+        phis = [-45, 0, 45]
         features = [RegionFeatures() for i in range(len(thetas) * len(phis) * len(imgs))]
         all_polar_pts = np.zeros((0, len(imgs), 2), dtype=np.float32)
 
@@ -112,23 +189,23 @@ class DepthMesh():
 
                 if f_l.descripts is None or f_r.descripts is None: continue
 
-                num_keypoints = len(f_l.keypoints)
+                num_keypoints = len(f_r.keypoints)
                 kp_indices = np.zeros((num_keypoints, 2), dtype=np.int) - 1
-                kp_indices[:, 0] = np.arange(0, num_keypoints)
+                kp_indices[:, 1] = np.arange(0, num_keypoints)
 
-                matches = self._determine_matches(f_r.descripts, f_l.descripts, threshold)
+                matches = self._determine_matches(f_l.descripts, f_r.descripts, threshold)
                 for m in matches:
-                    kp_indices[m.trainIdx, 1] = m.queryIdx
+                    kp_indices[m.trainIdx, 0] = m.queryIdx
 
                 kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]
                 if kp_indices.shape[0] == 0: continue
 
                 if self._debug.enable('depth_matches'):
-                    plot = cv.drawMatches(f_r.gray, f_r.keypoints,
-                                          f_l.gray, f_l.keypoints,
+                    plot = cv.drawMatches(f_l.gray, f_l.keypoints,
+                                          f_r.gray, f_r.keypoints,
                                           matches, None,
                                           flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                    fig.add_subplot(3, 1, fc).imshow(plot)
+                    fig.add_subplot(len(phis), len(thetas), fc).imshow(plot)
                     fc += 1
 
                 rectilinear_pts = np.zeros(kp_indices.shape + (2,))
@@ -141,6 +218,9 @@ class DepthMesh():
                     eq_pts = f[j].to_equ.GetEquirectangularPoints(rectilinear_pts[:,j])
                     polar_pts[:,j] = coordinates.eqr_to_polar(eq_pts, imgs[j].shape)
                     polar_pts[:,j] -= [0, math.pi]
+
+                #_, inc = trim_outliers(polar_pts[:,0,0] - polar_pts[:,1,0], 1)
+                #polar_pts = polar_pts[inc]
 
                 all_polar_pts = np.concatenate([all_polar_pts, polar_pts])
 
@@ -160,7 +240,7 @@ class DepthMesh():
                 good_matches.append(ma[0])
 
         good_matches.sort(key=by_distance)
-        return good_matches
+        return good_matches[:3]
 
 
     def show_polar_plot(self, polar_a, polar_b, label=None):
@@ -191,6 +271,6 @@ class DepthMesh():
         ax = plt.axes(projection ='3d')
         ax.plot3D(xa, ya, za, 'bo', markersize=1)
 
-        plt.xlim([-1, 1])
-        plt.ylim([-1, 1])
-        ax.set_zlim(-1, 1)
+        plt.xlim([-self._d_far, self._d_far])
+        plt.ylim([-self._d_far, self._d_far])
+        ax.set_zlim(-self._d_far, self._d_far)
