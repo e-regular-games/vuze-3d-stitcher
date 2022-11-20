@@ -232,6 +232,9 @@ class ImageLoader:
         print('loading images')
         images = self._load_images(self._config.input)
         if self._debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
+        if self._debug.enable('fisheye-fio'):
+            for i, img in enumerate(images):
+                cv.imwrite('equirect_' + str(i) + '.JPG', img)
 
         if len(self._config.exposure_fuse) > 0:
             images = self._fuse_exposures(images)
@@ -284,6 +287,11 @@ class ImageLoader:
                 if c.lens_pixels is not None:
                     cv.imwrite('lens_alignment_in_lens_' + str(i) + '.png', c.lens_pixels)
                 c.plot(axs[int(i/4), i%4])
+
+        if self._debug.enable('calib-fio'):
+            for i, c in enumerate(self._calib):
+                if c.lens_pixels is not None:
+                    cv.imwrite('lens_alignment_in_lens_' + str(i) + '.png', c.lens_pixels)
 
         return images
 
