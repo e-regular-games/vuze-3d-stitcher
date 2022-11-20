@@ -7,6 +7,7 @@ from format_vr import FormatVR
 import splice
 import transform
 import refine_seams
+import json
 import math
 import numpy as np
 import cv2 as cv
@@ -15,6 +16,7 @@ from skimage import exposure
 import threading
 from exiftool import ExifToolHelper
 from image_loader import ImageLoader
+from image_loader import CalibrationParams
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -30,8 +32,9 @@ def usage():
     print('-C,--color\t\tOverride the color_correction config option.')
     print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
     print('-q,--quality\t\tVertical resolution of the full output image.')
-    print('-w,--write-equation\t\tWrite the alignment equation constants to the provided file.')
-    print('-r,--read-equation\t\tRead the alignment equation constants to the provided file.')
+    print('-e,--ellipse-coeffs\t\tDetermine the coefficients for fisheye/sensor offset and skew from the provided images. Default is to read from the equation coefficients file.')
+    print('-w,--write-coeffs\t\tWrite the alignment equation constants to the provided file.')
+    print('-r,--read-coeffs\t\tRead the alignment equation constants to the provided file.')
     print('-v,--verbose\t\tMore detailed output to the console.')
     print('-d,--display\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
     print('-h,--help\t\tDisplay this message.')
@@ -66,6 +69,7 @@ class ProgramOptions:
         self.display = {}
         self.read_equation = ''
         self.write_equation = ''
+        self.write_ellipse = False
         self.image_override = ''
         self.in_override = ''
         self.out_override = ''
@@ -75,7 +79,7 @@ class ProgramOptions:
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hw:r:vc:i:f:I:O:q:C:',
+            'd:hew:r:vc:i:f:I:O:q:C:',
             [
                 'help',
                 'image=',
@@ -89,6 +93,7 @@ class ProgramOptions:
                 'display=',
                 'quality=',
                 'color=',
+                'ellipse-coeffs'
             ])
 
         for o, a in options:
@@ -96,6 +101,8 @@ class ProgramOptions:
                 self.config = a
             elif o in ("-v", "--verbose"):
                 self.verbose = True
+            elif o in ("-e", "--ellipse-coeffs"):
+                self.write_ellipse = True
             elif o in ("-r", "--read-equation"):
                 self.read_equation = a
             elif o in ("-w", "--write-equation"):
@@ -188,21 +195,10 @@ class Config:
     def __init__(self, file_path):
         self.input = ""
         self.output = ""
-        self.radius = 734
         self.format = {}
-        self.aperture = 179
+        self.aperture = 180
         self.resolution = 2160
         self.view_direction = 180
-        self.lens_centers = [
-            (544,778),
-            (560,778),
-            (500,800),
-            (570,770),
-            (490,830),
-            (580,800),
-            (544,778),
-            (580,800)
-        ]
         self.exposure_match = 0
         self.exposure_fuse = []
         self.super_res = []
@@ -229,11 +225,6 @@ class Config:
             self.input = cmd[1]
         elif cmd[0] == 'output' and len(cmd) == 2:
             self.output = cmd[1]
-        elif cmd[0] == 'lens' and len(cmd) == 4:
-            l = int(cmd[1]) - 1
-            self.lens_centers[l] = (int(cmd[2]), int(cmd[3]))
-        elif cmd[0] == 'radius' and len(cmd) == 2:
-            self.radius = int(cmd[1])
         elif cmd[0] == 'resolution' and len(cmd) == 2:
             self.resolution = int(cmd[1])
         elif cmd[0] == 'view_direction' and len(cmd) == 2:
@@ -426,8 +417,21 @@ def main():
     # contains gps, date, and camera orientation information.
     meta_map = read_image_metadata(config.input)
 
+    saved_data = None
+    if options.read_equation != '':
+        print('loading seams')
+        with open(options.read_equation, 'r') as f:
+            saved_data = json.load(f)
+    elif not options.write_ellipse:
+        print('ERROR: The write-ellipse option must be enabled if equations are not being read from a file.')
+        exit(1)
+
     loader = ImageLoader(config, debug)
-    images = loader.load()
+    calibration = None
+    if not options.write_ellipse:
+        calibration = [CalibrationParams().from_dict(c) for c in saved_data['calib']]
+    images = loader.load(calibration)
+    calibration = loader.get_calibration()
 
     stitches = []
     ts = []
@@ -437,8 +441,7 @@ def main():
 
     if options.read_equation != '':
         print('loading seams')
-        with open(options.read_equation, 'r') as f:
-            seam.from_csv(f)
+        seam.from_dict(saved_data['seam'])
 
     print('computing seams')
     seam.align()
@@ -526,7 +529,12 @@ def main():
 
     if options.write_equation != '':
         with open(options.write_equation, 'w') as f:
-            seam.to_csv(f)
+            content = {
+                'seam': seam.to_dict(),
+                'calib': [c.to_dict() for c in calibration]
+            }
+            json.dump(content, f, indent=4)
+
 
     plt.show()
 

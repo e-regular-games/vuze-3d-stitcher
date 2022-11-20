@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="154.58633mm"
+   height="138.98192mm"
+   viewBox="0 0 154.58633 138.98192"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
+   sodipodi:docname="lens_alignment_calibration.svg"
+   inkscape:export-filename="/home/ryebread/Documents/photos/vuze3d/project/lens_alignment_calibration.png"
+   inkscape:export-xdpi="100"
+   inkscape:export-ydpi="100"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     fit-margin-top="10"
+     fit-margin-left="10"
+     fit-margin-right="10"
+     fit-margin-bottom="10"
+     inkscape:zoom="1.2540964"
+     inkscape:cx="249.98078"
+     inkscape:cy="242.00691"
+     inkscape:window-width="1870"
+     inkscape:window-height="1044"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:snap-global="false" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-44.319846,-46.148951)">
+    <g
+       id="g54976">
+      <g
+         id="g36278"
+         transform="translate(-0.16044628,0.02364827)">
+        <g
+           id="g8113"
+           transform="translate(0.05427524,4.4895607)">
+          <ellipse
+             style="fill:none;fill-opacity:0.9998;stroke:#94db84;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path1584"
+             cx="82.089813"
+             cy="93.222511"
+             rx="17.197916"
+             ry="20.108334" />
+          <circle
+             style="fill:#94db84;fill-opacity:1;stroke:none;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path3088"
+             cx="82.089813"
+             cy="93.222511"
+             r="1.3229166" />
+        </g>
+        <g
+           id="g13142"
+           transform="translate(0,3.9942818)">
+          <rect
+             style="fill:none;fill-opacity:0.9998;stroke:#9784db;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="rect846"
+             width="28.786667"
+             height="42.333332"
+             x="69.161621"
+             y="70.465248" />
+          <circle
+             style="fill:#9784db;fill-opacity:1;stroke:none;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path8239"
+             cx="83.554955"
+             cy="91.631912"
+             r="1.3229166" />
+        </g>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+           x="74.781387"
+           y="72.443413"
+           id="text14818"><tspan
+             sodipodi:role="line"
+             id="tspan14816"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+             x="74.781387"
+             y="72.443413">Sensor</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+           x="-103.82923"
+           y="62.856567"
+           id="text14818-2"
+           transform="rotate(-90)"><tspan
+             sodipodi:role="line"
+             id="tspan14816-2"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+             x="-103.82923"
+             y="62.856567">Lens</tspan></text>
+      </g>
+      <g
+         id="g36290"
+         transform="translate(0,2.051375)">
+        <g
+           id="g8113-6"
+           transform="translate(82.081069,-0.26106558)">
+          <circle
+             style="fill:none;fill-opacity:0.9998;stroke:#94db84;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path1584-3"
+             cx="82.089813"
+             cy="93.222511"
+             r="20.108334" />
+          <circle
+             style="fill:#94db84;fill-opacity:1;stroke:none;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path3088-0"
+             cx="82.089813"
+             cy="93.222511"
+             r="1.3229166" />
+        </g>
+        <g
+           id="g13142-2"
+           transform="translate(80.615928,1.3295314)">
+          <rect
+             style="fill:none;fill-opacity:0.9998;stroke:#9784db;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="rect846-1"
+             width="28.786667"
+             height="42.333332"
+             x="69.161621"
+             y="70.465248" />
+          <circle
+             style="fill:#9784db;fill-opacity:1;stroke:none;stroke-width:1.32292;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             id="path8239-5"
+             cx="83.554955"
+             cy="91.631912"
+             r="1.3229166" />
+        </g>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+           x="155.39731"
+           y="69.778671"
+           id="text14818-6"><tspan
+             sodipodi:role="line"
+             id="tspan14816-5"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+             x="155.39731"
+             y="69.778671">Sensor</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+           x="-99.078606"
+           y="141.35585"
+           id="text14818-2-0"
+           transform="rotate(-90)"><tspan
+             sodipodi:role="line"
+             id="tspan14816-2-0"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+             x="-99.078606"
+             y="141.35585">Lens</tspan></text>
+      </g>
+      <path
+         id="rect33094"
+         style="fill:none;fill-opacity:1;stroke:#010101;stroke-width:0.79375;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="m 124.04504,84.247718 v 4.978509 h -16.98036 v 6.880717 h 16.98036 v 4.978506 l 8.41861,-8.419124 z" />
+      <rect
+         style="fill:none;fill-opacity:1;stroke:#010101;stroke-width:0.79375;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="rect44194"
+         width="133.69977"
+         height="65.660408"
+         x="54.76313"
+         y="56.545826" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="55.76807"
+         y="64.378006"
+         id="text48430"><tspan
+           sodipodi:role="line"
+           id="tspan48428"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="55.76807"
+           y="64.378006">Front View</tspan></text>
+    </g>
+    <g
+       id="g54948"
+       transform="translate(-0.42549515)">
+      <path
+         id="rect33094-7"
+         style="fill:none;fill-opacity:1;stroke:#010101;stroke-width:0.79375;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="m 124.84617,144.48636 v 4.97851 h -16.98036 v 6.88071 h 16.98036 v 4.97851 l 8.41861,-8.41913 z" />
+      <rect
+         style="fill:none;fill-opacity:1;stroke:#010101;stroke-width:0.79375;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="rect44194-2"
+         width="133.79259"
+         height="44.614613"
+         x="55.142216"
+         y="130.11938" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="56.193565"
+         y="137.99799"
+         id="text48430-1"><tspan
+           sodipodi:role="line"
+           id="tspan48428-0"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="56.193565"
+           y="137.99799">Top View</tspan></text>
+      <g
+         id="g54815"
+         transform="translate(0,-10.583334)">
+        <g
+           id="g54805">
+          <path
+             style="fill:none;stroke:#9784db;stroke-width:1.32292;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             d="m 68.478944,170.31701 h 28.575"
+             id="path36654"
+             sodipodi:nodetypes="cc" />
+          <text
+             xml:space="preserve"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+             x="73.992874"
+             y="176.9353"
+             id="text14818-5"><tspan
+               sodipodi:role="line"
+               id="tspan14816-8"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+               x="73.992874"
+               y="176.9353">Sensor</tspan></text>
+        </g>
+        <g
+           id="g54732"
+           transform="translate(-4.6437296,5.5339159)">
+          <path
+             style="fill:none;stroke:#94db84;stroke-width:1.32292;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             d="m 65.54402,160.60379 38.33519,-10.27188"
+             id="path36654-0"
+             sodipodi:nodetypes="cc" />
+          <text
+             xml:space="preserve"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+             x="35.420513"
+             y="170.58965"
+             id="text14818-2-5"
+             transform="rotate(-15)"><tspan
+               sodipodi:role="line"
+               id="tspan14816-2-5"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+               x="35.420513"
+               y="170.58965">Lens</tspan></text>
+        </g>
+      </g>
+      <g
+         id="g54825"
+         transform="translate(0,-10.503744)">
+        <g
+           id="g54800"
+           transform="translate(-2.8687462,-2.6458334)">
+          <path
+             style="fill:none;stroke:#9784db;stroke-width:1.32292;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             d="m 149.64395,173.49799 h 28.575"
+             id="path36654-07"
+             sodipodi:nodetypes="cc" />
+          <text
+             xml:space="preserve"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+             x="155.15788"
+             y="180.11629"
+             id="text14818-5-3"><tspan
+               sodipodi:role="line"
+               id="tspan14816-8-8"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#9784db;fill-opacity:1;stroke-width:0.264583"
+               x="155.15788"
+               y="180.11629">Sensor</tspan></text>
+        </g>
+        <g
+           id="g54732-2"
+           transform="rotate(15,112.19119,442.56009)">
+          <path
+             style="fill:none;stroke:#94db84;stroke-width:1.32292;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+             d="M 66.742512,160.78866 105.0777,150.51678"
+             id="path36654-0-3"
+             sodipodi:nodetypes="cc" />
+          <text
+             xml:space="preserve"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+             x="36.579742"
+             y="170.35243"
+             id="text14818-2-5-0"
+             transform="rotate(-15)"><tspan
+               sodipodi:role="line"
+               id="tspan14816-2-5-7"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#94db84;fill-opacity:1;stroke-width:0.264583"
+               x="36.579742"
+               y="170.35243">Lens</tspan></text>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

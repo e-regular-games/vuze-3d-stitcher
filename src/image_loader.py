@@ -24,30 +24,194 @@ def create_from_middle(middle):
     return r
 
 def plot_lenses(images, title):
-    f, axs = plt.subplots(3, 3, sharex=True, sharey=True)
+    f, axs = plt.subplots(2, 4, sharex=True, sharey=True)
     f.canvas.manager.set_window_title(title)
     for i, img in enumerate(images):
-        axs[int(i/3), i%3].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
-        axs[int(i/3), i%3].axes.xaxis.set_ticklabels([])
-        axs[int(i/3), i%3].axes.yaxis.set_ticklabels([])
+        axs[int(i/4), i%4].imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB))
+        axs[int(i/4), i%4].axes.xaxis.set_ticklabels([])
+        axs[int(i/4), i%4].axes.yaxis.set_ticklabels([])
+    return axs
+
+class CalibrationParams():
+    def __init__(self):
+        self.aperture = 180 #degrees
+        self._default_size = (1088, 1600)
+        self.ellipse = None # (x0, y0, a, b, eccentricity, rotation)
+        self.lens_pixels = None
+
+    def to_dict(self):
+        return {
+            'aperture': self.aperture,
+            'ellipse': self.ellipse
+        }
+
+    def from_dict(self, d):
+        self.aperture = d['aperture']
+        self.ellipse = tuple(d['ellipse'])
+        return self
+
+    def _get_ellipse_pts(self, params, npts=100, tmin=0, tmax=2*np.pi):
+        """
+        Return npts points on the ellipse described by the params = x0, y0, ap,
+        bp, e, phi for values of the parametric variable t between tmin and tmax.
+
+        """
+
+        x0, y0, ap, bp, e, phi = params
+        # A grid of the parametric variable, t.
+        t = np.linspace(tmin, tmax, npts)
+        x = x0 + ap * np.cos(t) * np.cos(phi) - bp * np.sin(t) * np.sin(phi)
+        y = y0 + ap * np.cos(t) * np.sin(phi) + bp * np.sin(t) * np.cos(phi)
+        return x, y
+
+    def _fit_ellipse(self, x, y):
+        """
+        https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
+        Fit the coefficients a,b,c,d,e,f, representing an ellipse described by
+        the formula F(x,y) = ax^2 + bxy + cy^2 + dx + ey + f = 0 to the provided
+        arrays of data points x=[x1, x2, ..., xn] and y=[y1, y2, ..., yn].
+
+        Based on the algorithm of Halir and Flusser, "Numerically stable direct
+        least squares fitting of ellipses'.
+        """
+
+        D1 = np.vstack([x**2, x*y, y**2]).T
+        D2 = np.vstack([x, y, np.ones(len(x))]).T
+        S1 = D1.T @ D1
+        S2 = D1.T @ D2
+        S3 = D2.T @ D2
+        T = -np.linalg.inv(S3) @ S2.T
+        M = S1 + S2 @ T
+        C = np.array(((0, 0, 2), (0, -1, 0), (2, 0, 0)), dtype=float)
+        M = np.linalg.inv(C) @ M
+        eigval, eigvec = np.linalg.eig(M)
+        con = 4 * eigvec[0]* eigvec[2] - eigvec[1]**2
+        ak = eigvec[:, np.nonzero(con > 0)[0]]
+        return np.concatenate((ak, T @ ak)).ravel()
+
+    def _cart_to_pol(self, coeffs):
+        """
+        Convert the cartesian conic coefficients, (a, b, c, d, e, f), to the
+        ellipse parameters, where F(x, y) = ax^2 + bxy + cy^2 + dx + ey + f = 0.
+        The returned parameters are x0, y0, ap, bp, e, phi, where (x0, y0) is the
+        ellipse centre; (ap, bp) are the semi-major and semi-minor axes,
+        respectively; e is the eccentricity; and phi is the rotation of the semi-
+        major axis from the x-axis.
+        """
+
+        # We use the formulas from https://mathworld.wolfram.com/Ellipse.html
+        # which assumes a cartesian form ax^2 + 2bxy + cy^2 + 2dx + 2fy + g = 0.
+        # Therefore, rename and scale b, d and f appropriately.
+        a = coeffs[0]
+        b = coeffs[1] / 2
+        c = coeffs[2]
+        d = coeffs[3] / 2
+        f = coeffs[4] / 2
+        g = coeffs[5]
+
+        den = b**2 - a*c
+        if den > 0:
+            raise ValueError('coeffs do not represent an ellipse: b^2 - 4ac must'
+                             ' be negative!')
+
+        # The location of the ellipse centre.
+        x0, y0 = (c*d - b*f) / den, (a*f - b*d) / den
+
+        num = 2 * (a*f**2 + c*d**2 + g*b**2 - 2*b*d*f - a*c*g)
+        fac = np.sqrt((a - c)**2 + 4*b**2)
+        # The semi-major and semi-minor axis lengths (these are not sorted).
+        ap = np.sqrt(num / den / (fac - a - c))
+        bp = np.sqrt(num / den / (-fac - a - c))
+
+        # Sort the semi-major and semi-minor axis lengths but keep track of
+        # the original relative magnitudes of width and height.
+        width_gt_height = True
+        if ap < bp:
+            width_gt_height = False
+            ap, bp = bp, ap
+
+        # The eccentricity.
+        r = (bp/ap)**2
+        if r > 1:
+            r = 1/r
+        e = np.sqrt(1 - r)
+
+        # The angle of anticlockwise rotation of the major-axis from x-axis.
+        if b == 0:
+            phi = 0 if a < c else np.pi/2
+        else:
+            phi = np.arctan((2.*b) / (a - c)) / 2
+            if a > c:
+                phi += np.pi/2
+        if not width_gt_height:
+            # Ensure that phi is the angle to rotate to the semi-major axis.
+            phi += np.pi/2
+        phi = phi % np.pi
+
+        return x0, y0, ap, bp, e, phi
+
+    def empty(self):
+        return self.ellipse is None
+
+    def plot(self, ax):
+        if self.lens_pixels is not None:
+            ax.imshow(cv.cvtColor(self.lens_pixels, cv.COLOR_BGR2RGB))
+            ax.axes.xaxis.set_ticklabels([])
+            ax.axes.yaxis.set_ticklabels([])
+
+        if self.ellipse is not None:
+            x, y = self._get_ellipse_pts(self.ellipse)
+            ax.plot(x, y)
+            ax.set_xlim(0, self._default_size[0])
+            ax.set_ylim(0, self._default_size[1])
+
+    # an already correctly oriented image
+    def from_image(self, img):
+        self._default_size = (img.shape[1], img.shape[0])
+
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        gray = cv.medianBlur(gray, 5)
+        thres = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, \
+                                     cv.THRESH_BINARY, 11, 2)
+        thres = cv.GaussianBlur(thres, (31,31), sigmaX=0, sigmaY=0)
+        thres = cv.threshold(thres, 180, 255, cv.THRESH_BINARY)[1]
+
+        # create an (img.shape[:-1]) of short int aligned
+        x = np.arange(0, img.shape[1])
+        y = np.arange(0, img.shape[0]).reshape(img.shape[0],1) * np.ones(img.shape[:-1])
+
+        y[thres == 255] = np.Inf
+        top = np.min(y, axis=0)
+        y[thres == 255] = np.NINF
+        bottom = np.max(y, axis=0)
+
+        points = np.zeros((2 * img.shape[1], 2))
+        points[:img.shape[1],0] = x
+        points[:img.shape[1],1] = top
+        points[img.shape[1]:,0] = x
+        points[img.shape[1]:,1] = bottom
+
+        coeffs = self._fit_ellipse(points[:,0], points[:,1])
+
+        self.ellipse = self._cart_to_pol(coeffs)
+        self.lens_pixels = thres
+
 
 class LoadImage(threading.Thread):
-    def __init__(self, fish, config, f, l):
+    def __init__(self, fish, calib, f):
         threading.Thread.__init__(self)
         self._fish = fish
-        self._config = config
         self._f = f
-        self._l = l
 
         self.result = None
+        self.calib = calib
 
     def run(self):
-        img = cv.imread(self._f + '_' + str(self._l) + '.JPG')
+        img = cv.imread(self._f + '.JPG')
         img = np.rot90(img)
-        fish = self._fish.clone_with_image(img, \
-                                           self._config.lens_centers[self._l-1], \
-                                           self._config.radius, \
-                                           self._config.aperture)
+        if self.calib.empty():
+            self.calib.from_image(img)
+        fish = self._fish.clone_with_image(img, self.calib)
         self.result = get_middle(fish.to_equirect())
         print('.', end='', flush=True)
 
@@ -56,8 +220,15 @@ class ImageLoader:
         self._config = config
         self._debug = debug
         self._fish = fisheye.FisheyeImage(config.resolution, debug)
+        self._calib = [CalibrationParams() for i in range(8)]
 
-    def load(self):
+    def get_calibration(self):
+        return self._calib
+
+    def load(self, calib=None):
+        if calib is not None and len(calib) == 8:
+            self._calib = calib
+
         print('loading images')
         images = self._load_images(self._config.input)
         if self._debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
@@ -92,7 +263,7 @@ class ImageLoader:
                 images.append(threads[0].result)
                 threads = threads[1:]
 
-            t = LoadImage(self._fish, self._config, f, l)
+            t = LoadImage(self._fish, self._calib[l-1], f + '_' + str(l))
             t.start()
             threads.append(t)
 
@@ -101,6 +272,19 @@ class ImageLoader:
             images.append(t.result)
 
         print('')
+
+        if self._debug.verbose:
+            for i, c in enumerate(self._calib):
+                print('lens(' + str(i) + ') calibration', c.aperture, c.ellipse)
+
+        if self._debug.enable('calib'):
+            f, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+            for i, c in enumerate(self._calib):
+                if c.lens_pixels is not None:
+                    cv.imwrite('lens_alignment_in_lens_' + str(i) + '.png', c.lens_pixels)
+                c.plot(axs[int(i/4), i%4])
+
         return images
 
     def _match_exposure(self, images):

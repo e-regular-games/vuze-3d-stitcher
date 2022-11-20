@@ -1,10 +1,10 @@
 
 import color_correction
 import coordinates
-import transform
 import math
 import numpy as np
 import cv2 as cv
+from transform import Transform
 from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
 
@@ -30,7 +30,7 @@ class RefineSeams():
         self._seams = None
 
         for i, img in enumerate(images):
-            t = transform.Transform(debug)
+            t = Transform(debug)
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
 
@@ -303,62 +303,53 @@ class RefineSeams():
         seams = self._compute_seams(matches)
         return seams, matches
 
-    def to_csv(self, f):
-        for i, s in enumerate(self._seams):
-            f.write(','.join(['seam', str(i), 'phi'] + np.char.mod('%f', s[:,0]).tolist()) + '\n')
-            f.write(','.join(['seam', str(i), 'theta'] + np.char.mod('%f', s[:,1]).tolist()) + '\n')
+    def to_dict(self):
+        d = {
+            'seams': [],
+            'transforms': [],
+            'matches': [],
+            'targets': []
+        }
 
-        for i, t in enumerate(self._transforms):
-            f.write(','.join(['phi', str(i),str(t.phi_coeffs_order)] + np.char.mod('%f', t.phi_coeffs).tolist()) + '\n')
-            f.write(','.join(['theta', str(i), str(t.theta_coeffs_order)] + np.char.mod('%f', t.theta_coeffs).tolist()) + '\n')
+        for s in self._seams:
+            d['seams'].append(s.tolist())
 
-        for i, m in enumerate(self._matches):
-            l = m.shape[0] * m.shape[1]
-            f.write(','.join(['matches', str(i)] + np.char.mod('%f', m.reshape((l))).tolist()) + '\n')
+        for t in self._transforms:
+            d['transforms'].append({
+                'phiOrder': t.phi_coeffs_order,
+                'thetaOrder': t.theta_coeffs_order,
+                'phiCoeffs': t.phi_coeffs.tolist(),
+                'thetaCoeffs': t.theta_coeffs.tolist()
+            })
 
-        for i, t in enumerate(self._targets):
-            l = t.shape[0] * t.shape[1]
-            f.write(','.join(['targets', str(i)] + np.char.mod('%f', t.reshape((l))).tolist()) + '\n')
+        for m in self._matches:
+            d['matches'].append(m.tolist())
 
+        for t in self._targets:
+            d['targets'].append(t.tolist())
 
-    def from_csv(self, f):
-        stitches_phi = [None]*8
-        stitches_theta = [None]*8
-        matches = [None]*4
-        transforms = [transform.Transform(self._debug) for t in range(8)]
-        targets = [None]*4
+        return d
 
-        for l in f.readlines():
-            cmd = l.strip().split(',')
-            if cmd[0] == 'seam' and len(cmd) >= 3:
-                data = np.array([float(s) for s in cmd[3:]])
-                if cmd[2] == 'phi':
-                    stitches_phi[int(cmd[1])] = data
-                elif cmd[2] == 'theta':
-                    stitches_theta[int(cmd[1])] = data
-            if cmd[0] == 'phi':
-                t = int(cmd[1])
-                transforms[t].phi_coeffs_order = int(cmd[2])
-                transforms[t].phi_coeffs = np.array([float(s) for s in cmd[3:]])
-            if cmd[0] == 'theta':
-                t = int(cmd[1])
-                transforms[t].theta_coeffs_order = int(cmd[2])
-                transforms[t].theta_coeffs = np.array([float(s) for s in cmd[3:]])
-            if cmd[0] == 'matches':
-                i = int(cmd[1])
-                matches[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
-            if cmd[0] == 'targets':
-                i = int(cmd[1])
-                targets[i] = np.array([float(s) for s in cmd[2:]]).reshape((int((len(cmd)-2) / 8), 8))
+    def from_dict(self, d):
+        self._seams = []
+        for s in d['seams']:
+            self._seams.append(np.array(s))
 
-        stitches = []
-        for i in range(8):
-            st = np.zeros((stitches_phi[i].shape[0], 2))
-            st[:,0] = stitches_phi[i]
-            st[:,1] = stitches_theta[i]
-            stitches.append(st)
+        self._transforms = []
+        for s in d['transforms']:
+            t = Transform(self._debug)
+            t.phi_coeffs_order = s['phiOrder']
+            t.theta_coeffs_order = s['thetaOrder']
+            t.phi_coeffs = np.array(s['phiCoeffs'])
+            t.theta_coeffs = np.array(s['thetaCoeffs'])
+            self._transforms.append(t)
 
-        self._seams = stitches
-        self._transforms = transforms
-        self._matches = matches
-        self._targets = targets
+        self._matches = []
+        for m in d['matches']:
+            self._matches.append(np.array(m))
+
+        self._targets = []
+        for t in d['targets']:
+            self._targets.append(np.array(t))
+
+        return self
