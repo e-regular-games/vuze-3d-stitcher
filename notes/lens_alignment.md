@@ -60,7 +60,7 @@ These coefficients are inline with the observations made from the images above. 
 
 Reversing the misalignment of the sensor and the lens can be performed using the following manipulations. For every pixel within the desired equirectangular output image, the coordinate location is converted to polar, then to cartesian (radius=1). Assuming a perfect fisheye lens the location within the lens, $f$, is determined.
 
-$$r = \frac{2}{aperture} * \tan^{-1}\left( \sqrt{ \frac{x^2 + z^2}{y} } \right)$$
+$$r = \frac{2}{aperture} \tan^{-1}\left( \sqrt{ \frac{x^2 + z^2}{y} } \right)$$
 
 $$\alpha = \tan^{-1}\left( \frac{z}{x} \right)$$
 
@@ -72,7 +72,7 @@ $$\mathbf{E} = \begin{bmatrix} \cos\rho & -\sin\rho \\\\ \sin\rho & \cos\rho \en
 
 Given the point $\vec{f}$ in the perfect fisheye lens the following is used to map to the actual pixel value within the sensor, $p$. The skew of the lens and the sensor is accounted for using similar triangles and scaling the semi-minor component of the point in the ellipse basis space.
 
-$$\vec{p} = \max(r_a, r_b) \mathbf{E}^{\intercal} \begin{bmatrix} 1 & 0 \\\\ 0 & \frac{r_a}{r_b} \end{bmatrix} \mathbf{E} \vec{f} + \begin{pmatrix} x_0 \\\\ y_0 \end{pmatrix}$$
+$$\vec{p} = r_a \mathbf{E}^{\intercal} \begin{bmatrix} 1 & 0 \\\\ 0 & \frac{r_b}{r_a} \end{bmatrix} \mathbf{E} \vec{f} + \begin{pmatrix} x_0 \\\\ y_0 \end{pmatrix}$$
 
 The adjustment produces a slightly different image by horizontally expanding the pixels in the equirectangular image. An example before and after image is provided below.
 

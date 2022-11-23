@@ -25,18 +25,19 @@ def usage():
     print('')
     print('usage: vuze_merge.py -v -h -c config.dat')
     print('')
-    print('-c,--config\t\tSpecify the config file.')
-    print('-i,--image\t\tOverride the input and output config options.')
-    print('-I,--in\t\tOverride the input config option.')
-    print('-O,--out\t\tOverride the output config option.')
-    print('-C,--color\t\tOverride the color_correction config option.')
-    print('-f,--format\t\tA "," separated list of output formats: {gpano, stereo, over-under}')
-    print('-q,--quality\t\tVertical resolution of the full output image.')
+    print('-c,--config <file> \t\tSpecify the config file.')
+    print('-i,--image <file_prefix>\t\tOverride the input and output config options.')
+    print('-I,--in <file_prefix>\t\tOverride the input config option.')
+    print('-O,--out <file_prefix>\t\tOverride the output config option.')
+    print('-C,--color <type>\t\tOverride the color_correction config option.')
+    print('-f,--format <spec>\t\tA "," separated list of output formats: {gpano, stereo, over-under}. See the config file description below for more information.')
+    print('-q,--quality <verticle_pixels>\t\tVertical resolution of the full output image.')
     print('-e,--ellipse-coeffs\t\tDetermine the coefficients for fisheye/sensor offset and skew from the provided images. Default is to read from the equation coefficients file.')
-    print('-w,--write-coeffs\t\tWrite the alignment equation constants to the provided file.')
-    print('-r,--read-coeffs\t\tRead the alignment equation constants to the provided file.')
+    print('-w,--write-coeffs <file>\t\tWrite the alignment equation constants to the provided file.')
+    print('-r,--read-coeffs <file>\t\tRead the alignment equation constants to the provided file.')
+    print('-F,--fast <level>\t\t\tSkip recomputing seams and color correction. Levels {1: skip seams, 2: skip color, 3: skip seams and color}.')
     print('-v,--verbose\t\tMore detailed output to the console.')
-    print('-d,--display\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
+    print('-d,--display <enums>\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
     print('-h,--help\t\tDisplay this message.')
     print('\n')
     print('--Config File Format--    A comma separated value format file with various options.')
@@ -76,10 +77,11 @@ class ProgramOptions:
         self.format = []
         self.resolution = 0
         self.color_correction = None
+        self.fast = 0
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hew:r:vc:i:f:I:O:q:C:',
+            'd:heF:w:r:vc:i:f:I:O:q:C:',
             [
                 'help',
                 'image=',
@@ -93,7 +95,8 @@ class ProgramOptions:
                 'display=',
                 'quality=',
                 'color=',
-                'ellipse-coeffs'
+                'ellipse-coeffs',
+                'fast='
             ])
 
         for o, a in options:
@@ -101,6 +104,8 @@ class ProgramOptions:
                 self.config = a
             elif o in ("-v", "--verbose"):
                 self.verbose = True
+            elif o in ("-F", "--fast"):
+                self.fast = int(a)
             elif o in ("-e", "--ellipse-coeffs"):
                 self.write_ellipse = True
             elif o in ("-r", "--read-equation"):
@@ -443,17 +448,19 @@ def main():
     if options.read_equation != '':
         seam.from_dict(saved_data['seam'])
 
-    print('computing seams')
-    seam.align()
+
+    if options.fast != 1 and options.fast != 3:
+        print('computing seams')
+        seam.align()
     stitches = seam._seams
     matches = seam._matches
     ts = seam._transforms
 
-    if config.color_correct == 'mean-seams':
+    if config.color_correct == 'mean-seams' and options.fast != 2 and options.fast != 3:
         color = color_correction.ColorCorrectionSeams(images, ts, stitches, debug)
         print('computing color mean-seams')
         cc = color.match_colors()
-    elif config.color_correct == 'mean-matches':
+    elif config.color_correct == 'mean-matches' and options.fast != 2 and options.fast != 3:
         color = color_correction.ColorCorrectionMatches(images, matches, debug)
         print('computing color mean-matches')
         cc = color.match_colors()

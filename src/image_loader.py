@@ -328,10 +328,7 @@ class ImageLoader:
             for exp in self._config.exposure_fuse:
                 img = cv.imread(exp + '_' + str(l) + '.JPG')
                 img = np.rot90(img)
-                fish_ = self._fish.clone_with_image(img, \
-                                                    self._config.lens_centers[l-1], \
-                                                    self._config.radius, \
-                                                    self._config.aperture)
+                fish_ = self._fish.clone_with_image(img, self._calib[l-1])
                 images_exp.append(get_middle(fish_.to_equirect()))
 
             alignMTB = cv.createAlignMTB()
