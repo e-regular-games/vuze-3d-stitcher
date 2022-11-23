@@ -7,7 +7,7 @@ There is currently no formal contribution process. And there are no unit tests o
 
 If you wish to support this project please buy me a coffee.
 
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/gbraad)
+<a href="https://www.buymeacoffee.com/eregular" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" width="217px" height="60px" ></a>
 
 ## Website
 [E-Regular Games](https://www.e-regular-games.com)
@@ -37,6 +37,6 @@ A collection of test images, configuration files, and result images.
 
 [Test Images](./test/README.md)
 
-#x# References
+## References
 
 [Jumping Jack Flash - Foto 3d a 180° o 360° (VR180 o VR360)](https://jumpjack.wordpress.com/2021/07/03/foto-3d-a-180-o-360-vr180-o-vr360/) - A thorough explanation of how to create an image compatible with Google Photos that will render in 360° Stereoscopic.
