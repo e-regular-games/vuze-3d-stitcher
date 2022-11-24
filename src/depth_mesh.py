@@ -38,8 +38,8 @@ class DepthMesh():
         self._Y = 0.06
         self._Z = 1.7
 
-        self._d_close = 2
-        self._d_far = 30
+        self._d_close = 1.8
+        self._d_far = 20
 
         self._features = None
 
@@ -54,11 +54,6 @@ class DepthMesh():
         m_l = np.zeros((n, 3))
         m_r = np.zeros((n, 3))
 
-        print('left')
-        print(left)
-        print('right')
-        print(right)
-
         m_l[:,0] = np.sin(left[:,0]) * np.cos(math.pi/2 - left[:,1])
         a_l = m_l[:,0:1]
         m_l[:,1] = np.sin(left[:,0]) * np.sin(math.pi/2 - left[:,1])
@@ -66,18 +61,12 @@ class DepthMesh():
         m_l[:,2] = np.cos(left[:,0])
         c_l = m_l[:,2:3]
 
-        print('m_l')
-        print(m_l)
-
         m_r[:,0] = np.sin(right[:,0]) * np.cos(math.pi/2 - right[:,1])
         a_r = m_r[:,0:1]
         m_r[:,1] = np.sin(right[:,0]) * np.sin(math.pi/2 - right[:,1])
         b_r = m_r[:,1:2]
         m_r[:,2] = np.cos(right[:,0])
         c_r = m_r[:,2:3]
-
-        print('m_r')
-        print(m_r)
 
         p_l = np.array([[-self._X, self._Y, self._Z]])
         p_r = np.array([[self._X, self._Y, self._Z]])
@@ -93,32 +82,47 @@ class DepthMesh():
 
         A = (b_l*c_r - c_l*b_r) / (c_d*b_r - b_d*c_r)
         r_l = (2 * self._X / (a_l + A*a_d - c_l*a_r/c_r - A*c_d*a_r/c_r)).reshape((n,1))
-        print('r_l')
-        print(r_l)
         r_r = r_l*c_l/c_r + r_l*A*c_d/c_r
-        print('r_r')
-        print(r_r)
         r_d = A * r_l
 
         v_l = p_l + r_l * m_l
         v_r = p_r + r_r * m_r
 
-        print(v_l)
-        print(v_r)
-
         d = v_l - v_r
         d = np.sqrt(np.sum(d*d, axis=1))
+        print('r_d', np.mean(r_d), np.min(d), np.max(d))
+        print('d', np.mean(d), np.min(d), np.max(d))
+
+        # want to minimize d
+        # rotate around the y-axis using [ cosL 0 sinL; 0 1 0; -sinL 0 cosL ]
+        # Only need to rotate 1 lens to meet the other.
+        # note that cos^2(L) + sin^2(L) = 1
+        # L^2_c + L^2_s = 1
+        # syms rho_1 rho_2 z
+        # R_l = subs([ rho_1 z rho_2; z 1 z; -rho_2 z rho_1 ], z, 0)
+
+        # syms a_l b_l c_l a_r b_r c_r
+        # m_l = [a_l; b_l; c_l]
+        # m_r = [a_r; b_r; c_r]
+        # m_d = cross(m_r, R_l *  m_l)
+        # a_d = m_d(1)
+        # b_d = m_d(2)
+        # c_d = m_d(3)
+        # A = (b_l*c_r - c_l*b_r) / (c_d*b_r - b_d*c_r)
+
+        # syms X
+        # r_l = 2 * X / (a_l + A*a_d - c_l*a_r/c_r - A*c_d*a_r/c_r)
+        # m_d will now be in terms of L, and R
 
         v = (v_l + v_r) / 2
         inc = np.logical_and(r_r > 0, r_l > 0)[:,0]
-        print(inc.shape)
-        return v[inc]
+        v = v[inc]
 
-        polar = np.zeros((v.shape[0], 3))
-        polar[:,2] = np.sqrt(np.sum(v*v, axis=1))
-        polar[:,1] = np.arctan2(v[:,1], v[:,0])
-        polar[:,0] = np.arccos(v[:,2] / polar[:,2])
-        return polar
+        C = np.array([0, 0, self._Z])
+        r = np.sqrt(np.sum((v - C) * (v - C), axis=1))
+        print('r', np.min(r), np.max(r))
+        return v
+
 
     def _features_determine(self):
         points = np.zeros((0, 3), dtype=np.float32)
@@ -240,7 +244,7 @@ class DepthMesh():
                 good_matches.append(ma[0])
 
         good_matches.sort(key=by_distance)
-        return good_matches[:3]
+        return good_matches[:10]
 
 
     def show_polar_plot(self, polar_a, polar_b, label=None):

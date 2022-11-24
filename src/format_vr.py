@@ -116,8 +116,8 @@ class FormatVR():
         # https://3dtv.at//knowhow/anaglyphcomparison_en.aspx
         # Using the optimized anaglyph equation from the above link.
 
-        left, _ = Equirectangular(self._left).GetPerspective(fov, theta, phi, yres, xres)
-        right, _ = Equirectangular(self._right).GetPerspective(fov, theta, phi, yres, xres)
+        left, _ = Equirectangular(self._left).GetPerspective(fov, theta+1.5, phi, yres, xres)
+        right, _ = Equirectangular(self._right).GetPerspective(fov, theta-1.5, phi, yres, xres)
 
         shape_1d = (left.shape[0] * left.shape[1], 3)
         lm = np.array([[0, 0, 0], [0, 0, 0], [0.3, 0.7, 0]])
@@ -146,8 +146,8 @@ class FormatVR():
         self._exif.set_tags(file_name, tags=self._meta, params=['-P', '-overwrite_original'])
 
     def write_stereo_cropped(self, file_left, file_right, fov, phi, theta, xres, yres):
-        left, _ = Equirectangular(self._left).GetPerspective(fov, theta, phi, yres, xres)
-        right, _ = Equirectangular(self._right).GetPerspective(fov, theta, phi, yres, xres)
+        left, _ = Equirectangular(self._left).GetPerspective(fov, theta+1, phi, yres, xres)
+        right, _ = Equirectangular(self._right).GetPerspective(fov, theta-1, phi, yres, xres)
 
         self._set_dimensions(xres, yres)
         cv.imwrite(file_left, left, [int(cv.IMWRITE_JPEG_QUALITY), 100])
