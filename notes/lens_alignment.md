@@ -68,7 +68,7 @@ $$\vec{f} = \begin{pmatrix} r \cos \alpha \\\\ r \sin \alpha \end{pmatrix}$$
 
 Since the true lens and sensor are not perfectly aligned, the points $f$ must be converted to a basis which is aligned to the semi-major and semi-minor axes of the calibration ellipse.
 
-$$\mathbf{E} = \begin{bmatrix} \cos\rho & -\sin\rho \\\\ \sin\rho & \cos\rho \end{bmatrix}
+$$\mathbf{E} = \begin{bmatrix} \cos\rho & -\sin\rho \\\\ \sin\rho & \cos\rho \end{bmatrix}$$
 
 Given the point $\vec{f}$ in the perfect fisheye lens the following is used to map to the actual pixel value within the sensor, $p$. The skew of the lens and the sensor is accounted for using similar triangles and scaling the semi-minor component of the point in the ellipse basis space.
 
