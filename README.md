@@ -25,7 +25,42 @@ python -m pip install -U pyexiftool
 ### Notes
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
 
-[Development Log](./notes/README.md)
+[Lens Alignment](./notes/lens_alignment.md) (November 16, 2022)
+
+[Horizon Leveling](./notes/horizon_leveling.md) (October 31, 2022)
+
+[Super Resolution](./notes/super_resolution.md) (October 21, 2022)
+
+[Color Matching Seams](./notes/color_matching_seams.md) (October 14, 2022)
+
+[Seam Blending](./notes/seam_blending.md) (August 12, 2022)
+
+[Color Matching with Regression](./notes/color_regression.md) (August 11, 2022)
+
+[Handling Outliers & Better Seam Lines](./notes/handling_outliers.md) (August 7, 2022)
+
+[All at Once Alignment](./notes/alignment_all.md) (August 4, 2022)
+
+[Code Modules](./notes/code_modules.md) (August 2, 2022)
+
+[Alignment in 3 Steps](./notes/alignment_3_steps.md) (July 30, 2022)
+
+[Alignment with a Cubic](./notes/alignment_cubic.md) (July 27, 2022)
+
+[Color Histogram Matching](./notes/color_hist_match.md) (July 24, 2022)
+
+[Seam Alignment](./notes/seam_alignment.md) (July 24, 2022)
+
+[Using Feature Detection](./notes/feature_detection.md) (July 23, 2022)
+
+[Python Splice](./notes/python_splice.md) (July 21, 2022)
+
+[Exposure Fusion](./notes/exposure_fusion.md) (July 19, 2022)
+
+[Bash Splice](./notes/bash_splice.md) (July 15, 2022)
+
+[Make VR](./notes/make_vr.md) (July 10, 2022)
+
 
 ### Source Code
 The working source code. The current implementation is in python and requires several added libraries such as Numpy, OpenCV and MatPlotLib.
@@ -36,7 +71,3 @@ The working source code. The current implementation is in python and requires se
 A collection of test images, configuration files, and result images.
 
 [Test Images](./test/README.md)
-
-## References
-
-[Jumping Jack Flash - Foto 3d a 180° o 360° (VR180 o VR360)](https://jumpjack.wordpress.com/2021/07/03/foto-3d-a-180-o-360-vr180-o-vr360/) - A thorough explanation of how to create an image compatible with Google Photos that will render in 360° Stereoscopic.
