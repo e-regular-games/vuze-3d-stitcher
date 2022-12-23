@@ -47,6 +47,41 @@ class DepthMesh():
         matches = self._features_determine()
         pass
 
+    def _print_sample(self, left, right):
+        n = left.shape[0]
+        m_l = np.zeros((n, 3))
+        m_r = np.zeros((n, 3))
+
+        m_l[:,0] = np.sin(left[:,0]) * np.cos(math.pi/2 - left[:,1])
+        m_l[:,1] = np.sin(left[:,0]) * np.sin(math.pi/2 - left[:,1])
+        m_l[:,2] = np.cos(left[:,0])
+
+        m_r[:,0] = np.sin(right[:,0]) * np.cos(math.pi/2 - right[:,1])
+        m_r[:,1] = np.sin(right[:,0]) * np.sin(math.pi/2 - right[:,1])
+        m_r[:,2] = np.cos(right[:,0])
+
+        ch = 300
+        choose = np.sort(np.random.choice(n-1, size=ch, replace=False))
+        print(choose)
+        print('sample_l = [')
+        for r in range(ch):
+            print('  ', end='')
+            for c in range(3):
+                if c < 2:
+                    print(str(m_l[choose[r], c]), end=', ')
+                else:
+                    print(str(m_l[choose[r], c]), end=';\n')
+        print(']\'')
+
+        print('sample_r = [')
+        for r in range(ch):
+            print('  ', end='')
+            for c in range(3):
+                if c < 2:
+                    print(str(m_r[choose[r], c]), end=', ')
+                else:
+                    print(str(m_r[choose[r], c]), end=';\n')
+        print(']\'')
 
     # the left and right theta values as 1d vectors
     def _radius_compute(self, left, right):
@@ -128,6 +163,9 @@ class DepthMesh():
         points = np.zeros((0, 3), dtype=np.float32)
         for i in range(0, 2, 2):
             matches_plr = self._match_between_eyes(self._images[i], self._images[i+1], 0.75)
+
+            self._print_sample(matches_plr[:,0], matches_plr[:,1])
+            return
 
             p = self._radius_compute(matches_plr[:,0], matches_plr[:,1])
             p[:,1] += i / 2 * math.pi / 2
@@ -244,7 +282,7 @@ class DepthMesh():
                 good_matches.append(ma[0])
 
         good_matches.sort(key=by_distance)
-        return good_matches[:10]
+        return good_matches[:60]
 
 
     def show_polar_plot(self, polar_a, polar_b, label=None):

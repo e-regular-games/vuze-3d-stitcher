@@ -25,6 +25,8 @@ python -m pip install -U pyexiftool
 ### Notes
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
 
+[Sensor Rotation and Depth Mesh](./notes/depth_mesh.md) (December 27, 2022)
+
 [Camera Constants](./notes/camera_constants.md) (December 23, 2022)
 
 [Lens Alignment](./notes/lens_alignment.md) (November 16, 2022)
