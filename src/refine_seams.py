@@ -251,6 +251,8 @@ class RefineSeams():
 
             if target.shape[0] == 0:
                 seams.append([])
+                if self._debug.verbose:
+                    print('invalid-seam:', i, matches[m].shape)
                 continue
 
             target = target[target[:,0] < math.pi]

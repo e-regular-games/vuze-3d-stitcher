@@ -11,9 +11,31 @@ list_file="$1"
 args=("$@")
 args=("${args[@]:1}")
 
+overwrite=0
+args_pass=()
+
+for a in "${args[@]}"
+do
+    if [ "$a" == "--overwrite" ]; then
+        overwrite=1
+    else
+        args_pass+=("${a}")
+    fi
+done
+
+list_dir_full=(${list_file//./ })
+list_dir_arr=(${list_dir_full[0]//\// })
+list_dir=${list_dir_arr[1]}
+
+mkdir -p "stitched/${list_dir}"
+
 while IFS= read -r line
 do
     split=(${line//,/ })
+    if [ "${#split[@]}" -lt "2" ]; then
+        continue
+    fi
+
     dir="${split[0]}"
     pic="${split[1]}"
 
@@ -22,10 +44,14 @@ do
 
     addl=("${split[@]:2}")
 
+    if test -f "stitched/${list_dir}/HET${dir}_${pic}.JPG" && [ "${overwrite}" != 1 ]; then
+        continue
+    fi
+
     echo "${dir}HETVR/HET_${pic}"
     if test -f "raw/config_${dir}_${pic}.dat"; then
-        project/src/vuze_merge.py -r raw/coeffs_v1_color.dat -c "raw/config_${dir}_${pic}.dat" ${addl[@]} ${args[@]}
+        project/src/vuze_merge.py -r raw/coeffs_v4.dat -c "raw/config_${dir}_${pic}.dat" ${addl[@]} ${args_pass[@]}
     else
-        project/src/vuze_merge.py -f gpano,over-under -r raw/coeffs_v1_color.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/HET${dir}_${pic}" ${addl[@]} ${args[@]}
+        project/src/vuze_merge.py -f over-under -r raw/coeffs_v4.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
     fi
 done < "$list_file"

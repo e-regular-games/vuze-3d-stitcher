@@ -2,11 +2,14 @@
 
 overwrite=0
 args=("$@")
+args_pass=()
 
 for a in "${args[@]}"
 do
     if [ "$a" == "--overwrite" ]; then
         overwrite=1
+    else
+        args_pass+=("${a}")
     fi
 done
 
@@ -21,6 +24,6 @@ do
         fi
 
         echo "raw/${dir}HETVR/HET_${pic}"
-        project/src/vuze_merge.py -f over-under -r raw/coeffs_v1_color.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/HET${dir}_${pic}" ${args[@]}
+        project/src/vuze_merge.py -f over-under -r raw/coeffs_v4.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/HET${dir}_${pic}" ${args_pass[@]}
     done
 done

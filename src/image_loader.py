@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import fisheye
+import math
 import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
@@ -39,15 +40,47 @@ class CalibrationParams():
         self.ellipse = None # (x0, y0, a, b, eccentricity, rotation)
         self.lens_pixels = None
 
+        # params read from vuze camera yaml file.
+        self.camera_matrix = None
+        self.t = None
+        self.R = None
+        self.k_coeffs = None
+        self.fov = None
+        self.radius = None
+
     def to_dict(self):
         return {
             'aperture': self.aperture,
-            'ellipse': self.ellipse
+            'ellipse': self.ellipse,
+            'cameraMatrix': self.camera_matrix.tolist(),
+            't': self.t.tolist(),
+            'R': self.R.tolist(),
+            'kCoeffs': self.k_coeffs.tolist(),
+            'fov': self.fov,
+            'radius': self.radius
         }
 
     def from_dict(self, d):
         self.aperture = d['aperture']
         self.ellipse = tuple(d['ellipse'])
+        self.camera_matrix = np.array(d['cameraMatrix'])
+        self.t = np.array(d['t'])
+        self.R = np.array(d['R'])
+        self.k_coeffs = np.array(d['kCoeffs'])
+        self.fov = d['fov']
+        self.radisu = d['radius']
+        return self
+
+    def from_yaml(self, y, i):
+        a = -math.pi / 2 * int(i / 2)
+        Rr = np.array([[math.cos(a), 0, -math.sin(a)], [0, 1, 0], [math.sin(a), 0, math.cos(a)]])
+
+        self.camera_matrix = y.getNode('K').mat()
+        self.t = np.matmul(Rr, y.getNode('CamCenter').mat() / 1000)
+        self.k_coeffs = np.array([y.getNode('DistortionCoeffs_' + str(i)).real() for i in range(2, 10, 2)])
+        self.R = np.matmul(Rr, y.getNode('R').mat())
+        self.fov = y.getNode('Fov_deg').real()
+        self.radius = y.getNode('ImageCircleRadius').real()
         return self
 
     def _get_ellipse_pts(self, params, npts=100, tmin=0, tmax=2*np.pi):
@@ -196,6 +229,12 @@ class CalibrationParams():
         self.ellipse = self._cart_to_pol(coeffs)
         self.lens_pixels = thres
 
+        # set the center of the lens into the camera_matrix
+        if self.camera_matrix is not None:
+            self.camera_matrix[0,2] = self.ellipse[0]
+            self.camera_matrix[1,2] = self.ellipse[1]
+
+
 
 class LoadImage(threading.Thread):
     def __init__(self, fish, calib, f):
@@ -256,7 +295,7 @@ class ImageLoader:
 
         return images
 
-    def _load_images(self, f, parallel=4):
+    def _load_images(self, f, parallel=2):
         threads = []
         images = []
 
@@ -342,15 +381,16 @@ class ImageLoader:
 
     def _super_resolution(self, images, names):
         per_lens = []
-        n = len(names)
+        n = len(names) + 1
         for i, img in enumerate(images):
             per_lens.append(np.zeros((n,) + img.shape, np.uint8))
             per_lens[i][0] = img
         images = None
 
         for f, name in enumerate(names):
+            print(str(f+2) + '/' + str(n) + ': ', end='', flush=True)
             for i, img in enumerate(self._load_images(name)):
-                per_lens[i][f] = img
+                per_lens[i][f+1] = img
 
         print('super resolution merge')
         images = []
