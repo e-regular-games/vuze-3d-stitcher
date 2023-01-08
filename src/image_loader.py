@@ -37,12 +37,15 @@ class CalibrationParams():
     def __init__(self):
         self.aperture = 180 #degrees
         self._default_size = (1088, 1600)
+
+        self.recalc_ellipse = False
         self.ellipse = None # (x0, y0, a, b, eccentricity, rotation)
         self.lens_pixels = None
 
         self.depth = None
 
         # params read from vuze camera yaml file.
+        self.vuze_config = False
         self.camera_matrix = None
         self.t = None
         self.R = None
@@ -51,38 +54,54 @@ class CalibrationParams():
         self.radius = None
 
     def to_dict(self):
-        return {
-            'aperture': self.aperture,
-            'ellipse': self.ellipse,
-            'cameraMatrix': self.camera_matrix.tolist(),
-            't': self.t.tolist(),
-            'R': self.R.tolist(),
-            'kCoeffs': self.k_coeffs.tolist(),
-            'fov': self.fov,
-            'radius': self.radius
-        }
+        d = {'aperture': self.aperture}
+        if self.ellipse is not None:
+            d['ellipse'] = self.ellipse
+
+        if self.vuze_config:
+            d['cameraMatrix'] = self.camera_matrix.tolist()
+            d['t'] = self.t.tolist()
+            d['R'] = self.R.tolist()
+            d['kCoeffs'] = self.k_coeffs.tolist()
+            d['fov'] = self.fov
+            d['radius'] = self.radius
+            d['vuzeConfig'] = True
+
+        return d
 
     def from_dict(self, d):
         self.aperture = d['aperture']
-        self.ellipse = tuple(d['ellipse'])
-        self.camera_matrix = np.array(d['cameraMatrix'])
-        self.t = np.array(d['t'])
-        self.R = np.array(d['R'])
-        self.k_coeffs = np.array(d['kCoeffs'])
-        self.fov = d['fov']
-        self.radisu = d['radius']
+        if 'ellipse' in d:
+            self.ellipse = tuple(d['ellipse'])
+
+        if 'vuzeConfig' in d and d['vuzeConfig']:
+            self.camera_matrix = np.array(d['cameraMatrix'])
+            self.t = np.array(d['t'])
+            self.R = np.array(d['R'])
+            self.k_coeffs = np.array(d['kCoeffs'])
+            self.fov = d['fov']
+            self.radius = d['radius']
+            self.vuze_config = True
+
         return self
 
     def from_yaml(self, y, i):
         a = -math.pi / 2 * int(i / 2)
         Rr = np.array([[math.cos(a), 0, -math.sin(a)], [0, 1, 0], [math.sin(a), 0, math.cos(a)]])
 
+        self.vuze_config = True
         self.camera_matrix = y.getNode('K').mat()
         self.t = np.matmul(Rr, y.getNode('CamCenter').mat() / 1000)
         self.k_coeffs = np.array([y.getNode('DistortionCoeffs_' + str(i)).real() for i in range(2, 10, 2)])
         self.R = np.matmul(Rr, y.getNode('R').mat())
         self.fov = y.getNode('Fov_deg').real()
         self.radius = y.getNode('ImageCircleRadius').real()
+
+        if self.ellipse:
+            print('overwritting lens center with ellipse configuration.')
+            self.camera_matrix[0,2] = self.ellipse[0]
+            self.camera_matrix[1,2] = self.ellipse[1]
+
         return self
 
     def _get_ellipse_pts(self, params, npts=100, tmin=0, tmax=2*np.pi):
@@ -186,7 +205,7 @@ class CalibrationParams():
         return x0, y0, ap, bp, e, phi
 
     def empty(self):
-        return self.ellipse is None
+        return self.ellipse is None and not self.vuze_config
 
     def plot(self, ax):
         if self.lens_pixels is not None:
@@ -233,6 +252,7 @@ class CalibrationParams():
 
         # set the center of the lens into the camera_matrix
         if self.camera_matrix is not None:
+            print('overwritting lens center with ellipse configuration.')
             self.camera_matrix[0,2] = self.ellipse[0]
             self.camera_matrix[1,2] = self.ellipse[1]
 
@@ -250,7 +270,7 @@ class LoadImage(threading.Thread):
     def run(self):
         img = cv.imread(self._f + '.JPG')
         img = np.rot90(img)
-        if self.calib.empty():
+        if self.calib.recalc_ellipse:
             self.calib.from_image(img)
         fish = self._fish.clone_with_image(img, self.calib)
         self.result = get_middle(fish.to_equirect())

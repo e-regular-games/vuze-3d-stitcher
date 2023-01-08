@@ -129,9 +129,7 @@ class LinearRegression():
     def from_dict(self, d):
         order = np.array(d["order"]) - 1
         self.__init__(order)
-        print(self._order)
         self._coeffs = np.array(d["coeffs"])
-        print(self._coeffs)
         return self
 
     def _index_to_powers(self, i):
@@ -279,10 +277,8 @@ class DepthCalibration():
     def initial_sqr_err(self):
         r, d = radius_compute(self._coords[0], self._coords[1], self._p_left, self._p_right)
         r_exp = self._r_expected
-        print(np.concatenate([r, r_exp], axis=1))
         err = np.sum((r-r_exp)*(r-r_exp))
-        if self._debug.verbose:
-            print('initial squared error:', err)
+        print('initial squared error:', err)
         return err
 
     # returns a tuple (coords, valid)
@@ -329,8 +325,6 @@ class DepthCalibration():
 
         self._coords = coords
         self._expected = expected
-
-        print(self._expected)
         self.initial_sqr_err()
 
     def apply(self, right):
@@ -339,7 +333,7 @@ class DepthCalibration():
         center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
         return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
 
-    def finalize(self, patches=None):
+    def finalize(self, patches):
         # convert back to coordinates with the image centered at pi
         exp = self._expected.copy()
         exp[:,1] = 3*math.pi/2 - exp[:,1]
@@ -347,6 +341,8 @@ class DepthCalibration():
         act[:,1] = 3*math.pi/2 - act[:,1]
 
         self._linreg = LinearRegression(np.array([2, 2]))
+        if self._debug.verbose:
+            print('regression samples:', exp.shape[0])
         err = self._linreg.regression(exp, act)
 
         # clear out the data used to generate the linear regression coeffs
@@ -357,15 +353,12 @@ class DepthCalibration():
         if self._debug.verbose:
             print('depth calibration regression error:', np.sum(err*err, axis=0))
 
-        #if not self._debug.enable('depth-cal-finalize') or patches is None:
-        #    return self
-
-        plt.figure()
-        plt.imshow(self._img_right)
-
         right = self.apply(self._img_right)
-        plt.figure()
-        plt.imshow(right)
+        if self._debug.enable('depth-cal-finalize'):
+            plt.figure()
+            plt.imshow(self._img_right)
+            plt.figure()
+            plt.imshow(right)
 
         n = len(patches)
         coords = np.zeros((2, n, 2))
@@ -375,8 +368,6 @@ class DepthCalibration():
         valid_pair = np.logical_and(valid[0], valid[1])
         coords = coords[:,valid_pair]
 
-        print(coords[1])
-
         r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
 
         r_exp = np.zeros((len(patches), 1))
@@ -384,8 +375,7 @@ class DepthCalibration():
             r_exp[pi,0] = p['distance']
         r_exp = r_exp[valid_pair]
 
-        print(np.concatenate([r, r_exp], axis=1))
-        print('squared error:', np.sum((r-r_exp)*(r-r_exp)))
+        print('depth distance squared error:', np.sum((r-r_exp)*(r-r_exp)))
 
         return self
 
