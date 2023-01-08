@@ -72,6 +72,21 @@ def cart_to_polar(c):
     r[...,0] = np.arctan2(np.sqrt(c[...,0]*c[...,0] + c[...,1]*c[...,1]), c[...,2])
     return r
 
+# dims is a tuple (height, width),
+# the PI radians longitude will be in the center of width
+# height is assumed to be PI radians
+def polar_points_3d(dims):
+    w = dims[1]
+    h = dims[0]
+
+    phi = np.linspace(0, math.pi, h)
+    theta = np.linspace(math.pi * (1 - w/h/2), math.pi * (1 + w/h/2), w + 1)[:-1]
+
+    res = np.zeros((h, w, 2))
+    res[...,1], res[...,0] = np.meshgrid(theta, phi)
+    return res
+
+
 # @returns a matrix of N rows by 2 columns, (x, y) where each row
 #   represents the pixel coordinate within an equirectangular image with
 #   verticle resolution

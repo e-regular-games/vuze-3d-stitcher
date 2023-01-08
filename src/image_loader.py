@@ -40,6 +40,8 @@ class CalibrationParams():
         self.ellipse = None # (x0, y0, a, b, eccentricity, rotation)
         self.lens_pixels = None
 
+        self.depth = None
+
         # params read from vuze camera yaml file.
         self.camera_matrix = None
         self.t = None

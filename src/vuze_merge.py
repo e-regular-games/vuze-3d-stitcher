@@ -18,6 +18,7 @@ from exiftool import ExifToolHelper
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
 from depth_mesh import DepthMesh
+from depth_mesh import DepthCalibration
 
 def usage():
     print('VuzeMerge 3D 360 Image Generator')
@@ -38,6 +39,7 @@ def usage():
     print('-w,--write-coeffs <file>\t\tWrite the alignment equation constants to the provided file.')
     print('-r,--read-coeffs <file>\t\tRead the alignment equation constants to the provided file.')
     print('-F,--fast <level>\t\t\tSkip recomputing seams and color correction. Levels {1: skip seams, 2: skip color, 3: skip seams and color}.')
+    print('-D,--depth <coeffs>\t\t\tRead the color/distance information from <file_prefix>.json (same as input image) and add the coordinate data to the provided coefficients file.')
     print('-v,--verbose\t\tMore detailed output to the console.')
     print('-d,--display <enums>\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
     print('-h,--help\t\tDisplay this message.')
@@ -70,6 +72,7 @@ class ProgramOptions:
         self.verbose = False
         self.config = ""
         self.yaml_config = ""
+        self.depth_file = None
         self.display = {}
         self.read_equation = ''
         self.write_equation = ''
@@ -84,7 +87,7 @@ class ProgramOptions:
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:heF:w:r:vy:c:i:f:I:O:q:C:',
+            'd:heF:w:r:vy:c:i:f:I:O:q:C:D:',
             [
                 'help',
                 'image=',
@@ -100,7 +103,8 @@ class ProgramOptions:
                 'color=',
                 'ellipse-coeffs',
                 'fast=',
-                'yaml-config'
+                'yaml-config',
+                'depth='
             ])
 
         for o, a in options:
@@ -112,6 +116,8 @@ class ProgramOptions:
                 self.verbose = True
             elif o in ("-F", "--fast"):
                 self.fast = int(a)
+            elif o in ("-D", "--depth"):
+                self.depth_file = a
             elif o in ("-e", "--ellipse-coeffs"):
                 self.write_ellipse = True
             elif o in ("-r", "--read-equation"):
@@ -454,13 +460,43 @@ def main():
     elif yaml_coeffs is not None:
         calibration = [CalibrationParams().from_yaml(yaml_coeffs[i], i) for i in range(8)]
 
+    if options.depth_file is None:
+        if 'depthCalibration' in saved_data:
+            for i, sd in enumerate(saved_data['depthCalibration']):
+                calibration[2*i + 1].depth = DepthCalibration(debug=debug).from_dict(sd)
+
     images = loader.load(calibration)
     calibration = loader.get_calibration()
 
-    depth = DepthMesh(images, debug)
-    depth.generate()
-    plt.show()
-    exit(0)
+    if options.depth_file is not None:
+        with open(options.depth_file, 'r') as f:
+            patches = json.load(f)['patches']
+
+        depths = []
+        for ii in range(0, 2, 2):
+            depth_cal = DepthCalibration(images[ii], images[ii+1], \
+                                         calibration[ii].t, calibration[ii+1].t, debug)
+            depth_cal.determine_coordinates(patches)
+            depths.append(depth_cal)
+
+        if 'depths' not in saved_data:
+            saved_data['depths'] = {}
+
+        saved_data['depths'][config.input] = [d.to_dict() for d in depths]
+
+        # merge after saving the determined coordinates.
+        for f, sd in saved_data['depths'].items():
+            if f != config.input:
+                for i, sdd in enumerate(sd):
+                    depths[i].merge_dict(sdd)
+
+        saved_data['depthCalibration'] = [d.finalize(patches).to_dict() for d in depths]
+
+        with open(options.read_equation, 'w') as f:
+            json.dump(saved_data, f, indent=4)
+
+        plt.show()
+        exit(0)
 
     stitches = []
     ts = []
@@ -468,9 +504,8 @@ def main():
     cc = None
     seam = refine_seams.RefineSeams(images, debug)
 
-    if options.read_equation != '':
-        seam.from_dict(saved_data['seam'])
-
+    #if options.read_equation != '':
+    #    seam.from_dict(saved_data['seam'])
 
     if options.fast != 1 and options.fast != 3:
         print('computing seams')
@@ -557,6 +592,8 @@ def main():
 
     if options.write_equation != '':
         with open(options.write_equation, 'w') as f:
+            if saved_data is not None:
+                content = saved_data
             content = {
                 'seam': seam.to_dict(),
                 'calib': [c.to_dict() for c in calibration]

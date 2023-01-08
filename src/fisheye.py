@@ -34,6 +34,7 @@ class FisheyeImage():
 
     def to_equirect(self):
         polar = coordinates.eqr_to_polar(self._pts, self._eq_shape)
+
         n = polar.shape[0]
         polar[:,0] = (polar[:,0]) % math.pi
         polar[:,1] = (polar[:,1] - math.pi / 2) % (2 * math.pi)
@@ -62,11 +63,11 @@ class FisheyeImage():
 
         # convert the points f into the unit vectors v1, and v2.
         # then scale along the minor axis to get the correct point from the sensor
-        f = np.transpose(np.matmul(ellipse_unit, np.transpose(f)))
-        f[:,1] *= self._calib.ellipse[3] / self._calib.ellipse[2]
+        #f = np.transpose(np.matmul(ellipse_unit, np.transpose(f)))
+        #f[:,1] *= self._calib.ellipse[3] / self._calib.ellipse[2]
 
         # convert from the unit vectors v1 and v2, back to the unit vectors along x and y
-        f = np.transpose(np.matmul(np.transpose(ellipse_unit), np.transpose(f)))
+        #f = np.transpose(np.matmul(np.transpose(ellipse_unit), np.transpose(f)))
         flipped = np.zeros((n), dtype=np.bool)
         flipped[int(0.6 * n):] = f[int(0.6 * n):,1] < 0
         flipped[:int(0.4 * n)] = f[:int(0.4 * n),1] > 0
@@ -76,4 +77,9 @@ class FisheyeImage():
 
         eqr = cv.remap(self._img, x, y, cv.INTER_CUBIC, borderMode=cv.BORDER_CONSTANT, borderValue=0).astype(np.uint8)
         eqr[flipped.reshape(self._eq_shape)] = 0
+
+        if self._calib.depth:
+            print('apply depth calibration')
+            eqr = self._calib.depth.apply(eqr)
+
         return eqr
