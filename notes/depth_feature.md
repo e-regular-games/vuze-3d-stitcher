@@ -1,6 +1,6 @@
-## Lens Rotation and Depth Mesh
+## Lens Rotation and Feature Depth
 
-*Date: November 22, 2022*
+*Date: December 27, 2022*
 
 Script: [vuze_merge.py](../src/vuze_merge.py)
 

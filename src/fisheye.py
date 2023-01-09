@@ -98,10 +98,10 @@ class FisheyeImage():
         camera = None
 
         # create the unit vectors that align to the axes of the ellipse
-        ellipse_unit = np.array([
-            [math.cos(self._calib.ellipse[5]), -math.sin(self._calib.ellipse[5])],
-            [math.sin(self._calib.ellipse[5]), math.cos(self._calib.ellipse[5])]
-        ])
+        #ellipse_unit = np.array([
+        #    [math.cos(self._calib.ellipse[5]), -math.sin(self._calib.ellipse[5])],
+        #    [math.sin(self._calib.ellipse[5]), math.cos(self._calib.ellipse[5])]
+        #])
 
         # convert the points f into the unit vectors v1, and v2.
         # then scale along the minor axis to get the correct point from the sensor
@@ -121,7 +121,6 @@ class FisheyeImage():
         eqr[flipped.reshape(self._eq_shape)] = 0
 
         if self._calib.depth:
-            print('apply depth calibration')
             eqr = self._calib.depth.apply(eqr)
 
         return eqr
