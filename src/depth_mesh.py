@@ -167,8 +167,11 @@ def switch_axis(p):
     # perception which is y-up.
     return np.matmul(np.transpose(p), np.array([[-1, 0, 0], [0, 0, -1], [0, 1, 0]]))
 
-def radius_compute(left, right, p_l, p_r):
+def radius_compute(left, right, p_l, p_r, maximum=10):
     n = left.shape[0]
+    v_p_lr = p_l - p_r
+    d_p_lr = np.sqrt(v_p_lr.dot(np.transpose(v_p_lr)))
+
     m_l = np.zeros((n, 3))
     m_r = np.zeros((n, 3))
 
@@ -189,7 +192,12 @@ def radius_compute(left, right, p_l, p_r):
     m_d = np.cross(m_r, m_l)
 
     # normalize m_d, so that r_d will be the closest distance between v_l and v_r
-    m_d = m_d / np.linalg.norm(m_d, axis=1).reshape((n, 1))
+    m_d_n = np.linalg.norm(m_d, axis=1).reshape((n, 1))
+    parallel = (m_d_n == 0)[:,0]
+    m_d_n[parallel] = 1
+
+    m_d = m_d / m_d_n
+    m_d[parallel] = np.nan
 
     a_d = m_d[:,0:1]
     b_d = m_d[:,1:2]
@@ -211,7 +219,9 @@ def radius_compute(left, right, p_l, p_r):
     v_r = p_r + r_r * m_r
     r = np.linalg.norm((v_l + v_r) / 2, axis=1).reshape((n, 1))
 
-    alpha = np.arccos(np.sum(v_l * v_r, axis=1) / (np.linalg.norm(v_l, axis=1) * np.linalg.norm(v_r, axis=1)))
+    #alpha = np.arccos(np.sum(v_l * v_r, axis=1) / (np.linalg.norm(v_l, axis=1) * np.linalg.norm(v_r, axis=1)))
+    r[parallel] = maximum
+    r_d[parallel] = d_p_lr
     return r, r_d
 
 
@@ -471,7 +481,7 @@ class DepthCalibration():
         if ind[0].shape[0] == 0 or ind[1].shape[0] == 0:
             print('color not found: ', hex(c[0] + (c[1] << 8) + (c[2] << 16)))
             return None
-        return np.array([np.round(np.mean(ind[0])), np.round(np.mean(ind[1]))])
+        return np.array([np.mean(ind[0]), np.mean(ind[1])])
 
 
 class DepthMesh():
