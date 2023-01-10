@@ -35,17 +35,20 @@ def usage():
     print('--depth\t\t\tRead the color/distance information from <file_prefix>.json (same as input image) and add the coordinate data to the provided coefficients file provided by alignment. All other options will be ignored, except for the input image which is required.')
     print('--write-coeffs\t\tWrite the alignment equation constants to the provided alingment file.')
     print('--ignore-alignment-seams\t\t\tDo not read previous seam data from the alignment file. Fresh seam data will be written to the file, if write-coeffs is enabled.')
-
     print('')
+
     print('-c,--config <file>\t\tSpecify the config file.')
     print('-i,--image <file_prefix>\t\tOverride the input and output config options.')
     print('-I,--in <file_prefix>\t\tOverride the input config option.')
     print('-O,--out <file_prefix>\t\tOverride the output config option.')
     print('-C,--color <type>\t\tOverride the color_correction config option.')
-    print('-f,--format <spec>\t\tA "," separated list of output formats: {gpano, stereo, over-under}. See the config file description below for more information.')
     print('-q,--quality <verticle_pixels>\t\tVertical resolution of the full output image.')
-
     print('-F,--fast <level>\t\t\tSkip recomputing seams and color correction. Levels {1: skip seams, 2: skip color, 3: skip seams and color}.')
+    print('-f,--format <spec>\t\tA "," separated list of output formats: {gpano, stereo, over-under}. See the config file description below for more information.')
+    print('')
+
+    print('-l,--load-processed <file>\t\tA previously generated over-under 3D 360 image, with extension "image.JPG". Only the format output option is enabled. (Will not overwrite.)')
+    print('')
 
     print('-v,--verbose\t\tMore detailed output to the console.')
     print('-d,--display <enums>\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
@@ -94,10 +97,11 @@ class ProgramOptions:
         self.resolution = 0
         self.color_correction = None
         self.fast = 0
+        self.load_processed = None
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hF:w:r:vc:i:f:I:O:q:C:a:',
+            'd:hF:w:r:vc:i:f:I:O:q:C:a:l:',
             [
                 'help',
                 'image=',
@@ -118,7 +122,8 @@ class ProgramOptions:
                 'depth',
                 'alignment=',
                 'ignore-alignment-seams',
-                'write-coeffs'
+                'write-coeffs',
+                'load-processed='
             ])
 
         for o, a in options:
@@ -141,6 +146,8 @@ class ProgramOptions:
             elif o in ("-w", "--write-equation"):
                 self.alignment_file = a
                 self.write_coeffs = True
+            elif o in ("-l", "--load-processed"):
+                self.load_processed = a
             elif o in ("-v", "--verbose"):
                 self.verbose = True
             elif o in ("-F", "--fast"):
@@ -167,7 +174,8 @@ class ProgramOptions:
 
     def valid(self):
         return len(self.config) > 0 or self.image_override is not None \
-            or (len(self.in_override) > 0 and len(self.out_override) > 0)
+            or (len(self.in_override) > 0 and len(self.out_override) > 0) \
+            or self.load_processed is not None
 
 
 class Debug:
@@ -303,6 +311,28 @@ class Config:
 
     def valid(self):
         return self.input != '' and self.output != ''
+
+def read_image_exif(fname):
+    data_map = {}
+    exif = ExifToolHelper()
+    meta = exif.get_metadata([fname])[0]
+
+    if 'EXIF:GPSLatitude' in meta:
+        data_map['last_position_latitude'] = meta['EXIF:GPSLatitude']
+    elif 'Composite:GPSLatitude' in meta:
+        data_map['last_position_latitude'] = meta['Composite:GPSLatitude']
+
+    if 'EXIF:GPSLongitude' in meta:
+        data_map['last_position_longitude'] = meta['EXIF:GPSLongitude']
+    elif 'Composite:GPSLongitude' in meta:
+        data_map['last_position_longitude'] = meta['Composite:GPSLongitude']
+
+    if 'EXIF:DateTimeOriginal' in meta:
+        data_map['date'] = meta['EXIF:DateTimeOriginal']
+    elif 'XMP:FirstPhotoDate' in meta:
+        data_map['date'] = meta['XMP:FirstPhotoDate']
+    return data_map
+
 
 def read_image_metadata(fname):
     data_map = {}
@@ -487,7 +517,7 @@ def main():
         for c in options.format:
             config.format[c] = True
 
-    if not config.valid():
+    if not config.valid() and not options.load_processed:
         usage()
         print('The config file is invalid, missing input or output.')
         exit(1)
@@ -497,10 +527,20 @@ def main():
         print('--alignment must be provided.')
         exit(1)
 
-
     debug = Debug(options)
-
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
+
+    if options.load_processed:
+        img = cv.imread(options.load_processed)
+        w = img.shape[1]
+        h = int(img.shape[0]/2)
+        left = img[:h]
+        right = img[h:]
+        config.format['over-under'] = False
+        meta_map = read_image_exif(options.load_processed)
+        config.input = config.output = os.path.splitext(options.load_processed)[0]
+        write_output(meta_map, left, right, config)
+        exit(1)
 
     if options.depth:
         depth_analysis(config, options.alignment_file, debug)
