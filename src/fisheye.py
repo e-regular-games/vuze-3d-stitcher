@@ -87,7 +87,7 @@ class FisheyeImage():
 
         camera = cv.fisheye.projectPoints(cart.reshape(self._eq_shape[0], self._eq_shape[1], 3), \
                                           cv.Rodrigues(self._calib.R)[0], \
-                                          np.zeros((3)), #self._calib.t, \
+                                          np.zeros((3)), \
                                           self._calib.camera_matrix, \
                                           self._calib.k_coeffs)[0].astype(np.float32)
         cart = None

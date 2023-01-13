@@ -7,7 +7,8 @@ import cv2 as cv
 import threading
 from Equirec2Perspec import Equirectangular
 from matplotlib import pyplot as plt
-from sklearn.neighbors import KDTree
+from scipy.spatial import KDTree
+#from sklearn.neighbors import KDTree
 from scipy.spatial.transform import Rotation
 
 def create_from_middle(middle):
@@ -350,7 +351,7 @@ class DepthCalibration():
         act = self._coords[1].copy()
         act[:,1] = 3*math.pi/2 - act[:,1]
 
-        self._linreg = LinearRegression(np.array([2, 2]))
+        self._linreg = LinearRegression(np.array([4, 4]))
         if self._debug.verbose:
             print('regression samples:', exp.shape[0])
         err = self._linreg.regression(exp, act)
