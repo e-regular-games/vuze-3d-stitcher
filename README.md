@@ -25,7 +25,7 @@ python -m pip install -U pyexiftool
 ### Notes
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
 
-[Depth Calibration](./notes/depth_calibration.md) (January 8th, 2023)
+[Depth Calibration](./notes/depth_calibration/depth_calibration.md) (January 8th, 2023)
 
 [Sensor Rotation and Feature Depth](./notes/depth_feature.md) (December 27, 2022)
 

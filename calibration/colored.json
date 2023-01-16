@@ -2,8 +2,7 @@
   "patches": [
     {
       "color": "940505",
-      "distance": 2.267,
-      "skip": true
+      "distance": 2.267
     },
     {
       "color": "944105",

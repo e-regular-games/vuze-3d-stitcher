@@ -17,6 +17,11 @@ def create_from_middle(middle):
     r[:,int(w/4):int(3*w/4)] = middle
     return r
 
+def get_middle(img):
+    width = img.shape[1]
+    middle = range(int(width/4), int(width*3/4))
+    return img[:,middle]
+
 def choose_closest(r, x):
     final = r[...,0]
     delta = np.absolute(r[...,0] - x)
@@ -123,12 +128,12 @@ class LinearRegression():
 
     def to_dict(self):
         return {
-            "order": self._order.tolist(),
+            "order": (self._order - 1).tolist(),
             "coeffs": self._coeffs.tolist()
         }
 
     def from_dict(self, d):
-        order = np.array(d["order"]) - 1
+        order = np.array(d["order"])
         self.__init__(order)
         self._coeffs = np.array(d["coeffs"])
         return self
@@ -218,7 +223,7 @@ def radius_compute(left, right, p_l, p_r, maximum=10):
 
     v_l = p_l + r_l * m_l
     v_r = p_r + r_r * m_r
-    r = np.linalg.norm((v_l + v_r) / 2, axis=1).reshape((n, 1))
+    r = np.linalg.norm((v_l + v_r) / 2 - (p_l + p_r) / 2, axis=1).reshape((n, 1))
 
     #alpha = np.arccos(np.sum(v_l * v_r, axis=1) / (np.linalg.norm(v_l, axis=1) * np.linalg.norm(v_r, axis=1)))
     r[parallel] = maximum
@@ -242,7 +247,9 @@ class DepthCalibration():
         self._expected = None
         self._r_expected = None
 
+        self._mode = 'linrex'
         self._linreg = None
+        self._rotation = None
 
     def to_dict(self):
         r = {}
@@ -252,8 +259,12 @@ class DepthCalibration():
             r['expected'] = self._expected.tolist()
         if self._r_expected is not None:
             r['distance'] = self._r_expected.tolist()
+        if self._mode is not None:
+            r['mode'] = self._mode
         if self._linreg is not None:
             r['linreg'] = self._linreg.to_dict()
+        if self._rotation is not None:
+            r['rotation'] = self._rotation.tolist()
         return r
 
     def merge_dict(self, d):
@@ -283,6 +294,10 @@ class DepthCalibration():
             self._r_expected = np.array(d['distance'])
         if 'linreg' in d:
             self._linreg = LinearRegression().from_dict(d['linreg'])
+        if 'mode' in d:
+            self._mode = d['mode']
+        if 'rotation' in d:
+            self._rotation = np.array(d['rotation'])
         return self
 
     def initial_sqr_err(self):
@@ -290,6 +305,7 @@ class DepthCalibration():
         r_exp = self._r_expected
         err = np.sum((r-r_exp)*(r-r_exp))
         print('initial squared error:', err)
+        print('initial distance at intersect (r_d*r_d):', np.sum(d*d))
         return err
 
     # returns a tuple (coords, valid)
@@ -311,170 +327,6 @@ class DepthCalibration():
         coords[:,1] = 3*math.pi/2 - coords[:,1]
         return coords, valid
 
-    def determine_coordinates(self, patches):
-        r_expected = np.zeros((len(patches), 1))
-        for pi, p in enumerate(patches):
-            r_expected[pi,0] = p['distance']
-
-        n = len(patches)
-        coords = np.zeros((2, n, 2))
-        valid = np.zeros((2, n), dtype=np.bool)
-        for ii, i in enumerate([self._img_left, self._img_right]):
-            coords[ii], valid[ii] = self._find_colors(i, patches)
-
-        valid_pair = np.logical_and(valid[0], valid[1])
-        coords = coords[:,valid_pair]
-        self._r_expected = r_expected = r_expected[valid_pair]
-        n = np.count_nonzero(valid_pair)
-
-        expected = np.zeros((n,2))
-        cart_left = coordinates.polar_to_cart(coords[0], 1)
-        p_exp = self._p_left + r_expected * cart_left
-        cart_right_exp = p_exp - self._p_right
-        cart_right_exp = cart_right_exp / np.linalg.norm(cart_right_exp, axis=1).reshape((n, 1))
-        expected = coordinates.cart_to_polar(cart_right_exp)
-
-        self._coords = coords
-        self._expected = expected
-        self.initial_sqr_err()
-
-    def apply(self, right):
-        center_pts = coordinates.polar_points_3d((right.shape[0], int(right.shape[1]/2)))
-        center_pts = self._linreg.evaluate(center_pts)
-        center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
-        return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
-
-    def finalize(self, patches):
-        # convert back to coordinates with the image centered at pi
-        exp = self._expected.copy()
-        exp[:,1] = 3*math.pi/2 - exp[:,1]
-        act = self._coords[1].copy()
-        act[:,1] = 3*math.pi/2 - act[:,1]
-
-        self._linreg = LinearRegression(np.array([4, 4]))
-        if self._debug.verbose:
-            print('regression samples:', exp.shape[0])
-        err = self._linreg.regression(exp, act)
-
-        # clear out the data used to generate the linear regression coeffs
-        self._coords = None
-        self._expected = None
-        self._r_expected = None
-
-        if self._debug.verbose:
-            print('depth calibration regression error:', np.sum(err*err, axis=0))
-
-        right = self.apply(self._img_right)
-        if self._debug.enable('depth-cal-finalize'):
-            plt.figure()
-            plt.imshow(self._img_right)
-            plt.figure()
-            plt.imshow(right)
-
-        n = len(patches)
-        coords = np.zeros((2, n, 2))
-        valid = np.zeros((2, n), dtype=np.bool)
-        for ii, i in enumerate([self._img_left, right]):
-            coords[ii], valid[ii] = self._find_colors(i, patches)
-        valid_pair = np.logical_and(valid[0], valid[1])
-        coords = coords[:,valid_pair]
-
-        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
-
-        r_exp = np.zeros((len(patches), 1))
-        for pi, p in enumerate(patches):
-            r_exp[pi,0] = p['distance']
-        r_exp = r_exp[valid_pair]
-
-        print('depth distance squared error:', np.sum((r-r_exp)*(r-r_exp)))
-
-        return self
-
-    def _calibrate_v1(self, coords, expected):
-        phi_lr = LinearRegression(np.array([2, 2]))
-        print(phi_lr.regression(coords[1], expected[1,:,0:1]))
-        print(phi_lr._coeffs)
-        phi_1 = phi_lr.evaluate(coords[1])
-
-        theta_lr = LinearRegression(np.array([2, 2]))
-        print(theta_lr.regression(np.concatenate([phi_1, coords[1,:,1:2]], axis=1), expected[1,:,1:2]))
-        print(theta_lr._coeffs)
-        theta_1 = theta_lr.evaluate(np.concatenate([phi_1, coords[1,:,1:2]], axis=1))
-
-        coords_adj = np.concatenate([phi_1, theta_1], axis=1)
-        r, d = radius_compute(coords[0], coords_adj, switch_axis(self._calibration[0].t), switch_axis(self._calibration[1].t))
-
-        r_exp = self._r_expected
-        print(np.concatenate([r, r_exp], axis=1))
-        print('squared error:', np.sum((r-r_exp)*(r-r_exp)))
-
-        plt.figure()
-        plt.imshow(self._images[0])
-        plt.figure()
-        plt.imshow(self._images[1])
-
-        center_pts = coordinates.polar_points_3d((self._images[1].shape[0], int(self._images[1].shape[1]/2)))
-        center_pts[...,1] = theta_lr.reverse(center_pts, 1)
-        center_pts[...,0] = phi_lr.reverse(center_pts, 0)
-
-        center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
-        plt.figure()
-
-        right = create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, self._images[1]))
-        plt.imshow(right)
-
-    def _calibrate_kabsch(self, coords, expected):
-        coords_cart = coordinates.polar_to_cart(coords, 1)
-        expected_cart = coordinates.polar_to_cart(expected, 1)
-
-        rot, rssd = Rotation.align_vectors(expected_cart[1], coords_cart[1])
-        print('rssd', rssd)
-        print(rot.as_matrix())
-
-        est = np.matmul(coords_cart[1], rot.as_matrix())
-        coords_est = coordinates.cart_to_polar(est)
-
-        r, d = radius_compute(coords[0], coords_est, switch_axis(self._calibration[0].t), switch_axis(self._calibration[1].t))
-
-        r_exp = self._r_expected
-        print(np.concatenate([r, r_exp], axis=1))
-        print('squared error:', np.sum((r-r_exp)*(r-r_exp)))
-
-    def calibrate_v0(self):
-        n = len(self._patches)
-        coords = np.zeros((2, n, 2))
-        for ii, i in enumerate(self._images[:2]):
-            for pi, p in enumerate(self._patches):
-                ci = int(p["color"], 16)
-                c = np.array([(ci >> 0) & 0xff, (ci >> 8) & 0xff, (ci >> 16) & 0xff])
-                coords[ii, pi] = self._find_color(i, c)
-
-        coords[...,0] *= math.pi / 2160
-        coords[...,1] *= math.pi / 2160
-        coords[...,1] = 3 * math.pi / 2 - coords[...,1]
-
-        r, d = radius_compute(coords[0], coords[1], switch_axis(self._calibration[0].t), switch_axis(self._calibration[1].t))
-        r_exp = np.zeros((n, 1))
-        for pi, p in enumerate(self._patches):
-            r_exp[pi,0] = p['distance']
-        ax = plt.figure().add_subplot(projection='3d')
-
-        x = np.zeros((n, 2))
-        cart_left = coordinates.polar_to_cart(coords[0], 1)
-        x[:,0:1] = r[:,0:1]
-        x[:,1:2] = d
-        #x[:,1:2] = np.sqrt(cart_left[:,0:1]*cart_left[:,0:1] + cart_left[:,2:3]*cart_left[:,2:3])
-
-        ax.scatter(r[:,0], x[:,1:2], r_exp[:,0], marker='.')
-        lr = LinearRegression(np.array([3, 2]))
-        err = lr.regression(x, r_exp)
-
-        r_1 = lr.evaluate(x)
-        ax.scatter(r[:,0], x[:,1:2], r_1[:,0], marker='.')
-
-        print(np.concatenate([r_1, r_exp], axis=1))
-        print('squared error:', np.sum((r_1-r_exp)*(r_1-r_exp)))
-
     # returns the theta and phi of the center of the color patch within the image
     def _find_color(self, img, c):
         tol = 10
@@ -484,6 +336,149 @@ class DepthCalibration():
             return None
         return np.array([np.mean(ind[0]), np.mean(ind[1])])
 
+    def determine_coordinates(self, patches):
+        self._coords, self._expected, self._r_expected = \
+            self._determine_coordinates(self._img_left, self._img_right, patches)
+        self.initial_sqr_err()
+
+    def apply(self, right):
+        if self._mode == 'linreg':
+            return self._apply_linreg(self._linreg, right)
+        if self._mode == 'kabsch':
+            return self._apply_kabsch(self._rotation, right)
+        return None
+
+    def finalize(self, patches):
+        print('samples:', self._expected.shape[0])
+
+        if self._debug.enable('depth-samples'):
+            c = self._r_expected * coordinates.polar_to_cart(self._coords[0], 1)
+            ax = plt.figure().add_subplot(projection='3d')
+            ax.scatter(c[:,0], c[:,1], c[:,2], marker='.')
+
+        if self._mode == 'linreg':
+            self._finalize_linreg(patches)
+        if self._mode == 'kabsch':
+            self._finalize_kabsch(patches)
+
+        self._print_result(patches)
+
+        # clear out the data used to generate the linear regression coeffs
+        self._coords = None
+        self._expected = None
+        self._r_expected = None
+
+        return self
+
+    def _determine_coordinates(self, left, right, patches):
+        r_expected = np.zeros((len(patches), 1))
+        for pi, p in enumerate(patches):
+            r_expected[pi,0] = p['distance']
+
+        n = len(patches)
+        coords = np.zeros((2, n, 2))
+        valid = np.zeros((2, n), dtype=np.bool)
+        for ii, i in enumerate([left, right]):
+            coords[ii], valid[ii] = self._find_colors(i, patches)
+
+        valid_pair = np.logical_and(valid[0], valid[1])
+        coords = coords[:,valid_pair]
+        r_expected = r_expected[valid_pair]
+        n = np.count_nonzero(valid_pair)
+
+        expected = np.zeros((n,2))
+        cart_left = coordinates.polar_to_cart(coords[0], 1)
+        p_exp = self._p_left + r_expected * cart_left
+        cart_right_exp = p_exp - self._p_right
+        cart_right_exp = cart_right_exp / np.linalg.norm(cart_right_exp, axis=1).reshape((n, 1))
+        expected = coordinates.cart_to_polar(cart_right_exp)
+
+        return coords, expected, r_expected
+
+    def _apply_linreg(self, linreg, right):
+        center_pts = coordinates.polar_points_3d((right.shape[0], int(right.shape[1]/2)))
+        center_pts = linreg.evaluate(center_pts)
+        center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
+        return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
+
+    def _apply_kabsch(self, rot, right):
+        s = (right.shape[0], int(right.shape[1]/2))
+        center_pts = coordinates.polar_points_3d(s)
+        center_pts_cart = coordinates.polar_to_cart([0, 3/2*math.pi] + np.array([1, -1]) * center_pts, 1)
+        center_pts_cart = np.transpose(np.matmul(rot, np.transpose(center_pts_cart.reshape((s[0] * s[1], 3))))).reshape(s + (3,))
+        center_pts = [0, 3/2*math.pi] + np.array([1, -1]) * coordinates.cart_to_polar(center_pts_cart)
+        center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
+        return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
+
+    def _finalize_linreg(self, patches):
+        # convert back to coordinates with the image centered at pi
+        exp = self._expected.copy()
+        exp[:,1] = 3*math.pi/2 - exp[:,1]
+        act = self._coords[1].copy()
+        act[:,1] = 3*math.pi/2 - act[:,1]
+
+        self._linreg = LinearRegression(np.array([4, 4]))
+        err = self._linreg.regression(exp, act)
+        print('linear regression depth squared error:', np.sum(err*err, axis=0))
+
+    def _finalize_kabsch(self, patches):
+        cart_left = coordinates.polar_to_cart(self._coords[0], 1)
+        cart_right = coordinates.polar_to_cart(self._coords[1], 1)
+        cart_right_exp = coordinates.polar_to_cart(self._expected, 1)
+
+        rot, rssd = Rotation.align_vectors(cart_right, cart_right_exp)
+        print('kabsch rssd', rssd)
+
+        est = np.transpose(np.matmul(rot.as_matrix(), np.transpose(cart_right_exp)))
+        err = est - cart_right
+        print('kabsch cart init:', np.sum((cart_right - cart_right_exp)*(cart_right - cart_right_exp)))
+        print('kabsch cart err:', np.sum(err * err))
+        self._rotation = rot.as_matrix()
+
+    def _print_result(self, patches):
+        right = self.apply(self._img_right)
+        if self._debug.enable('depth-cal-finalize'):
+            f, ax = plt.subplots(2, 1)
+            ax[0].imshow(self._img_right)
+            ax[1].imshow(right)
+
+        coords, expected, r_exp = \
+            self._determine_coordinates(self._img_left, right, patches)
+        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+        print('depth distance squared error:', np.sum((r-r_exp)*(r-r_exp)))
+        print('distance at intersect (r_d*r_d):', np.sum(d*d))
+
+    def calibrate_v0(self, patches):
+        n = len(patches)
+        coords = np.zeros((2, n, 2))
+        for ii, i in enumerate([self._img_left, self._img_right]):
+            for pi, p in enumerate(patches):
+                ci = int(p["color"], 16)
+                c = np.array([(ci >> 0) & 0xff, (ci >> 8) & 0xff, (ci >> 16) & 0xff])
+                coords[ii, pi] = self._find_color(i, c)
+
+        coords[...,0] *= math.pi / 2160
+        coords[...,1] *= math.pi / 2160
+        coords[...,1] = 3 * math.pi / 2 - coords[...,1]
+
+        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+        r_exp = np.zeros((n, 1))
+        for pi, p in enumerate(patches):
+            r_exp[pi,0] = p['distance']
+        ax = plt.figure().add_subplot(projection='3d')
+
+        x = np.zeros((n, 2))
+        cart_left = coordinates.polar_to_cart(coords[0], 1)
+        x[:,0:1] = r[:,0:1]
+        x[:,1:2] = np.sqrt(cart_left[:,0:1]*cart_left[:,0:1] + cart_left[:,2:3]*cart_left[:,2:3])
+
+        ax.scatter(r[:,0], x[:,1:2], r_exp[:,0]-r[:,0], marker='.')
+        lr = LinearRegression(np.array([3, 2]))
+        err = lr.regression(x, r_exp)
+
+        r_1 = lr.evaluate(x)
+        #ax.scatter(r[:,0], x[:,1:2], r[:,0]-r_1[:,0], marker='.')
+        print('squared error:', np.sum((r_1-r_exp)*(r_1-r_exp)))
 
 class DepthMesh():
 
