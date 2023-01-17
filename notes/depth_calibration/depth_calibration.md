@@ -7,29 +7,29 @@ Script: [vuze_merge.py](../src/vuze_merge.py)
 Usage:
 ```
 rm -f test/coeffs_v5.dat
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i test/HET_0014 --ellipse-coeffs
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i test/HET_0014 --yaml-config test/VUZ1178200318.yml
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_left --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_right --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_far_left --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_far_right --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_far_far_left --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_far_far_right --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_up --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored_down --depth add-only
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -i calibration/colored --depth linreg
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_depth_calib --write-coeffs -d fisheye
-./src/vuze_merge.py --alignment test/coeffs_v5.dat -I test/HET_0017 -O test/HET_0017_depth_calib
+src/vuze_merge.py -a test/coeffs_v5.dat -i test/HET_0014 --ellipse-coeffs
+src/vuze_merge.py -a test/coeffs_v5.dat -i test/HET_0014 --yaml-config test/VUZ1178200318.yml
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_left --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_right --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_far_left --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_far_right --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_far_far_left --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_far_far_right --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_up --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_down --depth add-only
+src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored --depth linreg
+src/vuze_merge.py -a test/coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_depth_calib --write-coeffs --ignore-alignment-seams
+src/vuze_merge.py -a test/coeffs_v5.dat -I test/HET_0017 -O test/HET_0017_depth_calib
 convert
 ```
 
 ### Objective
-Obtain accurate depth measurements for features between the left and right eye. Determine a $f(\phi, \theta)$ that adjusts the original equirectangular image for each right eye lens that allows for more accurate depth measurements.
+Obtain accurate depth measurements for features between the left and right eye. Determine a $f(\phi, \theta)$ that adjusts the original equirectangular image for each right eye lens to allow for more accurate depth measurements.
 
 
 ### Known Depth Measurements
-A room was setup with the camera at one wall and blue post-it notes scattered around the remaining 4 walls of the room. The post-it notes ranged in distance from the camera between 1.15m and 5.066m. The camera was on a tripod with a notched rotation mechanism with 20 discrete points, about $18^\circ$ per notch. The camera was rotated to capture the angle of the room at 3 different rotations per side of the camera. With 4 sides to the camera and 3 rotations per side and 2 lenses per side a total of 24 images were captured.
+A room was setup with the camera at one wall and blue post-it notes scattered around the remaining 4 walls of the room. The post-it notes ranged in distance from the camera between 1.15m and 5.066m. The camera was on a tripod with a notched rotation mechanism with 20 discrete points, about $18^\circ$ per notch. The camera was rotated to capture the angle of the room at 9 different rotations per side of the camera. With 4 sides to the camera and 9 rotations per side and 2 lenses per side a total of 72 images were captured.
 
 <table>
   <tr><th colspan=3>Example Images: Camera Front - Left Eye - Rotations</th></tr>
@@ -70,14 +70,17 @@ The direction of the vector between $\vec{m_l}$ and $\vec{m_r}$ is the cross pro
 
 $$\begin{pmatrix} a_d \\\\ b_d \\\\ c_d \end{pmatrix} = \vec{m_d} = \frac{ \vec{m_r} \times \vec{m_l} }{ \left|\left| \vec{m_r} \times \vec{m_l} \right|\right| }$$
 
-$$\begin{pmatrix} a_{pl} \\\\ b_{pl} \\\\ c_{pl} \end{pmatrix} = \vec{p_l}$$
-$$\begin{pmatrix} a_{pr} \\\\ b_{pr} \\\\ c_{pr} \end{pmatrix} = \vec{p_r}$$
+$$\begin{array}{cc}
+\begin{pmatrix} a_{pl} \\\\ b_{pl} \\\\ c_{pl} \end{pmatrix} = \vec{p_l}
+&
+\begin{pmatrix} a_{pr} \\\\ b_{pr} \\\\ c_{pr} \end{pmatrix} = \vec{p_r}
+\end{array}$$
 
 This setup allows for the following equation which can be solved to determine the closest point between the two vectors: $\vec{v_l} = \vec{p_l} + r_l \vec{m_l}$ and $\vec{v_r} = \vec{p_r} + r_r \vec{m_r}$.
 
 $$\vec{p_l} + r_l\vec{m_l} + r_d\vec{m_d} = \vec{p_r} + r_r\vec{m_r}$$
 
-Breaking this equation into its 3 component equations and using GNU Octave's symbolic toolkit to solve yields the following.
+Breaking this equation into its 3 component equations and using GNU Octave's symbolic toolkit to solve yields the following. [Octave Script](./depth_solver.m)
 
 $$r_d = \frac{a_l b_{pl} c_r - a_l b_{pr} c_r - a_l b_r c_{pl} + a_l b_r c_{pr} - a_{pl} b_l c_r + a_{pl} b_r c_l + a_{pr} b_l c_r - a_{pr} b_r c_l + a_r b_l c_{pl} - a_r b_l c_{pr} - a_r b_{pl} c_l + a_r b_{pr} c_l) }{ a_d b_l c_r - a_d b_r c_l - a_l b_d c_r + a_l b_r c_d + a_r b_d c_l - a_r b_l c_d }$$
 
@@ -85,7 +88,7 @@ $$r_r = \frac{ a_d b_l c_{pl} - a_d b_l c_{pr} - a_d b_{pl} c_l + a_d b_{pr} c_l
 
 $$r_l = \frac{-a_d b_{pl} c_r + a_d b_{pr} c_r + a_d b_r c_{pl} - a_d b_r c_{pr} + a_{pl} b_d c_r - a_{pl} b_r c_d - a_{pr} b_d c_r + a_{pr} b_r c_d - a_r b_d c_{pl} + a_r b_d c_{pr} + a_r b_{pl} c_d - a_r b_{pr} c_d }{ a_d b_l c_r - a_d b_r c_l - a_l b_d c_r + a_l b_r c_d + a_r b_d c_l - a_r b_l c_d }$$
 
-Ideally, the value of $r_d$ should be less than 0.06m, the distance beteween the two lenses. j Further, $r_l > 0$ and $r_r > 0$. In cases where $\vec{m_r} \times \vec{m_l} = 0$, a maximum value was used for the depth. The depth for the point is determined as follows.
+Ideally, the value of $r_d$ should be less than 0.06m, the distance beteween the two lenses. Further, $r_l > 0$ and $r_r > 0$. In cases where $\vec{m_r} \times \vec{m_l} = 0$, a maximum value was used for the depth. The depth for the point is determined as follows.
 
 $$r = \left|\left| \frac{ r_l \vec{m_l} + r_r \vec{m_r}}{2} \right|\right|$$
 
@@ -125,7 +128,7 @@ The following are the initial depths determined using this method with unaltered
 
 The camera was rotated in 8 different directions as listed below along with a name describing each. Since the camera position remained fixed within the room, the post-it notes remained at approximately the same distance. The position within the lens of the camera changed.
 
-| Name | Horiztonal $\theta^\circ$ | Vertical $\phi^circ$ |
+| Name | Horiztonal $\theta^\circ$ | Vertical $\phi^\circ$ |
 | :----: | :----: | :----: |
 | left | -18 | 0 |
 | right | 18 | 0 |
@@ -185,11 +188,11 @@ The SciPy module was used for the Kabsch algorithm calculation. [SciPy](https://
 
 Below is the example rotation matrix generated from the front of the camera using points from the 9 image sets.
 
-| | x | y | z |
-| :---: | :---: | :---: | :---: |
-| x |  0.99817681 | 0.06026117 | -0.00341253 |
-| y | -0.0602696  | 0.99817919 | -0.00242472 |
-| z |  0.0032602  | 0.00262597 | 0.99999124  |
+$$R = \begin{bmatrix}
+0.99817681 & 0.06026117 & -0.00341253 \\\\
+-0.0602696 & 0.99817919 & -0.00242472 \\\\
+0.0032602  & 0.00262597 & 0.99999124
+\end{bmatrix}$$
 
 The matrix is used to rotate the final coordinates into the original right eye image usign the above rotation matrix $R$.
 
@@ -216,7 +219,7 @@ $$\theta_r = \sum_{i=0}^4 \sum_{j=0}^4 b_{ij} \phi_r'^i \theta_r'^j$$
 
 With each equation above there are 25 coefficients which need to be determined. A basic linear regression is performend using the samples above to determine the coefficients $a$ and $b$. The resulting error of each regression for each camera side is below. Using the equations, the right eye image was adjusted and the depth was recomputed for each known point in the provided image, ~29 points. The depth squared error is also shown below.
 
-| Camera Side | $\phi_r$ | $\theta_r$ | Initial Depth Squared Error | Final Depth Squared Error |
+| Camera Side | Error $\phi_r$ | Error $\theta_r$ | Initial Depth Squared Error | Final Depth Squared Error |
 | :----: | :----: | :----: | :----: | :----: |
 | Front | 0.00029222 | 0.00324201 | 183.41 | 16.40 |
 | Right | 0.00053273 | 0.00193436 | 141.42 | 15.74 |
