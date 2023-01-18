@@ -75,27 +75,27 @@ class FisheyeImage():
         return cv.remap(self._img, x, y, cv.INTER_CUBIC, borderMode=cv.BORDER_CONSTANT, borderValue=0).astype(np.uint8)
 
     def to_equirect_full(self):
-        polar = coordinates.eqr_to_polar(self._pts, self._eq_shape)
+        shape = (self._eq_shape[0], int(self._eq_shape[1]/2))
+        polar = coordinates.polar_points_3d(shape)
 
-        n = polar.shape[0]
-        polar[:,0] = (polar[:,0]) % math.pi
-        polar[:,1] = (polar[:,1] - math.pi / 2) % (2 * math.pi)
+        n = shape[0] * shape[1]
+        polar[...,0] = (polar[...,0]) % math.pi
+        polar[...,1] = (polar[...,1] - math.pi / 2) % (2 * math.pi)
         # adjust from the scripts perception of the world axis, y-front to the vuze camera
         # perception which is y-up.
         cart = np.matmul(coordinates.polar_to_cart(polar, 1), np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]))
         polar = None
 
-        camera = cv.fisheye.projectPoints(cart.reshape(self._eq_shape[0], self._eq_shape[1], 3), \
+        camera = cv.fisheye.projectPoints(cart, \
                                           cv.Rodrigues(self._calib.R)[0], \
                                           np.zeros((3)), \
                                           self._calib.camera_matrix, \
                                           self._calib.k_coeffs)[0].astype(np.float32)
-        cart = None
 
         # convert camera to be centered at 0
-        center = np.array([self._calib.camera_matrix[0,2], self._calib.camera_matrix[1,2]])
-        f = camera.reshape((n, 2)) - center
-        camera = None
+        center = np.array([self._calib.camera_matrix[0,2], self._calib.camera_matrix[1,2]], \
+                          np.float32)
+        camera = camera - center
 
         # create the unit vectors that align to the axes of the ellipse
         #ellipse_unit = np.array([
@@ -110,17 +110,21 @@ class FisheyeImage():
 
         # convert from the unit vectors v1 and v2, back to the unit vectors along x and y
         #f = np.transpose(np.matmul(np.transpose(ellipse_unit), np.transpose(f)))
-        flipped = np.zeros((n), dtype=np.bool)
-        flipped[int(0.6 * n):] = f[int(0.6 * n):,1] < 0
-        flipped[:int(0.4 * n)] = f[:int(0.4 * n),1] > 0
+        flipped = np.zeros(shape, dtype=np.bool)
+        flipped[int(0.6 * shape[0]):,:] = camera[int(0.6 * shape[0]):,:,1] < 0
+        flipped[:int(0.4 * shape[0]),:] = camera[:int(0.4 * shape[0]),:,1] > 0
+        camera = (camera + center).astype(np.float32)
 
-        x = f[:,0].reshape(self._eq_shape).astype(np.float32) + center[0]
-        y = f[:,1].reshape(self._eq_shape).astype(np.float32) + center[1]
-
-        eqr = cv.remap(self._img, x, y, cv.INTER_CUBIC, borderMode=cv.BORDER_CONSTANT, borderValue=0).astype(np.uint8)
-        eqr[flipped.reshape(self._eq_shape)] = 0
+        eqr = cv.remap(self._img, \
+                       camera[...,0], \
+                       camera[...,1], \
+                       cv.INTER_CUBIC, borderMode=cv.BORDER_CONSTANT, borderValue=0) \
+                .astype(np.uint8)
+        eqr[flipped] = 0
+        camera = None
+        flipped = None
 
         if self._calib.depth:
-            eqr = self._calib.depth.apply(eqr)
+            return self._calib.depth.apply(eqr)
 
         return eqr

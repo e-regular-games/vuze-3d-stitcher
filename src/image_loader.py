@@ -273,7 +273,7 @@ class LoadImage(threading.Thread):
         if self.calib.recalc_ellipse:
             self.calib.from_image(img)
         fish = self._fish.clone_with_image(img, self.calib)
-        self.result = get_middle(fish.to_equirect())
+        self.result = fish.to_equirect()
         print('.', end='', flush=True)
 
 class ImageLoader:

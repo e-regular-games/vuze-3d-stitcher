@@ -146,7 +146,7 @@ class LinearRegression():
         return p
 
     def _terms(self, x):
-        terms = np.ones(x.shape[:-1] + (self._num_terms,))
+        terms = np.ones(x.shape[:-1] + (self._num_terms,), np.float32)
         for i in range(self._num_terms):
             for v in range(self._vars):
                 terms[...,i] *= np.power(x[...,v], self._powers[i,v])
@@ -396,19 +396,22 @@ class DepthCalibration():
         return coords, expected, r_expected
 
     def _apply_linreg(self, linreg, right):
-        center_pts = coordinates.polar_points_3d((right.shape[0], int(right.shape[1]/2)))
+        shape_full = (right.shape[0], 2*right.shape[0])
+        shape_half = (shape_full[0], int(shape_full[1] / 2))
+
+        center_pts = coordinates.polar_points_3d(shape_half)
         center_pts = linreg.evaluate(center_pts)
-        center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
-        return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
+        center_pts = coordinates.polar_to_eqr_3d(center_pts, shape_full)
+        return coordinates.eqr_interp_3d(center_pts, right)
 
     def _apply_kabsch(self, rot, right):
-        s = (right.shape[0], int(right.shape[1]/2))
+        s = (right.shape[0], right.shape[1])
         center_pts = coordinates.polar_points_3d(s)
         center_pts_cart = coordinates.polar_to_cart([0, 3/2*math.pi] + np.array([1, -1]) * center_pts, 1)
         center_pts_cart = np.transpose(np.matmul(rot, np.transpose(center_pts_cart.reshape((s[0] * s[1], 3))))).reshape(s + (3,))
         center_pts = [0, 3/2*math.pi] + np.array([1, -1]) * coordinates.cart_to_polar(center_pts_cart)
         center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts)
-        return create_from_middle(coordinates.eqr_interp_3d(center_pts_eqr, right))
+        return coordinates.eqr_interp_3d(center_pts_eqr, right)
 
     def _finalize_linreg(self, patches):
         # convert back to coordinates with the image centered at pi
@@ -436,7 +439,7 @@ class DepthCalibration():
         self._rotation = rot.as_matrix()
 
     def _print_result(self, patches):
-        right = self.apply(self._img_right)
+        right = self.apply(get_middle(self._img_right))
         if self._debug.enable('depth-cal-finalize'):
             f, ax = plt.subplots(2, 1)
             ax[0].imshow(self._img_right)

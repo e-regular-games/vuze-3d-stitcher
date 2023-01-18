@@ -60,9 +60,10 @@ def polar_to_eqr_3d(c, shape=None):
     shape = c.shape if shape is None else shape
     w = shape[1] - 1
     h = shape[0] - 1
-    x = w * c[:,:,1:2] / math.pi * shape[0] / shape[1]
-    y = h * (c[:,:,0:1] / math.pi)
-    return np.concatenate([x, y], axis=-1).astype(np.float32)
+    res = np.zeros(c.shape, np.float32)
+    res[..., 0:1] = w * c[..., 1:2] / math.pi * shape[0] / shape[1] + (shape[1] - c.shape[1]) / 2
+    res[..., 1:2] = h * c[..., 0:1] / math.pi
+    return res
 
 # @param c a matrix with N rows and 3 columns, (x, y, z)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -82,7 +83,7 @@ def polar_points_3d(dims):
     phi = np.linspace(0, math.pi, h)
     theta = np.linspace(math.pi * (1 - w/h/2), math.pi * (1 + w/h/2), w + 1)[:-1]
 
-    res = np.zeros((h, w, 2))
+    res = np.zeros((h, w, 2), np.float32)
     res[...,1], res[...,0] = np.meshgrid(theta, phi)
     return res
 
