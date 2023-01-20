@@ -1,6 +1,38 @@
 # vuze-3d-stitcher
 A python based script for combining 8 separate photos taken by the Vuze 4K 3D 360 camera into a stereo 360 image. The goal is to provide a unix based alternative to the Vuze VR Studio which is only available on Windows and MAC. In the process, it may be possible to improve upon the overall stitch and output image quality.
 
+## Requirements
+The following python models will need to be installed. The installation requires pip.
+```
+pip install numpy
+pip install opencv-python
+pip install -U scikit-learn
+python -m pip install -U scikit-image
+python -m pip install -U pyexiftool
+```
+
+## Installation and Usage
+
+Clone this repository and ensure all of the requirements above are met. Assuming your Vuze Camera is similar to the one used for this project, copy a series of 8 images (`_1.JPG` -> `_8.JPG`) and their CSV from the camera to the parent directory of this repo. Also copy the VUZ*.yml file from the root of the memory card. The following commands are run from the parent directory of the repo.
+
+Update the position of the sensors within the lens using your cameras configuration. Note: the images to merge in this command are `HET_0014_1.JPG` -> `HET_0014_8.JPG`.
+
+```
+vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014 --yaml-config VUZ*.yml
+```
+
+Merge the images into an over-under 3d equirectangular image.
+
+```
+vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014
+```
+
+To further configure the merge process examine the additional options provided by `vuze_merge.py` by running the script without any arguments.
+
+```
+vuze-3d-stitcher/src/vuze_merge.py
+```
+
 ## Contribute
 
 There is currently no formal contribution process. And there are no unit tests or regression tests. So good luck! Having said that code contributions of features and fixes are welcome.
@@ -11,15 +43,6 @@ If you wish to support this project please buy me a coffee.
 
 ## Website
 [E-Regular Games](https://www.e-regular-games.com)
-
-## Requirements
-The following python models will need to be installed. The installation requires pip.
-```
-pip install opencv-python
-pip install -U scikit-learn
-python -m pip install -U scikit-image
-python -m pip install -U pyexiftool
-```
 
 ## Repository Structure
 ### Notes
