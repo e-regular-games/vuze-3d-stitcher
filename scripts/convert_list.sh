@@ -14,6 +14,26 @@ args=("${args[@]:1}")
 overwrite=0
 args_pass=()
 
+# returns an array of strings, each string is a cell, cells may include commas
+# if the contents were originally quoted.
+function parse_csv {
+    line=$2
+    splitq=(${line//\"/ })
+    i=0
+
+    local -n res=$1
+    res=()
+    for s in "${splitq[@]}"
+    do
+        if [[ $(expr $i % 2) == "0" ]]; then
+            res+=( ${s//,/ } )
+        else
+            res+=( ${s} )
+        fi
+        i=$((i+1))
+    done
+}
+
 for a in "${args[@]}"
 do
     if [ "$a" == "--overwrite" ]; then
@@ -31,7 +51,9 @@ mkdir -p "stitched/${list_dir}"
 
 while IFS= read -r line
 do
-    split=(${line//,/ })
+    split=()
+    parse_csv split "$line"
+
     if [ "${#split[@]}" -lt "2" ]; then
         continue
     fi
@@ -50,8 +72,8 @@ do
 
     echo "${dir}HETVR/HET_${pic}"
     if test -f "raw/config_${dir}_${pic}.dat"; then
-        project/src/vuze_merge.py -r raw/coeffs_v4.dat -c "raw/config_${dir}_${pic}.dat" ${addl[@]} ${args_pass[@]}
+        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v5.dat -c "raw/config_${dir}_${pic}.dat" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
     else
-        project/src/vuze_merge.py -f over-under -r raw/coeffs_v4.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
+        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v5.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
     fi
 done < "$list_file"

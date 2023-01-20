@@ -38,6 +38,7 @@ def usage():
     print('')
 
     print('-c,--config <file>\t\tSpecify the config file.')
+    print('-o,--config-option <option>\t\tComma separate config option line.')
     print('-i,--image <file_prefix>\t\tOverride the input and output config options.')
     print('-I,--in <file_prefix>\t\tOverride the input config option.')
     print('-O,--out <file_prefix>\t\tOverride the output config option.')
@@ -81,6 +82,7 @@ class ProgramOptions:
     def __init__(self):
         self.verbose = False
         self.config = ""
+        self.config_options = []
 
         self.alignment_file = None
         self.yaml_config = None
@@ -101,7 +103,7 @@ class ProgramOptions:
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hF:w:r:vc:i:f:I:O:q:C:a:l:',
+            'd:hF:w:r:vc:i:f:I:O:q:C:a:l:o:',
             [
                 'help',
                 'image=',
@@ -112,6 +114,7 @@ class ProgramOptions:
                 'write-equation=',
                 'read-equation=',
                 'config=',
+                'config-option=',
                 'verbose',
                 'display=',
                 'quality=',
@@ -129,6 +132,8 @@ class ProgramOptions:
         for o, a in options:
             if o in ("-c", "--config"):
                 self.config = a
+            if o in ("-o", "--config-option"):
+                self.config_options.append(a)
             elif o == "--yaml-config":
                 self.yaml_config = a
             elif o == "--depth":
@@ -239,7 +244,7 @@ class Debug:
         return Debug()
 
 class Config:
-    def __init__(self, file_path):
+    def __init__(self, file_path, addl_options):
         self.input = ""
         self.output = ""
         self.format = {}
@@ -263,6 +268,10 @@ class Config:
             for l in f.readlines():
                 cmd = l.strip().split(',')
                 self.process_line(cmd)
+
+        for l in addl_options:
+            cmd = l.strip().split(',')
+            self.process_line(cmd)
 
         if len(self.format) == 0:
             self.format['over-under'] = True
@@ -503,7 +512,7 @@ def main():
 
     # generate the config, if the file is empty a default config is used.
     # override some of the config options which can be provide by the command line
-    config = Config(options.config)
+    config = Config(options.config, options.config_options)
     if options.image_override is not None:
         config.input = options.image_override
         config.output = options.image_override

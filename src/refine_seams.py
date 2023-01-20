@@ -7,6 +7,7 @@ import cv2 as cv
 from transform import Transform
 from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
+from scipy.spatial import KDTree
 
 class RefineSeams():
     """
@@ -23,7 +24,7 @@ class RefineSeams():
         self._debug = debug
 
         self.seam_points = 50
-        self.seam_window = 10
+        self.seam_window = 20
 
         self._targets = None
         self._matches = None
@@ -258,8 +259,11 @@ class RefineSeams():
             target = target[target[:,0] < math.pi]
             target = target[target[:,0].argsort()]
             target = np.concatenate([np.array([[0, target[0,1]]]), target, np.array([[math.pi, target[-1,1]]])])
-            _, unique = np.unique(target[:,0], return_index=True)
-            target = target[unique]
+            #_, unique = np.unique(target[:,0], return_index=True)
+            #target = target[unique]
+
+            density_tree = KDTree(target)
+            densities = np.array(density_tree.query_ball_point(target, 0.2, return_length=True))
 
             seam = np.zeros((cphi, 2))
             seam_valid = np.full((cphi), True)
@@ -271,7 +275,8 @@ class RefineSeams():
                     seam_valid[p] = False
                 else:
                     seam[p,0] = p*math.pi / cphi
-                    seam[p,1] = np.mean(target[in_range,1])
+                    idx = np.argmax(densities[in_range])
+                    seam[p,1] = target[in_range,1][idx]
 
             seam = seam[seam_valid,:] - [0, math.pi]
             seam = np.concatenate([seam, [[math.pi, seam[-1,1]]]])
@@ -300,7 +305,7 @@ class RefineSeams():
         return matches
 
     # compute the alignment coefficients
-    def align(self, match_thres=0.75, err_thres=0.0075):
+    def align(self, match_thres=0.75, err_thres=0.0125):
         matches = self.matches(match_thres, err_thres)
         seams = self._compute_seams(matches)
         return seams, matches
