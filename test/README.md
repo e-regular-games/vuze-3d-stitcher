@@ -11,7 +11,7 @@ The following file was copied from an SD card setup by the Vuze Camera. The file
 [VUZ1178200318.yml](./VUZ1178200318.yml)
 
 ### HET_0011
-Hiking trail intersection in Redding, CT. Exposure -2. Large number of feature points and lighting conditions. Same location as HET_0012 and HET_0014
+Hiking trail intersection in Redding, CT. Exposure -2. Large number of feature points and lighting conditions. Same location as HET_0012, HET_0014, and HET_0015.
 
 <table>
   <tr>
@@ -29,7 +29,7 @@ Hiking trail intersection in Redding, CT. Exposure -2. Large number of feature p
 </table>
 
 ### HET_0012
-Hiking trail intersection in Redding, CT. Exposure -1. Large number of feature points and lighting conditions. Same location as HET_0011 and HET_0014
+Hiking trail intersection in Redding, CT. Exposure -1. Large number of feature points and lighting conditions. Same location as HET_0011, HET_0014, and HET_0015.
 
 <table>
   <tr>
@@ -47,7 +47,7 @@ Hiking trail intersection in Redding, CT. Exposure -1. Large number of feature p
 </table>
 
 ### HET_0014
-Hiking trail intersection in Redding, CT. Exposure 0. Large number of feature points and lighting conditions. Same location as HET_0011 and HET_0012
+Hiking trail intersection in Redding, CT. Exposure 0. Large number of feature points and lighting conditions. Same location as HET_0011, HET_0012, and HET_0015
 
 <table>
   <tr>
@@ -61,6 +61,24 @@ Hiking trail intersection in Redding, CT. Exposure 0. Large number of feature po
     <td><img src="HET_0014_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
     <td><img src="HET_0014_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
     <td><img src="HET_0014_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
+  </tr>
+</table>
+
+### HET_0015
+Hiking trail intersection in Redding, CT. Exposure +1. Large number of feature points and lighting conditions. Same location as HET_0011, HET_0012, and HET_0014.
+
+<table>
+  <tr>
+    <td><img src="HET_0015_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0015_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0015_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0015_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
+  </tr>
+  <tr>
+    <td><img src="HET_0015_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
+    <td><img src="HET_0015_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
+    <td><img src="HET_0015_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
+    <td><img src="HET_0015_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
   </tr>
 </table>
 

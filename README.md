@@ -1,5 +1,36 @@
 # vuze-3d-stitcher
-A python based script for combining 8 separate photos taken by the Vuze 4K 3D 360 camera into a stereo 360 image. The goal is to provide a unix based alternative to the Vuze VR Studio which is only available on Windows and MAC. In the process, it may be possible to improve upon the overall stitch and output image quality.
+A python based script for combining 8 separate photos taken by the Vuze 4K 3D 360 camera into a stereo 360 image. The goal is to provide a unix based alternative to the Vuze VR Studio which is only available on Windows and MAC. In the process, it may be possible to improve upon the overall stitch and output image quality. A set of sample images with their merged output is provided below.
+
+<table>
+  <tr>
+    <td><img src="test/HET_0014_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
+    <td><img src="test/HET_0014_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
+    <td><img src="test/HET_0014_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
+    <td><img src="test/HET_0014_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
+  </tr>
+  <tr>
+    <td><img src="test/HET_0014_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
+    <td><img src="test/HET_0014_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
+    <td><img src="test/HET_0014_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
+    <td><img src="test/HET_0014_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
+  </tr>
+</table>
+
+The following image uses a resolution of 4320x4320 (resized for display here) along with the exposure merge of HET_0011, HET_0012, HET_0014, and HET_0015. The image is also suitable for lens position and size determination. A series of sample depth images (indepent of this one) were used to determine the optimal positioning of the left and right eye images. Using the merged image additional outputs are produced for use in Google Photos and for use with Red-Cyan Anaglyph glasses. Note: the Google Photos image stores the right eye in special EXIF metadata fields which only display with Google Cardboard image viewer or Google Photos.
+
+| Generated Images |
+| :----: |
+| Over-Under 3D Image |
+| <img src="test/HET_0014_demo.JPG" alt="Over-under 3D" width="400px"/> |
+| |
+| |
+| Google Photos 3D Image (When Viewed in Google Cardboard) |
+| <img src="test/HET_0014_demo_gpano.JPG" alt="Google Photos compatible 3D and 2D." width="700px"/> |
+| |
+| |
+| Red-Cyan Anaglyph |
+| <img src="test/HET_0014_demo_anaglyph_90_0_0_1112_955.JPG" alt="Red-Cyan Anaglyph" width="700px"/> |
+
 
 ## Requirements
 The following python models will need to be installed. The installation requires pip.
@@ -44,8 +75,7 @@ If you wish to support this project please buy me a coffee.
 ## Website
 [E-Regular Games](https://www.e-regular-games.com)
 
-## Repository Structure
-### Notes
+## Development Log
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
 
 [Depth Calibration](./notes/depth_calibration/depth_calibration.md) (January 8th, 2023)
@@ -91,12 +121,12 @@ This directory contains documentation on useful processes and tests. It also doc
 [Make VR](./notes/make_vr.md) (July 10, 2022)
 
 
-### Source Code
+## Source Code
 The working source code. The current implementation is in python and requires several added libraries such as Numpy, OpenCV and MatPlotLib.
 
 [Main Function](./src/vuze_merge.py)
 
-### Tests
+## Tests
 A collection of test images, configuration files, and result images.
 
 [Test Images](./test/README.md)

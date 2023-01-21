@@ -8,16 +8,6 @@ from matplotlib import pyplot as plt
 from skimage import exposure
 import threading
 
-def get_middle(img):
-    width = img.shape[1]
-    middle = range(int(width/4), int(width*3/4))
-    return img[:,middle]
-
-def set_middle(img, value):
-    width = img.shape[1]
-    middle = range(int(width/4), int(width*3/4))
-    img[:,middle] = value
-
 def create_from_middle(middle):
     w = middle.shape[1] * 2
     r = np.zeros((middle.shape[0], w, middle.shape[2]), np.uint8)
@@ -390,7 +380,7 @@ class ImageLoader:
                 img = cv.imread(exp + '_' + str(l) + '.JPG')
                 img = np.rot90(img)
                 fish_ = self._fish.clone_with_image(img, self._calib[l-1])
-                images_exp.append(get_middle(fish_.to_equirect()))
+                images_exp.append(fish_.to_equirect())
 
             alignMTB = cv.createAlignMTB()
             alignMTB.process(images_exp, images_exp)
