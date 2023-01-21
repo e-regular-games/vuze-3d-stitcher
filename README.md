@@ -31,6 +31,15 @@ The following image uses a resolution of 4320x4320 (resized for display here) al
 | Red-Cyan Anaglyph |
 | <img src="test/HET_0014_demo_anaglyph_90_0_0_1112_955.JPG" alt="Red-Cyan Anaglyph" width="700px"/> |
 
+This is the command used to generate the full resolution versions of the above images.
+```
+src/vuze_merge.py -a coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_demo \
+  -f gpano,over-under,anaglyph:90:0:0:1112:955 \
+  --config-option exposure_fuse,test/HET_0011 \
+  --config-option exposure_fuse,test/HET_0012 \
+  --config-option exposure_fuse,test/HET_0015
+```
+
 
 ## Requirements
 The following python models will need to be installed. The installation requires pip.
@@ -49,7 +58,8 @@ Clone this repository and ensure all of the requirements above are met. Assuming
 Update the position of the sensors within the lens using your cameras configuration. Note: the images to merge in this command are `HET_0014_1.JPG` -> `HET_0014_8.JPG`.
 
 ```
-vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014 --yaml-config VUZ*.yml
+vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014 \
+  --yaml-config VUZ*.yml
 ```
 
 Merge the images into an over-under 3d equirectangular image.

@@ -19,7 +19,8 @@ src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_far_far_right --d
 src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_up --depth add-only
 src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored_down --depth add-only
 src/vuze_merge.py -a test/coeffs_v5.dat -i calibration/colored --depth linreg
-src/vuze_merge.py -a test/coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_depth_calib --write-coeffs --ignore-alignment-seams
+src/vuze_merge.py -a test/coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_depth_calib \
+  --write-coeffs --ignore-alignment-seams
 src/vuze_merge.py -a test/coeffs_v5.dat -I test/HET_0017 -O test/HET_0017_depth_calib
 convert
 ```
@@ -53,7 +54,7 @@ Each post-it note within each image was colored a unique color. The following co
   </tr>
 </table>
 
-| Post-It Note Colors and Depths from Camera |
+| Post-It Note Colors and Depths in Meters from Camera |
 | :----: |
 | <img src="distinct_colors.png" alt="Feature point (green) from different angles." /> |
 
@@ -92,7 +93,7 @@ Ideally, the value of $r_d$ should be less than 0.06m, the distance beteween the
 
 $$r = \left|\left| \frac{ r_l \vec{m_l} + r_r \vec{m_r}}{2} \right|\right|$$
 
-The following are the initial depths determined using this method with unaltered images for `calibration/colored`.
+The following are the initial depths in meters determined using this method with unaltered images for `calibration/colored`.
 
 | Post-It Note (Hex Color) | Expected Depth | Front Depth | Right Depth | Back Depth | Left Depth |
 | :----: | :----: | :----: | :----: | :----: | :----: |
