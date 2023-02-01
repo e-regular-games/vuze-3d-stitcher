@@ -118,10 +118,9 @@ class ColorTransform():
                        .subplot('color_regression') \
                        .bar(err_center, h1, color=hsv_to_rgb_hex(clr1_center), width=err_max/10)
 
-        if self._debug.verbose:
-            print('regression error', i.shape[0], \
-                  np.sum(hsv_error(i, f)) / i.shape[0], \
-                  np.sum(hsv_error(y_a, f)) / i.shape[0])
+        self._debug.log('regression error', i.shape[0], \
+                        np.sum(hsv_error(i, f)) / i.shape[0], \
+                        np.sum(hsv_error(y_a, f)) / i.shape[0])
 
         return hsv_error(y_a, f)
 
@@ -254,10 +253,9 @@ class ColorTransformKMeansFixed(ColorTransform):
                 self._transforms[l] = None
                 errors[flt] = hsv_error(i[flt], f[flt])
 
-        if self._debug.verbose:
-            print('regression error kmeans', i.shape[0], \
-                  np.sum(hsv_error(i, f)) / i.shape[0], \
-                  np.sum(errors) / i.shape[0])
+        self._debug.log('regression error kmeans', i.shape[0], \
+                        np.sum(hsv_error(i, f)) / i.shape[0], \
+                        np.sum(errors) / i.shape[0])
 
         return errors
 
@@ -302,10 +300,9 @@ class ColorTransformSided(ColorTransform):
         errors[left] = self._left.compute_hsv_coeffs(i[left], f[left], c[left])
         errors[right] = self._right.compute_hsv_coeffs(i[right], f[right], c[right])
 
-        if self._debug.verbose:
-            print('regression error sided', i.shape[0], \
-                  np.sum(hsv_error(i, f)) / i.shape[0], \
-                  np.sum(errors) / i.shape[0])
+        self._debug.log('regression error sided', i.shape[0], \
+                        np.sum(hsv_error(i, f)) / i.shape[0], \
+                        np.sum(errors) / i.shape[0])
 
         return errors
 
@@ -387,6 +384,8 @@ class ColorCorrection():
                 result.append(r)
             return result
 
+        self._debug.log_pause();
+
         for i in range(8):
             left_bgr = regions[(2*i+1) % 16].astype(np.uint8)
             left_coord = coords[(2*i+1) % 16]
@@ -425,6 +424,9 @@ class ColorCorrection():
                     right_target, black,
                     right_corrected, black, black, black, black
                 ])
+
+        print('')
+        self._debug.log_resume();
 
         if self._debug.enable('color'):
             f = plt.figure()

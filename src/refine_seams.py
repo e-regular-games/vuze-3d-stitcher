@@ -8,6 +8,11 @@ from transform import Transform
 from matplotlib import pyplot as plt
 from Equirec2Perspec import Equirectangular
 from scipy.spatial import KDTree
+from debug_utils import show_polar_plot
+from debug_utils import show_polar_points
+from depth_mesh import radius_compute
+from depth_mesh import switch_axis
+from feature_matcher import FeatureMatcher4
 
 class RefineSeams():
     """
@@ -25,6 +30,7 @@ class RefineSeams():
 
         self.seam_points = 50
         self.seam_window = 20
+        self.calibration = None
 
         self._targets = None
         self._matches = None
@@ -35,96 +41,6 @@ class RefineSeams():
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
 
-    def _match_between_eyes(self, imgs_left, imgs_right, threshold):
-        sift = cv.SIFT_create()
-        all_polar_pts = np.zeros((0, 8))
-
-        fig = plt.figure() if self._debug.enable('matches') else None
-        fc = 1
-        imgs = imgs_left + imgs_right
-        thetas = [45, -45, 45, -45]
-        for lat in [60, 0, -60]:
-            rl = [None] * 4
-            inv = [None] * 4
-            kp = [None] * 4
-            des = [None] * 4
-            gray = [None] * 4
-
-            for i in range(4):
-                rl[i], inv[i] = Equirectangular(imgs[i]).GetPerspective(60, thetas[i], lat, 1000, 1000);
-                gray[i] = cv.cvtColor(rl[i], cv.COLOR_BGR2GRAY)
-                kp[i], des[i] = sift.detectAndCompute(gray[i], None)
-
-            matches = [None]*4 # matches[0] will always be None, ie. img0 vs. img0
-            kp_indices = np.zeros((len(kp[0]), 4), dtype=np.int) - 1
-            kp_indices[:, 0] = np.arange(0, len(kp[0]))
-            for i in range(1, 4):
-                if des[i] is None or des[0] is None: continue
-                matches[i] = self._determine_matches(des[i], des[0], threshold)
-                for m in matches[i]:
-                    kp_indices[m.trainIdx, i] = m.queryIdx
-
-            kp_indices = kp_indices[(kp_indices != -1).all(axis=1), :]
-            if kp_indices.shape[0] == 0:
-                continue
-
-            if self._debug.enable('matches'):
-                for i in range(1, 4):
-                    plot = cv.drawMatches(gray[i], kp[i], gray[0], kp[0], matches[i], None,
-                                  flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                    fig.add_subplot(3, 3, fc).imshow(plot)
-                    fc += 1
-
-            rl_pts = np.zeros((kp_indices.shape[0], 2 * kp_indices.shape[1]))
-            for i in range(kp_indices.shape[0]):
-                for j in range(kp_indices.shape[1]):
-                    rl_pts[i][2*j:2*j+2] = kp[j][kp_indices[i,j]].pt
-
-            lat_polar_pts = np.zeros(rl_pts.shape)
-            for j in range(kp_indices.shape[1]):
-                eq_pts = inv[j].GetEquirectangularPoints(rl_pts[:,2*j:2*j+2])
-                lat_polar_pts[:,2*j:2*j+2] = coordinates.eqr_to_polar(eq_pts, imgs[j].shape)
-                lat_polar_pts[:,2*j+1] -= (thetas[j] - thetas[0]) * math.pi / 180
-
-            all_polar_pts = np.concatenate([all_polar_pts, lat_polar_pts])
-
-        return all_polar_pts
-
-    def _determine_matches(self, des_a, des_b, threshold):
-        # BFMatcher with default params
-        bf = cv.BFMatcher()
-        matches = bf.knnMatch(des_a, des_b, k=2)
-
-        def by_distance(e):
-            return e.distance
-
-        good_matches = []
-        for ma in matches:
-            if len(ma) == 2 and ma[0].distance < threshold * ma[1].distance:
-                good_matches.append(ma[0])
-
-        good_matches.sort(key=by_distance)
-        return good_matches
-
-
-    def show_polar_plot(self, polar_a, polar_b, label=None):
-        plt.figure(label) if label is not None else plt.figure()
-        xa = np.sin(polar_a[..., 0]) * np.cos(polar_a[..., 1])
-        ya = np.sin(polar_a[..., 0]) * np.sin(polar_a[..., 1])
-        za = np.cos(polar_a[..., 0])
-
-        ax = plt.axes(projection ='3d')
-        ax.plot3D(xa, ya, za, 'bo', markersize=1)
-
-        xb = np.sin(polar_b[..., 0]) * np.cos(polar_b[..., 1])
-        yb = np.sin(polar_b[..., 0]) * np.sin(polar_b[..., 1])
-        zb = np.cos(polar_b[..., 0])
-
-        ax.plot3D(xb, yb, zb, 'ro', markersize=1)
-
-        plt.xlim([-1, 1])
-        plt.ylim([-1, 1])
-        ax.set_zlim(-1, 1)
 
     # i and f are N by 2 matrices.
     # the difference between i, and f is computed
@@ -148,28 +64,36 @@ class RefineSeams():
         inc = np.logical_and(m - d*std < i, i < m + d*std)
         return i[inc], inc
 
+    # expects existing and matches to be Nx8
+    # returns an Nx1 array of elements to keep
+    def _filter_existing_matches(self, existing, matches):
+        keep = np.ones((existing.shape[0],), bool)
+        for i in range(0, 8, 2):
+            t = KDTree(existing[:,i:i+2])
+            dups_idx = t.query_ball_point(matches[:,i:i+2], 0.1)
+            for d in dups_idx:
+                keep[d] = 0
+        self._debug.log('existing kept matches:', np.count_nonzero(keep), 'of', existing.shape[0])
+        return keep
+
     def _determine_matches_and_targets(self, match_thres):
+
         matches = [
-            self._match_between_eyes([self._images[6], self._images[0]], [self._images[7], self._images[1]], match_thres),
-            self._match_between_eyes([self._images[0], self._images[2]], [self._images[1], self._images[3]], match_thres),
-            self._match_between_eyes([self._images[2], self._images[4]], [self._images[3], self._images[5]], match_thres),
-            self._match_between_eyes([self._images[4], self._images[6]], [self._images[5], self._images[7]], match_thres)
+            FeatureMatcher4([self._images[6], self._images[0]], \
+                            [self._images[7], self._images[1]], self._debug).matches(),
+            FeatureMatcher4([self._images[0], self._images[2]], \
+                            [self._images[1], self._images[3]], self._debug).matches(),
+            FeatureMatcher4([self._images[2], self._images[4]], \
+                            [self._images[3], self._images[5]], self._debug).matches(),
+            FeatureMatcher4([self._images[4], self._images[6]], \
+                            [self._images[5], self._images[7]], self._debug).matches()
         ]
 
-        shist_pre = plt.figure() if self._debug.enable('sanitize') else None
-        for m in range(4):
-            match = matches[m]
-            inc = np.full((match.shape[0]), True)
-            for i in range(4):
-                if self._debug.enable('sanitize'):
-                    shist_pre.add_subplot(4, 4, 4*m+i+1).hist(match[:,2*i+1])
-                _, inc_i = self._trim_outliers(match[:,2*i+1], 5)
-                inc = np.logical_and(inc, inc_i)
+        for i, m in enumerate(matches):
+            if m is None:
+                print('empty matches', i)
 
-            matches[m] = match[inc]
-
-        if self._debug.verbose:
-            print('matches between eyes', matches[0].shape[0], matches[1].shape[0], matches[2].shape[0], matches[3].shape[0])
+        self._debug.log('matches between eyes', matches[0].shape[0], matches[1].shape[0], matches[2].shape[0], matches[3].shape[0])
 
         targets = []
         for i in range(4):
@@ -186,8 +110,9 @@ class RefineSeams():
 
         if self._matches is not None and self._targets is not None:
             for i in range(4):
-                matches[i] = np.concatenate([matches[i], self._matches[i]])
-                targets[i] = np.concatenate([targets[i], self._targets[i]])
+                keep = self._filter_existing_matches(self._matches[i], matches[i])
+                matches[i] = np.concatenate([matches[i], self._matches[i][keep]])
+                targets[i] = np.concatenate([targets[i], self._targets[i][keep]])
 
         self._matches = matches
         self._targets = targets
@@ -252,8 +177,7 @@ class RefineSeams():
 
             if target.shape[0] == 0:
                 seams.append([])
-                if self._debug.verbose:
-                    print('invalid-seam:', i, matches[m].shape)
+                print('invalid-seam:', i, matches[m].shape)
                 continue
 
             target = target[target[:,0] < math.pi]
@@ -281,18 +205,56 @@ class RefineSeams():
             seam = seam[seam_valid,:] - [0, math.pi]
             seam = np.concatenate([seam, [[math.pi, seam[-1,1]]]])
             if self._debug.enable('seams'):
-                self.show_polar_plot(target, seam + [0, math.pi], 'seam:' + str(i))
+                show_polar_plot(target, seam + [0, math.pi], 'seam:' + str(i))
 
-            if self._debug.verbose:
-                print('seam:', i, round(np.mean(seam[:,1]), 3))
+            self._debug.log('seam:', i, round(np.mean(seam[:,1]), 3))
 
             seams.append(seam)
 
         self._seams = seams
         return seams
 
-    def matches(self, match_thres=0.75, err_thres=0.0075):
+    def depth_at_seam(self, m, i):
+        ll = [0, 3*math.pi/2] + [1,-1]*m[:30,0:2]
+        lr = [0, 3*math.pi/2] + [1,-1]*m[:30,2:4]
+        rl = [0, 3*math.pi/2] + [1,-1]*m[:30,4:6]
+        rr = [0, 3*math.pi/2] + [1,-1]*m[:30,6:8]
+
+        pll = switch_axis(self.calibration[(2*i-2) % 8].t)
+        plr = switch_axis(self.calibration[(2*i-1) % 8].t)
+        prl = np.matmul(switch_axis(self.calibration[2*i].t), \
+                        np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]]))
+        prr = np.matmul(switch_axis(self.calibration[2*i+1].t), \
+                        np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]]))
+
+        print(pll, plr, prl, prr)
+        print(np.concatenate([ll, lr, rl, rr], axis=1))
+        ld, ldd = radius_compute(ll, lr, pll, plr)
+        cd, cdd = radius_compute(ll, rr, pll, prr)
+        dd, ddd = radius_compute(ll, rl, pll, prl)
+        ed, edd = radius_compute(lr, rr, plr, prr)
+        fd, fdd = radius_compute(lr, rl, plr, prl)
+        rd, rdd = radius_compute(rl, rr, prl, prr)
+
+        r = np.concatenate([ld, rd, cd, dd, ed, fd], axis=1)
+        d = np.concatenate([ldd, rdd, cdd, ddd, edd, fdd], axis=1)
+
+        idx = np.argmin(np.abs(d), axis=1) + np.arange(r.shape[0])*r.shape[1]
+        r = r.flatten()[idx].reshape(r.shape[0], 1)
+        pts = np.concatenate([ll, r], axis=1)
+        print(r)
+        print(np.sum(d*d, axis=1))
+        # show_polar_points(pts)
+
+
+    def matches(self, match_thres=0.075, err_thres=0.0075):
         matches, targets = self._determine_matches_and_targets(match_thres)
+
+        if self._debug.enable('refine-depth'):
+            for i in range(4):
+                self.depth_at_seam(matches[i], i)
+                exit(1)
+
         within_error = self._compute_transforms(matches, targets, err_thres)
 
         matches = []
@@ -302,10 +264,12 @@ class RefineSeams():
             matches.append(self._matches[i][closest])
             targets.append(self._targets[i][closest])
 
+        self._debug.log('matches post transform', matches[0].shape[0], matches[1].shape[0], matches[2].shape[0], matches[3].shape[0])
+
         return matches
 
     # compute the alignment coefficients
-    def align(self, match_thres=0.75, err_thres=0.0125):
+    def align(self, match_thres=0.075, err_thres=0.0075):
         matches = self.matches(match_thres, err_thres)
         seams = self._compute_seams(matches)
         return seams, matches

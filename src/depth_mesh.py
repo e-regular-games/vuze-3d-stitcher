@@ -451,37 +451,23 @@ class DepthCalibration():
         print('depth distance squared error:', np.sum((r-r_exp)*(r-r_exp)))
         print('distance at intersect (r_d*r_d):', np.sum(d*d))
 
-    def calibrate_v0(self, patches):
-        n = len(patches)
-        coords = np.zeros((2, n, 2))
-        for ii, i in enumerate([self._img_left, self._img_right]):
-            for pi, p in enumerate(patches):
-                ci = int(p["color"], 16)
-                c = np.array([(ci >> 0) & 0xff, (ci >> 8) & 0xff, (ci >> 16) & 0xff])
-                coords[ii, pi] = self._find_color(i, c)
+class DepthAtSeam():
+    def __init__(self, seam, images, calibration):
+        # seam is of {"FL", "FR", "BR", "BL"}
+        # for Front, Left, Right, Back
 
-        coords[...,0] *= math.pi / 2160
-        coords[...,1] *= math.pi / 2160
-        coords[...,1] = 3 * math.pi / 2 - coords[...,1]
+        idx = ['fl', 'fr', 'br', 'bl'].index(seam.lower())
+        if idx == -1:
+            return
 
-        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
-        r_exp = np.zeros((n, 1))
-        for pi, p in enumerate(patches):
-            r_exp[pi,0] = p['distance']
-        ax = plt.figure().add_subplot(projection='3d')
+        self._left = [images[(2*idx-2) % 8], images[(2*idx) % 8]]
+        self._right = [images[(2*idx-1) % 8], images[(2*idx+1) %8]]
 
-        x = np.zeros((n, 2))
-        cart_left = coordinates.polar_to_cart(coords[0], 1)
-        x[:,0:1] = r[:,0:1]
-        x[:,1:2] = np.sqrt(cart_left[:,0:1]*cart_left[:,0:1] + cart_left[:,2:3]*cart_left[:,2:3])
+        self._t = [calibration[(2*idx-2) % 8], \
+                   calibration[(2*idx-1) % 8], \
+                   calibration[(2*idx) % 8], \
+                   calibration[(2*idx+1) % 8]]
 
-        ax.scatter(r[:,0], x[:,1:2], r_exp[:,0]-r[:,0], marker='.')
-        lr = LinearRegression(np.array([3, 2]))
-        err = lr.regression(x, r_exp)
-
-        r_1 = lr.evaluate(x)
-        #ax.scatter(r[:,0], x[:,1:2], r[:,0]-r_1[:,0], marker='.')
-        print('squared error:', np.sum((r_1-r_exp)*(r_1-r_exp)))
 
 class DepthMesh():
 
@@ -742,36 +728,3 @@ class DepthMesh():
 
         good_matches.sort(key=by_distance)
         return good_matches[:60]
-
-
-    def show_polar_plot(self, polar_a, polar_b, label=None):
-        plt.figure(label) if label is not None else plt.figure()
-        xa = np.sin(polar_a[..., 0]) * np.cos(polar_a[..., 1])
-        ya = np.sin(polar_a[..., 0]) * np.sin(polar_a[..., 1])
-        za = np.cos(polar_a[..., 0])
-
-        ax = plt.axes(projection ='3d')
-        ax.plot3D(xa, ya, za, 'bo', markersize=1)
-
-        xb = np.sin(polar_b[..., 0]) * np.cos(polar_b[..., 1])
-        yb = np.sin(polar_b[..., 0]) * np.sin(polar_b[..., 1])
-        zb = np.cos(polar_b[..., 0])
-
-        ax.plot3D(xb, yb, zb, 'ro', markersize=1)
-
-        plt.xlim([-1, 1])
-        plt.ylim([-1, 1])
-        ax.set_zlim(-1, 1)
-
-    def show_polar_points(self, polar, label=None):
-        plt.figure(label) if label is not None else plt.figure()
-        xa = polar[..., 2] * np.sin(polar[..., 0]) * np.cos(polar[..., 1])
-        ya = polar[..., 2] * np.sin(polar[..., 0]) * np.sin(polar[..., 1])
-        za = polar[..., 2] * np.cos(polar[..., 0])
-
-        ax = plt.axes(projection ='3d')
-        ax.plot3D(xa, ya, za, 'bo', markersize=1)
-
-        plt.xlim([-self._d_far, self._d_far])
-        plt.ylim([-self._d_far, self._d_far])
-        ax.set_zlim(-self._d_far, self._d_far)
