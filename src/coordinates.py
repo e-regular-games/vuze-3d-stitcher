@@ -61,7 +61,7 @@ def polar_to_eqr_3d(c, shape=None):
     w = shape[1] - 1
     h = shape[0] - 1
     res = np.zeros(c.shape, np.float32)
-    res[..., 0:1] = w * c[..., 1:2] / math.pi * shape[0] / shape[1] + (shape[1] - c.shape[1]) / 2
+    res[..., 0:1] = w * c[..., 1:2] / math.pi * shape[0] / shape[1]
     res[..., 1:2] = h * c[..., 0:1] / math.pi
     return res
 
@@ -145,4 +145,4 @@ def eqr_interp_3d(eqr, img, method=cv.INTER_CUBIC):
     return cv.remap(img, \
                     eqr[...,:,0].astype(np.float32), \
                     eqr[...,:,1].astype(np.float32), \
-                    method, borderMode=cv.BORDER_WRAP)
+                    method)

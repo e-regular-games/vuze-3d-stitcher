@@ -123,22 +123,22 @@ class RefineSeams():
         img0 = get_middle(self._images[0])
         img0[m_r_mask == 1] = [0, 0, 255]
 
-        layers = [5, 9, 17, 33, 65]
+        m_r_f = m_r.copy()
+        m_r_mask_f = m_r_mask.copy()
+        layers = [5, 9, 17, 33, 65, 129]
         for s in layers:
-            next_mask = cv.filter2D(m_r_mask, -1, np.ones((s, s)))
+            count = cv.filter2D(m_r_mask, -1, np.ones((s, s)))
             next_r = cv.filter2D(m_r, -1, np.ones((s, s)))
-            count = next_mask.copy()
-            count[count < 1] = 1
-            next_r = next_r / count
-            next_r[m_r_mask == 1] = m_r[m_r_mask == 1]
-            m_r = next_r
-            next_mask[next_mask < 0.5] = 0
-            next_mask[next_mask >= 0.5] = 1
-            m_r_mask = next_mask
+            count[m_r_mask_f == 1] = 0
+            count[count < 0.5] = 0
+            next_mask = (count > 0.5)
+            m_r_mask_f[next_mask] = 1
+            m_r_f[next_mask] = next_r[next_mask] / count[next_mask]
 
         img = np.ones((dim, dim, 3), np.uint8)
+        m_r = m_r_f
         m_r[m_r < 0] = 0
-        print('r', np.min(m_r), np.max(m_r))
+        print('r', np.min(m_r_f), np.max(m_r))
         img_r = 255 * np.sqrt(m_r / np.max(m_r))
         img *= np.round(img_r).astype(np.uint8).reshape((dim,dim,1))
 

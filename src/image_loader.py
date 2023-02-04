@@ -7,6 +7,7 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 from skimage import exposure
 import threading
+from depth_mesh import DepthCalibration
 
 def create_from_middle(middle):
     w = middle.shape[1] * 2
@@ -24,7 +25,7 @@ def plot_lenses(images, title):
     return axs
 
 class CalibrationParams():
-    def __init__(self):
+    def __init__(self, debug):
         self.aperture = 180 #degrees
         self._default_size = (1088, 1600)
 
@@ -43,6 +44,8 @@ class CalibrationParams():
         self.fov = None
         self.radius = None
 
+        self._debug = debug
+
     def to_dict(self):
         d = {'aperture': self.aperture}
         if self.ellipse is not None:
@@ -56,6 +59,9 @@ class CalibrationParams():
             d['fov'] = self.fov
             d['radius'] = self.radius
             d['vuzeConfig'] = True
+
+        if self.depth:
+            d['depth'] = self.depth.to_dict()
 
         return d
 
@@ -73,6 +79,9 @@ class CalibrationParams():
             self.radius = d['radius']
             self.vuze_config = True
 
+        if 'depth' in d:
+            self.depth = DepthCalibration().from_dict(d['depth'])
+
         return self
 
     def from_yaml(self, y, i):
@@ -88,7 +97,9 @@ class CalibrationParams():
         self.radius = y.getNode('ImageCircleRadius').real()
 
         if self.ellipse:
-            print('overwritting lens center with ellipse configuration.')
+            self._debug.log('overwritting lens center with ellipse configuration', \
+                            '(', self.camera_matrix[0,2], self.camera_matrix[1,2], ')', \
+                            '(', self.ellipse[0], self.ellipse[1], ')')
             self.camera_matrix[0,2] = self.ellipse[0]
             self.camera_matrix[1,2] = self.ellipse[1]
 
@@ -242,11 +253,11 @@ class CalibrationParams():
 
         # set the center of the lens into the camera_matrix
         if self.camera_matrix is not None:
-            print('overwritting lens center with ellipse configuration.')
+            self._debug.log('overwritting lens center with ellipse configuration', \
+                            '(', self.camera_matrix[0,2], self.camera_matrix[1,2], ')', \
+                            '(', self.ellipse[0], self.ellipse[1], ')')
             self.camera_matrix[0,2] = self.ellipse[0]
             self.camera_matrix[1,2] = self.ellipse[1]
-
-
 
 class LoadImage(threading.Thread):
     def __init__(self, fish, calib, f):
@@ -262,6 +273,7 @@ class LoadImage(threading.Thread):
         img = np.rot90(img)
         if self.calib.recalc_ellipse:
             self.calib.from_image(img)
+            self.calib.recalc_ellipse = False
         fish = self._fish.clone_with_image(img, self.calib)
         self.result = fish.to_equirect()
         print('.', end='', flush=True)
@@ -271,7 +283,7 @@ class ImageLoader:
         self._config = config
         self._debug = debug
         self._fish = fisheye.FisheyeImage(config.resolution, debug)
-        self._calib = [CalibrationParams() for i in range(8)]
+        self._calib = [CalibrationParams(debug) for i in range(8)]
 
     def get_calibration(self):
         return self._calib
@@ -311,6 +323,7 @@ class ImageLoader:
         threads = []
         images = []
 
+        self._debug.log_pause()
         for l in range(1, 9):
             if len(threads) >= parallel:
                 threads[0].join()
@@ -326,17 +339,12 @@ class ImageLoader:
             images.append(t.result)
 
         print('')
-
-        if self._debug.verbose:
-            for i, c in enumerate(self._calib):
-                print('lens(' + str(i) + ') calibration', c.aperture, c.ellipse)
+        self._debug.log_resume()
 
         if self._debug.enable('calib'):
             f, axs = plt.subplots(2, 4, sharex=True, sharey=True)
 
             for i, c in enumerate(self._calib):
-                if c.lens_pixels is not None:
-                    cv.imwrite('lens_alignment_in_lens_' + str(i) + '.png', c.lens_pixels)
                 c.plot(axs[int(i/4), i%4])
 
         if self._debug.enable('calib-fio'):

@@ -29,7 +29,7 @@ class Debug:
             return
 
         if self._msg_pause:
-            self._msgs.append(args)
+            self._msgs.append([str(a) for a in args])
         else:
             print(*args)
 

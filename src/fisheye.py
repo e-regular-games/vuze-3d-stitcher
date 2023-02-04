@@ -98,28 +98,24 @@ class FisheyeImage():
         camera = camera - center
 
         # create the unit vectors that align to the axes of the ellipse
-        #ellipse_unit = np.array([
-        #    [math.cos(self._calib.ellipse[5]), -math.sin(self._calib.ellipse[5])],
-        #    [math.sin(self._calib.ellipse[5]), math.cos(self._calib.ellipse[5])]
-        #])
+        ellipse_unit = np.array([
+            [math.cos(self._calib.ellipse[5]), -math.sin(self._calib.ellipse[5])],
+            [math.sin(self._calib.ellipse[5]), math.cos(self._calib.ellipse[5])]
+        ], np.float32)
 
         # convert the points f into the unit vectors v1, and v2.
         # then scale along the minor axis to get the correct point from the sensor
-        #f = np.transpose(np.matmul(ellipse_unit, np.transpose(f)))
-        #f[:,1] *= self._calib.ellipse[3] / self._calib.ellipse[2]
+        camera = np.matmul(camera, ellipse_unit)
+        camera[:,1] *= self._calib.ellipse[3] / self._calib.ellipse[2]
 
         # convert from the unit vectors v1 and v2, back to the unit vectors along x and y
-        #f = np.transpose(np.matmul(np.transpose(ellipse_unit), np.transpose(f)))
+        camera = np.matmul(camera, np.transpose(ellipse_unit))
         flipped = np.zeros(shape, dtype=np.bool)
         flipped[int(0.6 * shape[0]):,:] = camera[int(0.6 * shape[0]):,:,1] < 0
         flipped[:int(0.4 * shape[0]),:] = camera[:int(0.4 * shape[0]),:,1] > 0
         camera = (camera + center).astype(np.float32)
 
-        eqr = cv.remap(self._img, \
-                       camera[...,0], \
-                       camera[...,1], \
-                       cv.INTER_CUBIC, borderMode=cv.BORDER_CONSTANT, borderValue=0) \
-                .astype(np.uint8)
+        eqr = cv.remap(self._img, camera[...,0], camera[...,1], cv.INTER_CUBIC).astype(np.uint8)
         eqr[flipped] = 0
         camera = None
         flipped = None

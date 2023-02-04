@@ -125,7 +125,7 @@ class FeatureMatcher2(FeatureMatcher):
         super().__init__(debug)
         self._img_left = img_left
         self._img_right = img_right
-        self._threshold = 0.05
+        self._threshold = 0.1
 
     def matches(self):
         imgs = [self._img_left, self._img_right]
