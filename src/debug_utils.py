@@ -106,9 +106,10 @@ def show_polar_plot(polar_a, polar_b, label=None):
 
 def show_polar_points(polar, label=None):
     plt.figure(label) if label is not None else plt.figure()
-    xa = polar[..., 2] * np.sin(polar[..., 0]) * np.cos(polar[..., 1])
-    ya = polar[..., 2] * np.sin(polar[..., 0]) * np.sin(polar[..., 1])
-    za = polar[..., 2] * np.cos(polar[..., 0])
+    ra  = polar[..., 2] if polar.shape[-1] > 2 else 1
+    xa = ra * np.sin(polar[..., 0]) * np.cos(polar[..., 1])
+    ya = ra * np.sin(polar[..., 0]) * np.sin(polar[..., 1])
+    za = ra * np.cos(polar[..., 0])
 
     ax = plt.axes(projection ='3d')
     ax.plot3D(xa, ya, za, 'b.', markersize=0.5)

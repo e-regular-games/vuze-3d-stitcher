@@ -3,6 +3,7 @@ import coordinates
 import math
 import numpy as np
 import cv2 as cv
+from scipy.spatial import KDTree
 from Equirec2Perspec import Equirectangular
 
 # A collection of feature matching behaviors.
@@ -22,9 +23,30 @@ class PolarKeypoints():
         return len(self.keypoints) == 0
 
 class FeatureMatcher():
-    def __init__(self):
+    def __init__(self, debug):
         self.rectilinear_resolution = 800 # pixels
         self.rectilinear_fov = 62 # degrees
+        self._debug = debug
+
+    def _dedup(self, kp):
+        keep = np.ones((len(kp.keypoints),), bool)
+        t = KDTree(kp.polar)
+        dups_idx = t.query_ball_point(kp.polar, 0.0001, workers=8)
+        for i, dups in enumerate(dups_idx):
+            if not keep[i]: continue
+            for d in dups:
+                if d == i: continue
+                keep[d] = False
+
+        self._debug.log('dedup', np.count_nonzero(keep), '/', keep.shape[0])
+
+        rkp = PolarKeypoints()
+        rkp.keypoints = [i for (i, v) in zip(kp.keypoints, keep.tolist()) if v]
+        rkp.descriptors = kp.descriptors[keep]
+        rkp.polar = kp.polar[keep]
+        rkp.rotation = kp.rotation[keep]
+        return rkp
+
 
     # angles in degrees as a list of (phi, theta) tuples.
     def _create_polar_keypoints(self, img, angles):
@@ -53,12 +75,17 @@ class FeatureMatcher():
             pts = coordinates.eqr_to_polar(pts, img.shape)
             pkp.polar = np.concatenate([pkp.polar, pts])
 
-        return pkp
+        return self._dedup(pkp)
 
     def _determine_matches(self, kp_a, kp_b, threshold):
         # BFMatcher with default params
         bf = cv.BFMatcher()
         matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=8)
+
+        sin_a = np.sin(kp_a.rotation)
+        cos_a = np.cos(kp_a.rotation)
+        sin_b = np.sin(kp_b.rotation)
+        cos_b = np.cos(kp_b.rotation)
 
         good_matches = np.zeros((len(kp_a.keypoints), 3), np.float32) - 1
         good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
@@ -66,20 +93,19 @@ class FeatureMatcher():
             p = None
             cnt = 0
             for m in ma:
-                dp = kp_a.polar[m.queryIdx] - kp_b.polar[m.trainIdx]
+                ai = m.queryIdx
+                bi = m.trainIdx
+                dp = kp_a.polar[ai] - kp_b.polar[bi]
                 in_range = np.count_nonzero(np.abs(dp) < [threshold, 2*threshold]) == 2
                 if not in_range:
                     continue
 
-                sin_a_a = math.sin(kp_a.rotation[m.queryIdx])
-                cos_a_a = math.cos(kp_a.rotation[m.queryIdx])
-                sin_a_b = math.sin(kp_b.rotation[m.trainIdx])
-                cos_a_b = math.cos(kp_b.rotation[m.trainIdx])
-                a_diff = math.sqrt((sin_a_a - sin_a_b) * (sin_a_a - sin_a_b) + \
-                                   (cos_a_a - cos_a_b) * (cos_a_a - cos_a_b))
+                a_diff = math.sqrt((sin_a[ai] - sin_b[bi]) * (sin_a[ai] - sin_b[bi]) + \
+                                   (cos_a[ai] - cos_b[bi]) * (cos_a[ai] - cos_b[bi]))
 
+                phi_ratio = math.fabs(kp_a.polar[ai][0] - math.pi/2) / (math.pi/2)
                 # have the acceptable rotation scale with phi
-                if a_diff < threshold + threshold * math.fabs(kp_a.polar[m.queryIdx][0] - math.pi / 2) / (math.pi / 2):
+                if a_diff < threshold + threshold * phi_ratio:
                     cnt += 1
                     p_diff = np.sqrt(np.sum(np.array(dp) * np.array(dp)))
                     diff = np.array([p_diff, a_diff])
@@ -93,18 +119,50 @@ class FeatureMatcher():
         return good_matches[:,:2]
 
 
-class FeatureMatcher2():
-    def __init__(self):
-        pass
+class FeatureMatcher2(FeatureMatcher):
+
+    def __init__(self, img_left, img_right, debug):
+        super().__init__(debug)
+        self._img_left = img_left
+        self._img_right = img_right
+        self._threshold = 0.05
+
+    def matches(self):
+        imgs = [self._img_left, self._img_right]
+        thetas = [45, -45]
+        angles = [(60, -45), (0, -45), (-60, -45), \
+                  (60, 0), (0, 0), (-60, 0), \
+                  (60, 45), (0, 45), (-60, 45)]
+
+        kp = [None] * 2
+        for i, img in enumerate(imgs):
+            kp[i] = self._create_polar_keypoints(imgs[i], angles)
+            if kp[i].empty():
+                return None
+
+        kp_indices = np.zeros((len(kp[0].keypoints), 2), dtype=np.int) - 1
+        kp_indices[:, 0] = np.arange(0, len(kp[0].keypoints))
+        m = self._determine_matches(kp[0], kp[1], self._threshold)
+        kp_indices[:, 1] = m[:,1]
+
+        kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]
+        if kp_indices.shape[0] == 0:
+            return None
+
+        pts = np.zeros((kp_indices.shape[0], kp_indices.shape[1], 2))
+        for j in range(kp_indices.shape[1]):
+            pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
+        return pts
 
 
+# Used for seam alignment. Searches the right side of the left images
+# and the left side of the right images for matching feature points.
 class FeatureMatcher4(FeatureMatcher):
     def __init__(self, imgs_left, imgs_right, debug):
-        super().__init__()
+        super().__init__(debug)
         self._imgs_left = imgs_left
         self._imgs_right = imgs_right
-        self._threshold = 0.075
-        self._debug = debug
+        self._threshold = 0.1
 
     def matches(self):
         imgs = self._imgs_left + self._imgs_right
@@ -131,4 +189,4 @@ class FeatureMatcher4(FeatureMatcher):
         pts = np.zeros((kp_indices.shape[0], kp_indices.shape[1], 2))
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
-        return pts.reshape((kp_indices.shape[0], 2 * kp_indices.shape[1]))
+        return pts
