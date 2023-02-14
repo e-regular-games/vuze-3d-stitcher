@@ -31,7 +31,7 @@ class FeatureMatcher():
     def _dedup(self, kp):
         keep = np.ones((len(kp.keypoints),), bool)
         t = KDTree(kp.polar)
-        dups_idx = t.query_ball_point(kp.polar, 0.0001, workers=8)
+        dups_idx = t.query_ball_point(kp.polar, 0.001, workers=8)
         for i, dups in enumerate(dups_idx):
             if not keep[i]: continue
             for d in dups:
@@ -86,6 +86,7 @@ class FeatureMatcher():
         cos_a = np.cos(kp_a.rotation)
         sin_b = np.sin(kp_b.rotation)
         cos_b = np.cos(kp_b.rotation)
+        phi_ratio = np.abs(kp_a.polar[:,0] - math.pi/2) / (math.pi/2)
 
         good_matches = np.zeros((len(kp_a.keypoints), 3), np.float32) - 1
         good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
@@ -95,17 +96,18 @@ class FeatureMatcher():
             for m in ma:
                 ai = m.queryIdx
                 bi = m.trainIdx
-                dp = kp_a.polar[ai] - kp_b.polar[bi]
-                in_range = np.count_nonzero(np.abs(dp) < [threshold, 2*threshold]) == 2
+                pr = phi_ratio[ai]
+                dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
+                dp_t = [0.4*threshold, 0.8*threshold]
+                in_range = np.count_nonzero(dp < dp_t) == 2
                 if not in_range:
                     continue
 
                 a_diff = math.sqrt((sin_a[ai] - sin_b[bi]) * (sin_a[ai] - sin_b[bi]) + \
                                    (cos_a[ai] - cos_b[bi]) * (cos_a[ai] - cos_b[bi]))
 
-                phi_ratio = math.fabs(kp_a.polar[ai][0] - math.pi/2) / (math.pi/2)
                 # have the acceptable rotation scale with phi
-                if a_diff < threshold + threshold * phi_ratio:
+                if a_diff < threshold + threshold * pr:
                     cnt += 1
                     p_diff = np.sqrt(np.sum(np.array(dp) * np.array(dp)))
                     diff = np.array([p_diff, a_diff])

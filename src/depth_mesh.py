@@ -7,10 +7,13 @@ import cv2 as cv
 import threading
 from Equirec2Perspec import Equirectangular
 from matplotlib import pyplot as plt
+import matplotlib.colors as colors
 from scipy.spatial import KDTree
 #from sklearn.neighbors import KDTree
 from scipy.spatial.transform import Rotation
 from linear_regression import LinearRegression
+from feature_matcher import FeatureMatcher2
+from feature_matcher import FeatureMatcher4
 
 def create_from_middle(middle):
     w = middle.shape[1] * 2
@@ -314,280 +317,162 @@ class DepthCalibration():
         info[3] = np.sum(d*d)
         return info
 
-class DepthAtSeam():
-    def __init__(self, seam, images, calibration):
-        # seam is of {"FL", "FR", "BR", "BL"}
-        # for Front, Left, Right, Back
-
-        idx = ['fl', 'fr', 'br', 'bl'].index(seam.lower())
-        if idx == -1:
-            return
-
-        self._left = [images[(2*idx-2) % 8], images[(2*idx) % 8]]
-        self._right = [images[(2*idx-1) % 8], images[(2*idx+1) %8]]
-
-        self._t = [calibration[(2*idx-2) % 8], \
-                   calibration[(2*idx-1) % 8], \
-                   calibration[(2*idx) % 8], \
-                   calibration[(2*idx+1) % 8]]
+class DepthMap():
+    # dmap must have aspect ratio 1:1 or 2:1
+    def __init__(self, dmap):
+        self._dmap = dmap
+        if dmap.shape[0] == dmap.shape[1]:
+            self._shape = (dmap.shape[0], 2*dmap.shape[0])
+        else:
+            self._shape = dmap.shape
 
 
-class DepthMesh():
+    # polar coordinates, the center of the map is at pi
+    def eval(self, c):
+        eqr = coordinates.polar_to_eqr_3d(c, self._shape)
 
-    def __init__(self, images, calibration, debug):
-        self._images = images
-        self._calibration = calibration
+        if self._dmap.shape[0] == self._dmap.shape[1]:
+            eqr[...,0] -= self._shape[1]/4
+
+        return coordinates.eqr_interp_3d(eqr, self._dmap)
+
+class DepthMapper():
+    def __init__(self, debug):
         self._debug = debug
 
-    def generate(self):
-        matches = self._features_determine()
-        pass
+    def _kernel(self, size):
+        v = np.arange(size) - int(size/2)
+        x, y = np.meshgrid(v, v)
+        k = np.zeros((size, size), np.float32)
+        in_circle = np.sqrt(x*x + y*y) < size/2
+        k[in_circle] = 1
+        return k
 
-    def _print_sample(self, left, right):
-        n = left.shape[0]
-        m_l = np.zeros((n, 3))
-        m_r = np.zeros((n, 3))
+    def _generate_map(self, img, polar, polar_r):
+        dim = img.shape[0]
 
-        m_l[:,0] = np.sin(left[:,0]) * np.cos(math.pi/2 - left[:,1])
-        m_l[:,1] = np.sin(left[:,0]) * np.sin(math.pi/2 - left[:,1])
-        m_l[:,2] = np.cos(left[:,0])
+        r = np.zeros((dim*dim,), np.float32)
+        r_mask = np.zeros((dim*dim,), np.float32)
+        eqr = np.round(coordinates.polar_to_eqr(polar - [0, math.pi/2], img.shape))
+        eqr_1d = eqr[:,1] * dim + (eqr[:,0])
+        r_mask[eqr_1d.astype(int)] = 1
+        r[eqr_1d.astype(int)] = polar_r[:, 0]
+        r_mask = r_mask.reshape((dim,dim))
+        r = r.reshape((dim,dim))
 
-        m_r[:,0] = np.sin(right[:,0]) * np.cos(math.pi/2 - right[:,1])
-        m_r[:,1] = np.sin(right[:,0]) * np.sin(math.pi/2 - right[:,1])
-        m_r[:,2] = np.cos(right[:,0])
+        r_f = r.copy()
+        r_mask_f = r_mask.copy()
+        layers = [5, 9, 17, 33, 49, 65, 81, 97, 129, 257, 385]
+        useEst = [False] * len(layers)
+        for i, s in enumerate(layers):
+            k = self._kernel(s)
+            count = cv.filter2D(r_mask_f, -1, k) if useEst[i] else cv.filter2D(r_mask, -1, k)
+            next_r = cv.filter2D(r_f, -1, k) if useEst[i] else cv.filter2D(r, -1, k)
+            count[r_mask_f == 1] = 0
+            count[count < 0.5] = 0
+            next_mask = (count > 0.5)
+            r_mask_f[next_mask] = 1
+            r_f[next_mask] = next_r[next_mask] / count[next_mask]
 
-        ch = 300
-        choose = np.sort(np.random.choice(n-1, size=ch, replace=False))
-        print(choose)
-        print('sample_l = [')
-        for r in range(ch):
-            print('  ', end='')
-            for c in range(3):
-                if c < 2:
-                    print(str(m_l[choose[r], c]), end=', ')
-                else:
-                    print(str(m_l[choose[r], c]), end=';\n')
-        print(']\'')
+        r = r_f
 
-        print('sample_r = [')
-        for r in range(ch):
-            print('  ', end='')
-            for c in range(3):
-                if c < 2:
-                    print(str(m_r[choose[r], c]), end=', ')
-                else:
-                    print(str(m_r[choose[r], c]), end=';\n')
-        print(']\'')
+        #k_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32)
+        #r = cv.filter2D(r, -1, k_sharp)
+        #r[r <= 0.1] = np.max(r)
 
-    # the left and right theta values as 1d vectors
-    def _radius_compute(self, left, right, p_l, p_r):
-        n = left.shape[0]
-        m_l = np.zeros((n, 3))
-        m_r = np.zeros((n, 3))
+        #r = cv.filter2D(r, -1, np.ones((15, 15)) / (15*15))
+        r = cv.GaussianBlur(r, (13,13), 0)
+        #print(np.min(r), np.mean(r), np.max(r))
 
-        m_l[:,0] = np.sin(left[:,0]) * np.cos(math.pi/2 - left[:,1])
-        a_l = m_l[:,0:1]
-        m_l[:,1] = np.sin(left[:,0]) * np.sin(math.pi/2 - left[:,1])
-        b_l = m_l[:,1:2]
-        m_l[:,2] = np.cos(left[:,0])
-        c_l = m_l[:,2:3]
+        if self._debug.enable('depth-map'):
+            f = plt.figure()
+            img0 = get_middle(img)
+            img0[r_mask == 1] = [0, 0, 255]
+            f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
 
-        m_r[:,0] = np.sin(right[:,0]) * np.cos(math.pi/2 - right[:,1])
-        a_r = m_r[:,0:1]
-        m_r[:,1] = np.sin(right[:,0]) * np.sin(math.pi/2 - right[:,1])
-        b_r = m_r[:,1:2]
-        m_r[:,2] = np.cos(right[:,0])
-        c_r = m_r[:,2:3]
+            ax = f.add_subplot(1, 2, 2)
+            clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
+            pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
+            f.colorbar(pos, ax=ax)
 
-        #p_l = np.array([[-self._X, self._Y, self._Z]])
-        #p_r = np.array([[self._X, self._Y, self._Z]])
-
-        # v = p + r * m
-        # find the point on v_l and v_r such that the points are closest
-        # r_l and r_r are the radius along each line that results in the closest point
-        # if the point is r_l = r_r = 0, ignore the point,
-        m_d = np.cross(m_r, m_l)
-
-        # normalize m_d, so that r_d will be the closest distance between v_l and v_r
-        m_d = m_d / np.sqrt(np.sum(m_d * m_d, axis=1)).reshape((n, 1))
-
-        a_d = m_d[:,0:1]
-        b_d = m_d[:,1:2]
-        c_d = m_d[:,2:3]
-
-        a_pl = p_l[0,0]
-        b_pl = p_l[0,1]
-        c_pl = p_l[0,2]
-
-        a_pr = p_r[0,0]
-        b_pr = p_r[0,1]
-        c_pr = p_r[0,2]
-
-        print(p_l, p_r)
-
-        r_d = (a_l*b_pl*c_r - a_l*b_pr*c_r - a_l*b_r*c_pl + a_l*b_r*c_pr - a_pl*b_l*c_r + a_pl*b_r*c_l + a_pr*b_l*c_r - a_pr*b_r*c_l + a_r*b_l*c_pl - a_r*b_l*c_pr - a_r*b_pl*c_l + a_r*b_pr*c_l)/(a_d*b_l*c_r - a_d*b_r*c_l - a_l*b_d*c_r + a_l*b_r*c_d + a_r*b_d*c_l - a_r*b_l*c_d)
-        r_r = (a_d*b_l*c_pl - a_d*b_l*c_pr - a_d*b_pl*c_l + a_d*b_pr*c_l - a_l*b_d*c_pl + a_l*b_d*c_pr + a_l*b_pl*c_d - a_l*b_pr*c_d + a_pl*b_d*c_l - a_pl*b_l*c_d - a_pr*b_d*c_l + a_pr*b_l*c_d)/(a_d*b_l*c_r - a_d*b_r*c_l - a_l*b_d*c_r + a_l*b_r*c_d + a_r*b_d*c_l - a_r*b_l*c_d)
-        r_l = (-a_d*b_pl*c_r + a_d*b_pr*c_r + a_d*b_r*c_pl - a_d*b_r*c_pr + a_pl*b_d*c_r - a_pl*b_r*c_d - a_pr*b_d*c_r + a_pr*b_r*c_d - a_r*b_d*c_pl + a_r*b_d*c_pr + a_r*b_pl*c_d - a_r*b_pr*c_d)/(a_d*b_l*c_r - a_d*b_r*c_l - a_l*b_d*c_r + a_l*b_r*c_d + a_r*b_d*c_l - a_r*b_l*c_d)
-
-        v_l = p_l + r_l * m_l
-        v_r = p_r + r_r * m_r
-
-        print('distance between')
-        print('r_d', np.mean(np.abs(r_d)), np.std(np.abs(r_d)))
-        plt.hist(np.abs(r_d), bins=10)
-        print(r_r)
-
-        # want to minimize d
-        # rotate around the y-axis using [ cosL 0 sinL; 0 1 0; -sinL 0 cosL ]
-        # Only need to rotate 1 lens to meet the other.
-        # note that cos^2(L) + sin^2(L) = 1
-        # L^2_c + L^2_s = 1
-        # syms rho_1 rho_2 z
-        # R_l = subs([ rho_1 z rho_2; z 1 z; -rho_2 z rho_1 ], z, 0)
-
-        # syms a_l b_l c_l a_r b_r c_r
-        # m_l = [a_l; b_l; c_l]
-        # m_r = [a_r; b_r; c_r]
-        # m_d = cross(m_r, R_l *  m_l)
-        # a_d = m_d(1)
-        # b_d = m_d(2)
-        # c_d = m_d(3)
-        # A = (b_l*c_r - c_l*b_r) / (c_d*b_r - b_d*c_r)
-
-        # syms X
-        # r_l = 2 * X / (a_l + A*a_d - c_l*a_r/c_r - A*c_d*a_r/c_r)
-        # m_d will now be in terms of L, and R
-
-        v = (v_l + v_r) / 2
-        inc = np.logical_and(r_r > 0, r_l > 0)[:,0]
-        v = v[inc]
-
-        r = np.sqrt(np.sum(v * v, axis=1))
-        print('r', np.min(r), np.max(r))
-        return v
+        return r
 
 
-    def _features_determine(self):
-        points = np.zeros((0, 3), dtype=np.float32)
-        for i in range(0, 2, 2):
-            matches_plr = self._match_between_eyes(self._images[i], self._images[i+1], 0.75)
+class DepthMapperSlice(DepthMapper):
+    def __init__(self, images, positions, debug):
+        super().__init__(debug)
 
-            #self._print_sample(matches_plr[:,0], matches_plr[:,1])
+        self._images = images
+        self._positions = [
+            switch_axis(positions[0]),
+            switch_axis(positions[1]),
+            np.matmul(switch_axis(positions[2]), \
+                      np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])),
+            np.matmul(switch_axis(positions[3]), \
+                      np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]]))
+        ]
+        self._maps = None
+        self._matches = None
+        self._radii = None
 
-            p = self._radius_compute(matches_plr[:,0], matches_plr[:,1], switch_axis(self._calibration[i].t), switch_axis(self._calibration[i+1].t))
-            return
-            p[:,1] += i / 2 * math.pi / 2
+    def map(self):
+        if self._maps is not None:
+            return self._maps
 
-            points = np.concatenate([points, p])
+        matches = FeatureMatcher4(self._images[0:4:2], self._images[1:4:2], self._debug) \
+            .matches()
+        self._matches = matches
 
-        points_flat = points.reshape((points.shape[0], 3))
-        tree = KDTree(points_flat)
-        overlapping = tree.query_radius(points_flat, 0.0001)
+        self._debug.log('matches', matches.shape[0])
+        dim = self._images[0].shape[0]
+        maps = np.zeros((4, dim, dim), np.float32)
+        pairs = [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]
+        radii = np.zeros((4, self._matches.shape[0], 1), np.float32)
+        for p in pairs:
+            match_r, dd = radius_compute(matches[:,p[0]], \
+                                         matches[:,p[1]], \
+                                         self._positions[p[0]], \
+                                         self._positions[p[1]])
+            maps[p[0]] += self._generate_map(self._images[p[0]], matches[:,p[0]], match_r) / 3
+            maps[p[1]] += self._generate_map(self._images[p[1]], matches[:,p[1]], match_r) / 3
+            radii[p[0]] += match_r / 3
+            radii[p[1]] += match_r / 3
 
-        include = np.full((points_flat.shape[0],), True, dtype=np.bool)
-        skip = np.full((points_flat.shape[0],), False, dtype=np.bool)
-        for i, near in enumerate(overlapping):
-            if skip[i]: continue
-            for o in near:
-                if o != i:
-                    include[o] = False
-                    skip[o] = True
+        if self._debug.enable('depth-slice'):
+            for i in range(4):
+                m = maps[i]
+                f = plt.figure()
+                ax = f.add_subplot(1, 1, 1)
+                clr = colors.TwoSlopeNorm(vmin=np.min(m), vcenter=np.mean(m), vmax=np.max(m))
+                pos = ax.imshow(m, norm=clr, cmap='summer', interpolation='none')
+                f.colorbar(pos, ax=ax)
 
-        if self._debug.verbose:
-            print('overlapping features', np.count_nonzero(include), points.shape[0])
+        self._maps = [DepthMap(maps[m]) for m in range(4)]
+        self._radii = radii
+        return self._maps
 
-        points_flat = points_flat[include]
-        points = points_flat.reshape(points_flat.shape[0:1] + points.shape[1:])
 
-        if self._debug.enable('depth_points'):
-            plt.figure()
-            ax = plt.axes(projection ='3d')
-            ax.plot3D(points[:,0], points[:,1], points[:,2], 'bo', markersize=1)
+class DepthMapper2D(DepthMapper):
 
-            plt.xlim([-self._d_far, self._d_far])
-            plt.ylim([-self._d_far, self._d_far])
-            ax.set_zlim(-self._d_far, self._d_far)
+    def __init__(self, img_left, img_right, p_left, p_right, debug):
+        super().__init__(debug)
 
-    def _match_between_eyes(self, img_left, img_right, threshold):
-        sift = cv.SIFT_create()
-        fig = plt.figure() if self._debug.enable('depth_matches') else None
-        fc = 1
+        self._img_left = img_left
+        self._img_right = img_right
+        self._p_left = switch_axis(p_left)
+        self._p_right = switch_axis(p_right)
 
-        imgs = [img_left] + [img_right]
-        thetas = [-45, 0, 45]
-        phis = [-45, 0, 45]
-        features = [RegionFeatures() for i in range(len(thetas) * len(phis) * len(imgs))]
-        all_polar_pts = np.zeros((0, len(imgs), 2), dtype=np.float32)
+        self._map_left = None
+        self._map_right = None
 
-        def index(p, t, i):
-            return p * len(thetas) * len(imgs) + t * len(imgs) + i
+    def map(self):
+        if self._map_left is None or self._map_right is None:
+            matches = FeatureMatcher2(self._img_left, self._img_right, self._debug).matches()
 
-        for p, phi in enumerate(phis):
-            for t, theta in enumerate(thetas):
-                for i, img in enumerate(imgs):
-                    f = features[index(p, t, i)]
-                    f.rectilinear, f.to_equ = Equirectangular(img) \
-                        .GetPerspective(60, theta, phi, 1000, 1000);
-                    f.gray = cv.cvtColor(f.rectilinear, cv.COLOR_BGR2GRAY)
-                    f.keypoints, f.descripts = sift.detectAndCompute(f.gray, None)
+            self._debug.log('matches', matches.shape[0])
+            match_r, dd = radius_compute(matches[:,0], matches[:,1], self._p_left, self._p_right)
 
-        for p, phi in enumerate(phis):
-            for t, theta in enumerate(thetas):
-                f_l = features[index(p, t, 0)]
-                f_r = features[index(p, t, 1)]
-                f = [f_l, f_r]
+            self._map_left = self._generate_map(self._img_left, matches[:,0], match_r)
+            self._map_right = self._generate_map(self._img_right, matches[:,1], match_r)
 
-                if f_l.descripts is None or f_r.descripts is None: continue
-
-                num_keypoints = len(f_r.keypoints)
-                kp_indices = np.zeros((num_keypoints, 2), dtype=np.int) - 1
-                kp_indices[:, 1] = np.arange(0, num_keypoints)
-
-                matches = self._determine_matches(f_l.descripts, f_r.descripts, threshold)
-                for m in matches:
-                    kp_indices[m.trainIdx, 0] = m.queryIdx
-
-                kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]
-                if kp_indices.shape[0] == 0: continue
-
-                if self._debug.enable('depth_matches'):
-                    plot = cv.drawMatches(f_l.gray, f_l.keypoints,
-                                          f_r.gray, f_r.keypoints,
-                                          matches, None,
-                                          flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                    fig.add_subplot(len(phis), len(thetas), fc).imshow(plot)
-                    fc += 1
-
-                rectilinear_pts = np.zeros(kp_indices.shape + (2,))
-                for i in range(kp_indices.shape[0]):
-                    for j in range(kp_indices.shape[1]):
-                        rectilinear_pts[i][j] = f[j].keypoints[kp_indices[i,j]].pt
-
-                polar_pts = np.zeros(rectilinear_pts.shape)
-                for j in range(rectilinear_pts.shape[1]):
-                    eq_pts = f[j].to_equ.GetEquirectangularPoints(rectilinear_pts[:,j])
-                    polar_pts[:,j] = coordinates.eqr_to_polar(eq_pts, imgs[j].shape)
-                    polar_pts[:,j] -= [0, math.pi]
-
-                #_, inc = trim_outliers(polar_pts[:,0,0] - polar_pts[:,1,0], 1)
-                #polar_pts = polar_pts[inc]
-
-                all_polar_pts = np.concatenate([all_polar_pts, polar_pts])
-
-        return all_polar_pts
-
-    def _determine_matches(self, des_a, des_b, threshold):
-        # BFMatcher with default params
-        bf = cv.BFMatcher()
-        matches = bf.knnMatch(des_a, des_b, k=2)
-
-        def by_distance(e):
-            return e.distance
-
-        good_matches = []
-        for ma in matches:
-            if len(ma) == 2 and ma[0].distance < threshold * ma[1].distance:
-                good_matches.append(ma[0])
-
-        good_matches.sort(key=by_distance)
-        return good_matches[:60]
+        return (DepthMap(self._map_left), DepthMap(self._map_right))

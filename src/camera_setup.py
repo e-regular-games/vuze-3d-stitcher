@@ -7,7 +7,6 @@ import cv2 as cv
 from matplotlib import pyplot as plt
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
-from depth_mesh import DepthMesh
 from depth_mesh import DepthCalibration
 from config import Config
 

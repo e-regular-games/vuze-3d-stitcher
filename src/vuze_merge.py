@@ -17,7 +17,6 @@ import threading
 from exiftool import ExifToolHelper
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
-from depth_mesh import DepthMesh
 from depth_mesh import DepthCalibration
 from debug_utils import Debug
 from config import ProgramOptions

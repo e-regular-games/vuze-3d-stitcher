@@ -11,9 +11,7 @@
       "calibration/colored_left",
       "calibration/colored_right",
       "calibration/colored_far_left",
-      "calibration/colored_far_right",
-      "calibration/colored_far_far_left",
-      "calibration/colored_far_far_right"
+      "calibration/colored_far_right"
     ],
     "patches": [
       {

@@ -6,14 +6,19 @@ import numpy as np
 import cv2 as cv
 from transform import Transform
 from matplotlib import pyplot as plt
+import matplotlib.colors as colors
 from Equirec2Perspec import Equirectangular
 from scipy.spatial import KDTree
+from scipy.sparse.csgraph import shortest_path
 from debug_utils import show_polar_plot
 from debug_utils import show_polar_points
 from depth_mesh import radius_compute
 from depth_mesh import switch_axis
+from depth_mesh import DepthMapperSlice
+from depth_mesh import DepthMapper2D
 from feature_matcher import FeatureMatcher2
 from feature_matcher import FeatureMatcher4
+from coordinates import to_1d
 
 def get_middle(img):
     width = img.shape[1]
@@ -89,116 +94,257 @@ class RefineSeams():
     def _project_to_eye_sphere(self, img, plr, p_0, alpha):
         pass
 
-    def _determine_side_matches(self):
-        matches = [
-            FeatureMatcher2(self._images[0], self._images[1], self._debug).matches()
-            #FeatureMatcher2(self._images[2], self._images[3], self._debug).matches(),
-            #FeatureMatcher2(self._images[4], self._images[5], self._debug).matches(),
-            #FeatureMatcher2(self._images[6], self._images[7], self._debug).matches()
-        ]
-
-        print('matches', matches[0].shape[0])
-        r, dd = radius_compute(matches[0][:,0], matches[0][:,1], \
-                               switch_axis(self.calibration[0].t), \
-                               switch_axis(self.calibration[1].t))
-
+    def lens_to_head(self, img, p_0, dmap, alpha):
+        dim = img.shape[0]
         R = self._calculate_R()
-        alpha = self._calculate_alpha(R, 0.064)
-        print('alpha', alpha)
-
-        show_polar_points(matches[0][:,0])
-        dim = self._images[0].shape[0]
-
-        m_r = np.zeros((dim*dim,), np.float32)
-        m_r_mask = np.zeros((dim*dim,), np.float32)
-        eqr = np.round(coordinates.polar_to_eqr(matches[0][:,0] - [0, math.pi/2], \
-                                                self._images[0].shape))
-        eqr_1d = eqr[:,1] * dim + (eqr[:,0])
-        m_r_mask[eqr_1d.astype(int)] = 1
-        m_r[eqr_1d.astype(int)] = r[:,0]
-        m_r_mask = m_r_mask.reshape((dim,dim))
-        m_r = m_r.reshape((dim,dim))
-        print('r', np.min(m_r), np.max(m_r))
-
-        img0 = get_middle(self._images[0])
-        img0[m_r_mask == 1] = [0, 0, 255]
-
-        m_r_f = m_r.copy()
-        m_r_mask_f = m_r_mask.copy()
-        layers = [5, 9, 17, 33, 65, 129]
-        for s in layers:
-            count = cv.filter2D(m_r_mask, -1, np.ones((s, s)))
-            next_r = cv.filter2D(m_r, -1, np.ones((s, s)))
-            count[m_r_mask_f == 1] = 0
-            count[count < 0.5] = 0
-            next_mask = (count > 0.5)
-            m_r_mask_f[next_mask] = 1
-            m_r_f[next_mask] = next_r[next_mask] / count[next_mask]
-
-        img = np.ones((dim, dim, 3), np.uint8)
-        m_r = m_r_f
-        m_r[m_r < 0] = 0
-        print('r', np.min(m_r_f), np.max(m_r))
-        img_r = 255 * np.sqrt(m_r / np.max(m_r))
-        img *= np.round(img_r).astype(np.uint8).reshape((dim,dim,1))
-
-        plt.figure()
-        plt.imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
-        plt.figure()
-        plt.imshow(cv.cvtColor(get_middle(self._images[1]), cv.COLOR_BGR2RGB))
-        plt.figure()
-        plt.imshow(img)
-        plt.show()
-        exit(1)
-
-
-        print('closest', closest_index.shape)
-        plr_r = 10 * np.ones((plr.shape[0],1), np.float32)
-        for i, c in enumerate(closest_index):
-            if c.shape[0] == 0:
-                continue
-            d = plr[i] * np.ones((c.shape[0], 2), np.float32) - plr[c]
-            d = np.sqrt(np.sum(d*d, axis=1))
-            w = 1 - d / np.sum(d)
-            plr_r[i] = np.sum(r[c] * w)
-
-        p_0 = switch_axis(self.calibration[0].t)
-        P = p_0 + coordinates.polar_to_cart(plr, plr_r)
-        d = np.sqrt(np.sum(P*P, axis=1))
+        plr = [0, 3*math.pi/2] + [1,-1]*coordinates.polar_points_3d((dim, dim))
+        P = p_0 + coordinates.polar_to_cart(plr, dmap)
+        d = np.sqrt(np.sum(P*P, axis=2))
         a = p_0 * np.ones(P.shape, np.float32)
-        b = P
-        phi = np.arccos(np.matmul(a, b) / np.sqrt(np.sum(a * b, axis=1)))
+
+        #phi = np.arccos(np.sum(a * P, axis=2) / np.sqrt(np.sum(a * P, axis=2)))
         qa = 1 + np.tan(alpha) * np.tan(alpha)
         qb = 2 * R
         qc = (R*R - d*d)
         x = (-qb + np.sqrt(qb*qb - 4*qa*qc)) / (2*qa)
         beta = np.arccos((R + x) / d)
 
-        print('beta')
+        print(np.min(P[...,0]), np.max(P[...,0]), np.min(P[...,1]), np.max(P[...,1]), \
+              np.min(P[...,2]), np.max(P[...,2]))
 
         plr_c = coordinates.cart_to_polar(P)
-        plr_c[:,1] -= beta
+        plr_c[...,1] -= beta
         plr_c = plr_c.reshape((dim, dim, 2))
 
-        t = KDTree(plr_c)
-        closest = t.query_ball_point(plr, 0.1, return_sorted=True, workers=4)
-        remapped = np.zeros((dim, dim, 3), np.uint8)
-        colors0 = get_middle(self._images[0]).reshape((dim*dim, 3))
-        for i, c in closest:
-            if c.shape[0] == 0:
-                continue
-            d = plr[i] * np.ones((c.shape[0], 2), np.float32) - plr_c[c]
-            d = np.sqrt(np.sum(d*d, axis=1))
-            w = 1 - d / np.sum(d)
-            remapped[i] = np.sum(colors0[c] * w, axis=0)
+        print('phi', np.min(plr_c[...,0]), np.max(plr_c[...,0]))
+        print('theta', np.min(plr_c[...,1]), np.max(plr_c[...,1]))
 
-        remapped = create_from_middle(remapped.reshape((dim, dim, 3)))
+        img0 = get_middle(img)
+        plr_c = [0, 3*math.pi/2] + [1,-1]*plr_c - [0,math.pi/2]
+        eqr_c = coordinates.polar_to_eqr_3d(plr_c, img.shape)
+        print('eqr_x', np.min(eqr_c[...,0]), np.max(eqr_c[...,0]))
+        print('eqr_y', np.min(eqr_c[...,1]), np.max(eqr_c[...,1]))
+
+        remapped = np.zeros(img0.shape, np.uint8)
+
+        def bound(a, mn, mx):
+            a[a<mn] = mn
+            a[a>mx] = mx
+            return a
+
+        x_0 = bound(np.floor(eqr_c[...,0]).astype(np.int), 0, dim-1)
+        x_0_w = (1 - (eqr_c[...,0] - x_0)).reshape((dim, dim, 1))
+        x_1 = bound(np.floor(eqr_c[...,0] + 1).astype(np.int), 0, dim-1)
+        x_1_w = (1 - (x_1 - eqr_c[...,0])).reshape((dim, dim, 1))
+        y_0 = bound(np.floor(eqr_c[...,1]).astype(np.int), 0, dim-1)
+        y_0_w = (1 - (eqr_c[...,1] - y_0)).reshape((dim, dim, 1))
+        y_1 = bound(np.floor(eqr_c[...,1] + 1).astype(np.int), 0, dim-1)
+        y_1_w = (1 - (y_1 - eqr_c[...,1])).reshape((dim, dim, 1))
+
+        remapped[y_0,x_0] += np.floor(x_0_w * y_0_w * img0).astype(np.uint8)
+        remapped[y_0,x_1] += np.floor(x_0_w * y_1_w * img0).astype(np.uint8)
+        remapped[y_1,x_0] += np.floor(x_1_w * y_0_w * img0).astype(np.uint8)
+        remapped[y_1,x_1] += np.floor(x_1_w * y_1_w * img0).astype(np.uint8)
 
         plt.figure()
-        plt.imshow(self._images[0])
+        plt.imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
         plt.figure()
-        plt.imshow(remapped)
+        plt.imshow(cv.cvtColor(remapped, cv.COLOR_BGR2RGB))
+        return remapped
+
+    def _generate_path(self, matches, dmap):
+        # note: phi=0 is the top of the image, phi=pi is the bottom
+        # theta is around 3pi/2
+        top = np.ones((1, 4, 2)) * [[[0, 3*math.pi/2]]]
+        bottom = np.ones((1, 4, 2)) * [[[math.pi, 3*math.pi/2]]]
+        m = np.concatenate([top, matches, bottom])
+        dim = m.shape[0]
+        sort_idx = np.argsort(m[:,0,0])
+        m0_col = m[sort_idx,0:1]
+        m0_row = m0_col.reshape((1, dim, 2))
+
+        dtheta = m0_row[...,1] - m0_col[...,1]
+        dphi = m0_row[...,0] - m0_col[...,0]
+
+        valid = dphi > 0.0001
+
+        def square_and_scale(cost):
+            cost = cost / np.min(cost[cost>0])
+            cost = cost * cost
+            cost = (999 * (cost-1) / np.max(cost - 1)) + 1
+            return cost
+
+        D = 50
+        phi_ff, phi_ii = np.meshgrid(m0_row[...,0], m0_row[...,0])
+        theta_ff, theta_ii = np.meshgrid(m0_row[...,1], m0_row[...,1])
+
+        rg = np.arange(D).reshape((1, 1, D, 1))
+        path_at = np.zeros((dim, dim, D, 2), np.float32)
+        path_at[...,0:1] = phi_ii.reshape((dim, dim, 1, 1)) \
+            + rg * (phi_ff.reshape((dim, dim, 1, 1)) - phi_ii.reshape((dim, dim, 1, 1))) / (D-1)
+        path_at[...,1:2] = theta_ii.reshape((dim, dim, 1, 1)) \
+            + rg * (theta_ff.reshape((dim, dim, 1, 1)) - theta_ii.reshape((dim, dim, 1, 1))) / (D-1)
+
+        path_r = dmap.eval(path_at.reshape((dim, D*dim, 2))).reshape((dim, dim, D))
+
+        delta_position = path_at[...,1:,:] - path_at[...,:-1,:]
+        delta_position = np.sqrt(np.sum(delta_position * delta_position, axis=-1))
+        path_valid = np.all(delta_position > 0.00001, axis=-1)
+
+        position_cost = square_and_scale(np.sum(delta_position, axis=-1))
+
+        path_cart = coordinates.polar_to_cart(path_at, path_r)
+        delta_cart = path_cart[...,1:,:] - path_cart[...,:-1,:]
+        delta_cart = np.sqrt(np.sum(delta_cart * delta_cart, axis=-1))
+        cart_cost = square_and_scale(np.sum(delta_cart, axis=-1))
+
+        slope = np.zeros((dim, dim), np.float32)
+        slope[path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1]) / delta_position, axis=-1)[path_valid]
+        slope_cost = square_and_scale(slope)
+
+        mat = 0.4*slope_cost + 0.3*cart_cost + 0.3*position_cost
+        mat[np.logical_not(valid)] = 0
+
+        if self._debug.enable('seam-path-cost'):
+            f = plt.figure()
+            ax = f.add_subplot(2, 2, 2)
+            ax.set_title('Slope Cost')
+            clr = colors.TwoSlopeNorm(vmin=np.min(slope_cost), vcenter=np.mean(slope_cost), vmax=np.max(slope_cost))
+            pos = ax.imshow(slope_cost, norm=clr, cmap='summer', interpolation='none')
+            f.colorbar(pos, ax=ax)
+
+            ax = f.add_subplot(2, 2, 3)
+            ax.set_title('Position Cost')
+            pos = ax.imshow(position_cost, cmap='summer', interpolation='none')
+            f.colorbar(pos, ax=ax)
+
+            ax = f.add_subplot(2, 2, 4)
+            ax.set_title('Cartesian Cost')
+            clr = colors.TwoSlopeNorm(vmin=np.min(cart_cost), vcenter=np.mean(cart_cost), vmax=np.max(cart_cost))
+            pos = ax.imshow(cart_cost, norm=clr, cmap='summer', interpolation='none')
+            f.colorbar(pos, ax=ax)
+
+            ax = f.add_subplot(2, 2, 1)
+            ax.set_title('Combined Cost')
+            clr = colors.TwoSlopeNorm(vmin=np.min(mat), vcenter=np.mean(mat), vmax=np.max(mat))
+            pos = ax.imshow(mat, norm=clr, cmap='summer', interpolation='none')
+            f.colorbar(pos, ax=ax)
+
+        rdist, rpred = shortest_path(mat, return_predecessors=True)
+
+        top_idx = m0_col.shape[0]-1
+        path = [top_idx]
+        pred = rpred[0,top_idx]
+        while pred >= 0:
+            path.append(pred)
+            pred = rpred[0, pred]
+
+        path_points = np.flip(m[sort_idx][path], axis=0)
+        path_points_r = dmap.eval(path_points[:,0]).reshape((path_points.shape[0], 1, 1))
+
+        # the top and bottom points will have 0 radius, so replace with the next point
+        path_points_r[0] = path_points_r[1]
+        path_points_r[-1] = path_points_r[-2]
+
+        path_points_r = path_points_r * np.ones(path_points.shape[0:2] + (1,))
+        return np.concatenate([path_points, path_points_r], axis=-1)
+
+        return path_points
+
+    def _determine_side_matches(self):
+
+        seam_imgs = self._images[-2:] + self._images
+        seam_calibs = self.calibration[-2:] + self.calibration
+        seam_paths = []
+        dim = self._images[0].shape[0]
+        depth_maps = []
+        for i in range(0, 4, 2):
+            slc = DepthMapperSlice(seam_imgs[i:i+4], [c.t for c in seam_calibs[i:i+4]], self._debug)
+            dmap = slc.map()[0]
+            seam_paths.append(self._generate_path(slc._matches, dmap))
+
+            depth = DepthMapper2D(self._images[i], self._images[i+1], \
+                                  seam_calibs[i].t, seam_calibs[i+1].t, \
+                                  self._debug)
+            maps = depth.map()
+            depth_maps.append(maps[0])
+            depth_maps.append(maps[1])
+
+        t = Transform(self._debug) \
+            .set_seams(seam_paths[0][:,0], seam_paths[1][:,0]) \
+            .set_position(switch_axis(self.calibration[0].t)) \
+            .set_depth(depth_maps[2])
+
+        plr = coordinates.polar_points_3d((dim, dim))
+        plr_c = t.apply(plr)
+        img0 = get_middle(self._images[0])
+
+        eqr_c = coordinates.polar_to_eqr_3d(plr_c, self._images[0].shape)
+        print('eqr_x', np.min(eqr_c[...,0]), np.max(eqr_c[...,0]))
+        print('eqr_y', np.min(eqr_c[...,1]), np.max(eqr_c[...,1]))
+
+        remapped = np.zeros(img0.shape, np.uint8)
+
+        def bound(a, mn, mx):
+            a[a<mn] = mn
+            a[a>mx] = mx
+            return a
+
+        x_0 = bound(np.floor(eqr_c[...,0]).astype(np.int), 0, dim-1)
+        x_0_w = (1 - (eqr_c[...,0] - x_0)).reshape((dim, dim, 1))
+        x_1 = bound(np.floor(eqr_c[...,0] + 1).astype(np.int), 0, dim-1)
+        x_1_w = (1 - (x_1 - eqr_c[...,0])).reshape((dim, dim, 1))
+        y_0 = bound(np.floor(eqr_c[...,1]).astype(np.int), 0, dim-1)
+        y_0_w = (1 - (eqr_c[...,1] - y_0)).reshape((dim, dim, 1))
+        y_1 = bound(np.floor(eqr_c[...,1] + 1).astype(np.int), 0, dim-1)
+        y_1_w = (1 - (y_1 - eqr_c[...,1])).reshape((dim, dim, 1))
+
+        remapped[y_0,x_0] += np.floor(x_0_w * y_0_w * img0).astype(np.uint8)
+        remapped[y_0,x_1] += np.floor(x_0_w * y_1_w * img0).astype(np.uint8)
+        remapped[y_1,x_0] += np.floor(x_1_w * y_0_w * img0).astype(np.uint8)
+        remapped[y_1,x_1] += np.floor(x_1_w * y_1_w * img0).astype(np.uint8)
+
+        plt.figure()
+        plt.imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
+        plt.figure()
+        plt.imshow(cv.cvtColor(remapped, cv.COLOR_BGR2RGB))
+
         plt.show()
+        exit(1)
+
+        depth_maps = []
+        for i in range(0, 4, 2):
+            depth = DepthMapper2D(self._images[i], self._images[i+1], \
+                                  self.calibration[i].t, self.calibration[i+1].t, \
+                                  self._debug)
+            maps = depth.map()
+            depth_maps.append(maps[0])
+            depth_maps.append(maps[1])
+
+        plt.show()
+        exit(1)
+
+        for m in depth_maps:
+            f_scale = m < 3
+            m[f_scale] = 2 * m[f_scale] / 3 + 1
+
+        R = self._calculate_R()
+        alpha = self._calculate_alpha(R, 0.064)
+        print('alpha', alpha)
+
+        a = [alpha, -alpha, alpha, -alpha]
+        m = []
+        for i in range(4):
+            p = switch_axis(self.calibration[i].t)
+            m.append(create_from_middle(self.lens_to_head(self._images[i], p, depth_maps[i], a[i])))
+
+        matches = FeatureMatcher4([m[0], m[2]], [m[1], m[3]], self._debug).matches()
+        print('adjusted', np.mean(np.std(matches, axis=-2), axis=0))
+
+        matches = FeatureMatcher4([self._images[0], self._images[2]], \
+                                  [self._images[1], self._images[3]], self._debug).matches()
+        print('original', np.mean(np.std(matches, axis=-2), axis=0))
+
         exit(1)
 
     def _determine_seam_matches(self):
