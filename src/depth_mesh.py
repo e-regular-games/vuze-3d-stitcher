@@ -14,6 +14,8 @@ from scipy.spatial.transform import Rotation
 from linear_regression import LinearRegression
 from feature_matcher import FeatureMatcher2
 from feature_matcher import FeatureMatcher4
+import threading
+
 
 def create_from_middle(middle):
     w = middle.shape[1] * 2
@@ -318,23 +320,45 @@ class DepthCalibration():
         return info
 
 class DepthMap():
-    # dmap must have aspect ratio 1:1 or 2:1
-    def __init__(self, dmap):
-        self._dmap = dmap
-        if dmap.shape[0] == dmap.shape[1]:
-            self._shape = (dmap.shape[0], 2*dmap.shape[0])
-        else:
-            self._shape = dmap.shape
 
+    def __init__(self, polar, r):
+        self._pts = polar
+        self._tree = KDTree(coordinates.polar_to_cart(polar, 1))
+        self._r = r
+        self._area = min(len(polar), 32)
 
-    # polar coordinates, the center of the map is at pi
+    def average_r(arr):
+        pts = arr[0]._pts
+        r = np.zeros(arr[0]._r.shape, np.float32)
+        for m in arr:
+            r += (m._r / len(arr))
+        return DepthMap(pts, r)
+
+    def merge(arr):
+        pts = []
+        r = []
+        for m in arr:
+            pts += [m._pts]
+            r += [m._r]
+
+        return DepthMap(np.concatenate(pts), np.concatenate(r))
+
+    def filter(self, indices):
+        return DepthMap(self._pts[indices], self._r[indices])
+
     def eval(self, c):
-        eqr = coordinates.polar_to_eqr_3d(c, self._shape)
+        c_1 = c
+        if len(c.shape) == 3:
+            c_1 = coordinates.to_1d(c)
 
-        if self._dmap.shape[0] == self._dmap.shape[1]:
-            eqr[...,0] -= self._shape[1]/4
+        c_1 = coordinates.polar_to_cart(c_1, 1)
+        dist, idx = self._tree.query(c_1, k=self._area, workers=8)
 
-        return coordinates.eqr_interp_3d(eqr, self._dmap)
+        limit = (np.max(dist, axis=-1) + np.min(dist, axis=-1)).reshape(dist.shape[:-1] + (1,))
+        dist = (limit - dist) ** 2
+        return (np.sum(self._r[idx].reshape(dist.shape) * dist, axis=-1) \
+            / np.sum(dist, axis=-1)).reshape(c.shape[:-1])
+
 
 class DepthMapper():
     def __init__(self, debug):
@@ -349,53 +373,21 @@ class DepthMapper():
         return k
 
     def _generate_map(self, img, polar, polar_r):
-        dim = img.shape[0]
-
-        r = np.zeros((dim*dim,), np.float32)
-        r_mask = np.zeros((dim*dim,), np.float32)
-        eqr = np.round(coordinates.polar_to_eqr(polar - [0, math.pi/2], img.shape))
-        eqr_1d = eqr[:,1] * dim + (eqr[:,0])
-        r_mask[eqr_1d.astype(int)] = 1
-        r[eqr_1d.astype(int)] = polar_r[:, 0]
-        r_mask = r_mask.reshape((dim,dim))
-        r = r.reshape((dim,dim))
-
-        r_f = r.copy()
-        r_mask_f = r_mask.copy()
-        layers = [5, 9, 17, 33, 49, 65, 81, 97, 129, 257, 385]
-        useEst = [False] * len(layers)
-        for i, s in enumerate(layers):
-            k = self._kernel(s)
-            count = cv.filter2D(r_mask_f, -1, k) if useEst[i] else cv.filter2D(r_mask, -1, k)
-            next_r = cv.filter2D(r_f, -1, k) if useEst[i] else cv.filter2D(r, -1, k)
-            count[r_mask_f == 1] = 0
-            count[count < 0.5] = 0
-            next_mask = (count > 0.5)
-            r_mask_f[next_mask] = 1
-            r_f[next_mask] = next_r[next_mask] / count[next_mask]
-
-        r = r_f
-
-        #k_sharp = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32)
-        #r = cv.filter2D(r, -1, k_sharp)
-        #r[r <= 0.1] = np.max(r)
-
-        #r = cv.filter2D(r, -1, np.ones((15, 15)) / (15*15))
-        r = cv.GaussianBlur(r, (13,13), 0)
-        #print(np.min(r), np.mean(r), np.max(r))
+        m = DepthMap(polar, polar_r)
 
         if self._debug.enable('depth-map'):
             f = plt.figure()
             img0 = get_middle(img)
-            img0[r_mask == 1] = [0, 0, 255]
             f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
 
             ax = f.add_subplot(1, 2, 2)
+            pts = coordinates.polar_points_3d((1024, 1024))
+            r = m.eval(pts)
             clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
             pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
             f.colorbar(pos, ax=ax)
 
-        return r
+        return m
 
 
 class DepthMapperSlice(DepthMapper):
@@ -425,30 +417,17 @@ class DepthMapperSlice(DepthMapper):
 
         self._debug.log('matches', matches.shape[0])
         dim = self._images[0].shape[0]
-        maps = np.zeros((4, dim, dim), np.float32)
-        pairs = [(0, 1), (2, 3), (0, 2), (1, 3), (0, 3), (1, 2)]
-        radii = np.zeros((4, self._matches.shape[0], 1), np.float32)
+        maps = [[] for i in range(4)]
+        pairs = [(0, 2), (1, 3)]
         for p in pairs:
             match_r, dd = radius_compute(matches[:,p[0]], \
                                          matches[:,p[1]], \
                                          self._positions[p[0]], \
                                          self._positions[p[1]])
-            maps[p[0]] += self._generate_map(self._images[p[0]], matches[:,p[0]], match_r) / 3
-            maps[p[1]] += self._generate_map(self._images[p[1]], matches[:,p[1]], match_r) / 3
-            radii[p[0]] += match_r / 3
-            radii[p[1]] += match_r / 3
+            maps[p[0]] += [self._generate_map(self._images[p[0]], matches[:,p[0]], match_r)]
+            maps[p[1]] += [self._generate_map(self._images[p[1]], matches[:,p[1]] - [0, math.pi/2], match_r)]
 
-        if self._debug.enable('depth-slice'):
-            for i in range(4):
-                m = maps[i]
-                f = plt.figure()
-                ax = f.add_subplot(1, 1, 1)
-                clr = colors.TwoSlopeNorm(vmin=np.min(m), vcenter=np.mean(m), vmax=np.max(m))
-                pos = ax.imshow(m, norm=clr, cmap='summer', interpolation='none')
-                f.colorbar(pos, ax=ax)
-
-        self._maps = [DepthMap(maps[m]) for m in range(4)]
-        self._radii = radii
+        self._maps = [DepthMap.average_r(m) for m in maps]
         return self._maps
 
 
@@ -475,4 +454,4 @@ class DepthMapper2D(DepthMapper):
             self._map_left = self._generate_map(self._img_left, matches[:,0], match_r)
             self._map_right = self._generate_map(self._img_right, matches[:,1], match_r)
 
-        return (DepthMap(self._map_left), DepthMap(self._map_right))
+        return (self._map_left, self._map_right)

@@ -65,7 +65,7 @@ class ComputeSegment(threading.Thread):
         global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
 
         local_pts_polar = np.zeros(self._polar.shape)
-        local_pts_polar[flt] = self._pt_transform.reverse(global_pts_polar[flt])
+        local_pts_polar[flt] = self._pt_transform.eval(global_pts_polar[flt])
 
         local_pts_eqr = np.zeros(self._polar.shape)
         local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], self._polar.shape)

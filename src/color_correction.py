@@ -528,7 +528,7 @@ class ColorCorrectionSeams(ColorCorrection):
 
             for j, idx in enumerate([ll, lr]):
                 shift = [0, math.pi / 2] if j % 2 == 1 else [0, 0]
-                coord = self._transforms[idx].reverse(to_1d(plr - shift)) \
+                coord = self._transforms[idx].eval(to_1d(plr - shift)) \
                                              .reshape(plr.shape)
                 coords.append(coord)
                 eqr = coordinates.polar_to_eqr(coord, self._images[idx].shape)

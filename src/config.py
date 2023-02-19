@@ -20,7 +20,7 @@ def print_usage():
     print('')
 
     print('-c,--config <file>\t\tSpecify the config file.')
-    print('-o,--config-option <option>\t\tComma separate config option line.')
+    print('-o,--config-option <option>\t\tComma separated config option line.')
     print('-i,--image <file_prefix>\t\tOverride the input and output config options.')
     print('-I,--in <file_prefix>\t\tOverride the input config option.')
     print('-O,--out <file_prefix>\t\tOverride the output config option.')

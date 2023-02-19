@@ -98,7 +98,7 @@ class FeatureMatcher():
                 bi = m.trainIdx
                 pr = phi_ratio[ai]
                 dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
-                dp_t = [0.4*threshold, 0.8*threshold]
+                dp_t = [0.5*threshold, 0.9*threshold]
                 in_range = np.count_nonzero(dp < dp_t) == 2
                 if not in_range:
                     continue
@@ -120,6 +120,14 @@ class FeatureMatcher():
 
         return good_matches[:,:2]
 
+    def _refine_matches(self, a, b, dphi, dtheta):
+        diff = a - b
+        mn = np.mean(diff, axis=0)
+        std = np.std(diff, axis=0)
+
+        d = [dphi, dtheta]
+        inc = np.logical_and(mn - d*std < diff, diff < mn + d*std).all(axis=1)
+        return inc
 
 class FeatureMatcher2(FeatureMatcher):
 
@@ -154,7 +162,9 @@ class FeatureMatcher2(FeatureMatcher):
         pts = np.zeros((kp_indices.shape[0], kp_indices.shape[1], 2))
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
-        return pts
+
+        inc = self._refine_matches(pts[:,0], pts[:,1], self._filter, self._filter)
+        return pts[inc]
 
 
 # Used for seam alignment. Searches the right side of the left images
@@ -165,6 +175,7 @@ class FeatureMatcher4(FeatureMatcher):
         self._imgs_left = imgs_left
         self._imgs_right = imgs_right
         self._threshold = 0.1
+        self._filter = 1
 
     def matches(self):
         imgs = self._imgs_left + self._imgs_right
@@ -191,4 +202,7 @@ class FeatureMatcher4(FeatureMatcher):
         pts = np.zeros((kp_indices.shape[0], kp_indices.shape[1], 2))
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
-        return pts
+
+        inc0 = self._refine_matches(pts[:,0], pts[:,2], self._filter, self._filter)
+        inc1 = self._refine_matches(pts[:,1], pts[:,3], self._filter, self._filter)
+        return pts[np.logical_and(inc0, inc1)]

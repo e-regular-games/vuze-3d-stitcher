@@ -89,7 +89,7 @@ class Debug:
 def show_polar_plot(polar_a, polar_b, label=None):
     plt.figure(label) if label is not None else plt.figure()
 
-    ra  = polar_a[..., 2] if polar_a.shape[-1] > 2 else 1
+    ra  = polar_a[..., 2] if polar_a.shape[-1] > 2 else np.array([1], np.float32)
     xa = ra * np.sin(polar_a[..., 0]) * np.cos(polar_a[..., 1])
     ya = ra * np.sin(polar_a[..., 0]) * np.sin(polar_a[..., 1])
     za = ra * np.cos(polar_a[..., 0])
@@ -97,12 +97,16 @@ def show_polar_plot(polar_a, polar_b, label=None):
     ax = plt.axes(projection ='3d')
     ax.plot3D(xa, ya, za, 'bo', markersize=1)
 
-    rb  = polar_b[..., 2] if polar_b.shape[-1] > 2 else 1
+    rb  = polar_b[..., 2] if polar_b.shape[-1] > 2 else np.array([1], np.float32)
     xb = rb * np.sin(polar_b[..., 0]) * np.cos(polar_b[..., 1])
     yb = rb * np.sin(polar_b[..., 0]) * np.sin(polar_b[..., 1])
     zb = rb * np.cos(polar_b[..., 0])
 
-    ax.plot3D(xb, yb, zb, 'ro', markersize=1)
+    r = max(np.max(ra), np.max(rb))
+    ax.plot3D(xb, yb, zb, 'ro', markersize=0.5)
+    ax.axes.set_xlim3d(left=-r, right=r)
+    ax.axes.set_ylim3d(bottom=-r, top=r)
+    ax.axes.set_zlim3d(bottom=-r, top=r)
 
 def show_polar_points(polar, label=None):
     plt.figure(label) if label is not None else plt.figure()
@@ -111,5 +115,9 @@ def show_polar_points(polar, label=None):
     ya = ra * np.sin(polar[..., 0]) * np.sin(polar[..., 1])
     za = ra * np.cos(polar[..., 0])
 
+    r = np.max(ra)
     ax = plt.axes(projection ='3d')
     ax.plot3D(xa, ya, za, 'b.', markersize=0.5)
+    ax.axes.set_xlim3d(left=-r, right=r)
+    ax.axes.set_ylim3d(bottom=-r, top=r)
+    ax.axes.set_zlim3d(bottom=-r, top=r)
