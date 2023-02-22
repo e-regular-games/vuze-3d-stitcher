@@ -90,11 +90,10 @@ class SpliceImages():
         # tansform(i) of image (i)
         self._transforms = [None]*len(images)
         self._color_transforms = [None]*len(images)
+        self._calibration = [None]*len(images)
 
         # seam(i) between images (i) and (i+1)
         self._stitches = [None]*len(images)
-        self._st_slopes = [None]*len(images)
-        self._st_offset = [None]*len(images)
 
         self._debug = debug
         self._view0 = 0
@@ -114,19 +113,13 @@ class SpliceImages():
         self._rotate_x = x
         self._rotate_y = y
 
+    def set_calibration(self, calib):
+        self._calibration = [c.t for c in calib]
+
     # line is a numpy array of (phi, theta) rows
     # the first row should be phi = 0, and the last should be phi = pi
     def set_stitch(self, idx, line):
         self._stitches[idx] = line
-
-        phi = line[:, 0]
-        theta = line[:, 1]
-
-        slope = (theta[1:] - theta[:-1]) / (phi[1:] - phi[:-1])
-        offset = theta[:-1] - slope * phi[:-1]
-
-        self._st_slopes[idx] = slope
-        self._st_offset[idx] = offset
 
     def _apply_rotations(self, image, eq):
         if self._rotate_x == 0 and self._rotate_y == 0:

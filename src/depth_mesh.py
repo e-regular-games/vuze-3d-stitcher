@@ -325,7 +325,12 @@ class DepthMap():
         self._pts = polar
         self._tree = KDTree(coordinates.polar_to_cart(polar, 1))
         self._r = r
-        self._area = min(len(polar), 32)
+        self._area = min(len(polar), 5)
+
+    # the integer number of nearest neighbors to consider during evaluation of a point.
+    def set_area(self, a):
+        self._area = min(len(self._pts), a)
+        return self
 
     def average_r(arr):
         pts = arr[0]._pts
@@ -347,6 +352,7 @@ class DepthMap():
         return DepthMap(self._pts[indices], self._r[indices])
 
     def eval(self, c):
+        #return 1 * np.ones(c.shape[:-1], np.float32)
         c_1 = c
         if len(c.shape) == 3:
             c_1 = coordinates.to_1d(c)
@@ -364,6 +370,10 @@ class DepthMapper():
     def __init__(self, debug):
         self._debug = debug
 
+        self._min = 1.2
+        self._mid = 10.0
+        self._max = 60.0
+
     def _kernel(self, size):
         v = np.arange(size) - int(size/2)
         x, y = np.meshgrid(v, v)
@@ -373,7 +383,19 @@ class DepthMapper():
         return k
 
     def _generate_map(self, img, polar, polar_r):
-        m = DepthMap(polar, polar_r)
+        mn = polar_r < self._mid
+        mx = polar_r > self._mid
+
+        r = polar_r.copy()
+        if np.count_nonzero(mn) > 0 and np.min(polar_r) < self._min:
+            mn_scale = (self._mid - self._min) / (self._mid - np.min(polar_r))
+            r[mn] = self._mid - (self._mid - r[mn]) * mn_scale
+
+        if np.count_nonzero(mx) > 0 and np.max(polar_r) > self._max:
+            mx_scale = (self._max - self._mid) / (np.max(polar_r) - self._mid)
+            r[mx] = (r[mx] - self._mid) * mx_scale + self._mid
+
+        m = DepthMap(polar, r)
 
         if self._debug.enable('depth-map'):
             f = plt.figure()
@@ -413,7 +435,12 @@ class DepthMapperSlice(DepthMapper):
 
         matches = FeatureMatcher4(self._images[0:4:2], self._images[1:4:2], self._debug) \
             .matches()
-        self._matches = matches
+        self._matches = np.zeros(matches.shape, np.float32)
+        self._matches[:,0] = matches[:,0]
+        self._matches[:,1] = matches[:,2]
+        self._matches[:,2] = matches[:,1]
+        self._matches[:,3] = matches[:,3]
+        matches = self._matches
 
         self._debug.log('matches', matches.shape[0])
         dim = self._images[0].shape[0]

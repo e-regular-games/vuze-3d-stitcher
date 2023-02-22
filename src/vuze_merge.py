@@ -276,8 +276,10 @@ def main():
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_left.set_initial_view(config.view_direction)
+    splice_left.set_calibration(calibration[0:8:2])
     splice_right = splice.SpliceImages(images[1:8:2], debug)
     splice_right.set_initial_view(config.view_direction)
+    splice_right.set_calibration(calibration[1:8:2])
 
     if config.accel_align:
         rotate_x = math.atan2(meta_map['xAccel'], abs(meta_map['zAccel']))

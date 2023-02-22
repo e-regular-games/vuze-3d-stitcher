@@ -100,22 +100,40 @@ class TransformDepth(Transform):
     def _apply(self, c):
         dim = c.shape[0]
         r = self._depth.eval(c)
-
         c_adj = [0, 3*math.pi/2] + [1,-1]*c;
         P = self._p_0 + coordinates.polar_to_cart(c_adj, r)
 
-        rho = coordinates.cart_to_polar(self._center)[0,1]
+        # assumes the camera plan is the x-y plane, ie z=0
+        P_l = P * [1, 1, 0]
+        rho = coordinates.cart_to_polar(self._p_0)[0,1]
 
-        d = np.sqrt(np.sum(P*P, axis=-1))
+        d = np.sqrt(np.sum(P_l*P_l, axis=-1))
         qa = 1 + np.tan(self._alpha) * np.tan(self._alpha)
         qb = 2 * self._R
         qc = (self._R*self._R - d*d)
         x = (-qb + np.sqrt(qb*qb - 4*qa*qc)) / (2*qa)
-        beta = np.arccos((self._R + x) / d)
+        beta = coordinates.to_2d(np.arccos((self._R + x) / d))
 
-        plr_c = coordinates.cart_to_polar(P)
-        plr_c[...,1] = rho - (plr_c[...,1] + self._eye * beta)
-        return plr_c
+        P_h_plr = coordinates.cart_to_polar(P_l)
+        P_h_plr[...,1:2] += self._eye * beta
+        theta = rho - (P_h_plr[...,1:2])
+
+        P_h = coordinates.polar_to_cart(P_h_plr, self._R)
+
+        P_hl = P_h - P_l
+        n = coordinates.to_2d(np.sqrt(np.sum(P_hl*P_hl, axis=-1)))
+        C_1 = P_hl * self._R / n + P_h
+
+        above = (np.ones((dim, 1), np.float32) * (P[...,2:3] >= 0)) \
+            + (-1 * np.ones((dim, 1), np.float32) * (P[...,2:3] < 0))
+        phi = math.pi/2 - above * coordinates.angle(P - C_1, P_l - C_1)
+
+        return np.concatenate([phi, theta], axis=-1) + [0, math.pi]
+
+
+    def apply(self, c):
+        shift = self._apply(np.array([[math.pi/2, math.pi]]))[0,1] - math.pi
+        return self._apply(c)
 
     # Expects c to be a NxMx2 3d matrix where the last dimension is (phi, theta)
     def eval(self, c):

@@ -54,6 +54,17 @@ def roots(c, x):
     elif c.shape[-1] == 2:
         return -c[...,0] / c[...,1]
 
+# expects NxM for a and b.
+# expects M for d.
+# rerturns a flag N that indicates whether each element should be kept
+def trim_outliers_by_diff(a, b, d):
+        diff = a - b
+        mn = np.mean(diff, axis=0)
+        std = np.std(diff, axis=0)
+
+        inc = np.logical_and(mn - d*std < diff, diff < mn + d*std).all(axis=1)
+        return inc
+
 class LinearRegression():
     # order an array of X integers for the order of each independent variable.
     # an order of 2 indicates that terms x^2 and x will be used along with a constant.
@@ -84,6 +95,7 @@ class LinearRegression():
         self._coeffs = np.linalg.inv(R).dot(np.transpose(Q)).dot(y)
 
         approx = terms.dot(self._coeffs)
+
         return approx - y
 
     def evaluate(self, x):

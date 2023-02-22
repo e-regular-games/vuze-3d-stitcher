@@ -14,6 +14,11 @@ def to_1d(a):
 def to_2d(a):
     return a.reshape((a.shape[0],) + (1,) + a.shape[1:])
 
+# angle between 2 vectors
+def angle(v1, v2):
+    d = np.sqrt(np.sum(v1*v1, axis=-1)) * np.sqrt(np.sum(v2*v2, axis=-1))
+    return to_2d(np.arccos(np.sum(v1 * v2, axis=-1) / d))
+
 # @param c a matrix with N rows and 2 columns, (x, y)
 # @param shape a tuple with at least 2 values, (height, width)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -108,9 +113,19 @@ def equirect_points(resolution):
 # determine the theta value for each phi at which the seam
 # is intersected.
 def seam_intersect(seam, phi):
+
+    # Ensure the seam is monotonically increasing along phi
+    s_phi = seam[:, 0]
+    inc = np.ones((len(s_phi),), np.bool)
+    v = s_phi[0]
+    for i, p in enumerate(s_phi[1:]):
+        inc[i+1] = p > v
+        if p > v:
+            v = p
+    seam = seam[inc]
+
     s_phi = seam[:, 0]
     s_theta = seam[:, 1]
-
     slope = (s_theta[1:] - s_theta[:-1]) / (s_phi[1:] - s_phi[:-1])
     offset = s_theta[:-1] - slope * s_phi[:-1]
 
