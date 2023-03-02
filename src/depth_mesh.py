@@ -49,7 +49,7 @@ def switch_axis(p):
     # perception which is y-up.
     return np.matmul(np.transpose(p), np.array([[-1, 0, 0], [0, 0, -1], [0, 1, 0]]))
 
-def radius_compute(left, right, p_l, p_r, maximum=10):
+def radius_compute(left, right, p_l, p_r, minimum=0.1, maximum=10):
     n = left.shape[0]
     v_p_lr = p_l - p_r
     d_p_lr = np.sqrt(v_p_lr.dot(np.transpose(v_p_lr)))
@@ -77,6 +77,8 @@ def radius_compute(left, right, p_l, p_r, maximum=10):
     m_d_n = np.linalg.norm(m_d, axis=1).reshape((n, 1))
     parallel = (m_d_n == 0)[:,0]
     m_d_n[parallel] = 1
+    if np.count_nonzero(parallel) > 0:
+        print('radius_compute: parallel points:', np.count_nonzero(parallel))
 
     m_d = m_d / m_d_n
     m_d[parallel] = np.nan
@@ -97,14 +99,21 @@ def radius_compute(left, right, p_l, p_r, maximum=10):
     r_r = (a_d*b_l*c_pl - a_d*b_l*c_pr - a_d*b_pl*c_l + a_d*b_pr*c_l - a_l*b_d*c_pl + a_l*b_d*c_pr + a_l*b_pl*c_d - a_l*b_pr*c_d + a_pl*b_d*c_l - a_pl*b_l*c_d - a_pr*b_d*c_l + a_pr*b_l*c_d)/(a_d*b_l*c_r - a_d*b_r*c_l - a_l*b_d*c_r + a_l*b_r*c_d + a_r*b_d*c_l - a_r*b_l*c_d)
     r_l = (-a_d*b_pl*c_r + a_d*b_pr*c_r + a_d*b_r*c_pl - a_d*b_r*c_pr + a_pl*b_d*c_r - a_pl*b_r*c_d - a_pr*b_d*c_r + a_pr*b_r*c_d - a_r*b_d*c_pl + a_r*b_d*c_pr + a_r*b_pl*c_d - a_r*b_pr*c_d)/(a_d*b_l*c_r - a_d*b_r*c_l - a_l*b_d*c_r + a_l*b_r*c_d + a_r*b_d*c_l - a_r*b_l*c_d)
 
-    v_l = p_l + r_l * m_l
-    v_r = p_r + r_r * m_r
-    r = np.linalg.norm((v_l + v_r) / 2 - (p_l + p_r) / 2, axis=1).reshape((n, 1))
+    #v_l = p_l + r_l * m_l
+    #v_r = p_r + r_r * m_r
+    #r = np.linalg.norm((v_l + v_r) / 2 - (p_l + p_r) / 2, axis=1).reshape((n, 1))
 
-    #alpha = np.arccos(np.sum(v_l * v_r, axis=1) / (np.linalg.norm(v_l, axis=1) * np.linalg.norm(v_r, axis=1)))
-    r[parallel] = maximum
+    r_l = np.linalg.norm(r_l * m_l, axis=1).reshape((n, 1))
+    r_r = np.linalg.norm(r_r * m_r, axis=1).reshape((n, 1))
+
+    r_l[parallel] = maximum
+    r_l[r_l < minimum] = minimum
+
+    r_r[parallel] = maximum
+    r_r[r_r < minimum] = minimum
+
     r_d[parallel] = d_p_lr
-    return r, r_d
+    return r_l, r_r, r_d
 
 
 class DepthCalibration():
@@ -321,16 +330,51 @@ class DepthCalibration():
 
 class DepthMap():
 
+    # depth map for a constant radius
+    def __init__(self, r):
+        self._r = r
+
+    def plot(self, img):
+        f = plt.figure()
+        img0 = get_middle(img)
+        f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
+
+        ax = f.add_subplot(1, 2, 2)
+        pts = coordinates.polar_points_3d((1024, 1024))
+        r = self.eval(pts)
+        clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
+        pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+    def eval(self, c):
+        return self._r * np.ones(c.shape[:-1], np.float32)
+
+
+class DepthMapCloud(DepthMap):
     def __init__(self, polar, r):
+        super().__init__(5)
+
         self._pts = polar
         self._tree = KDTree(coordinates.polar_to_cart(polar, 1))
+        self._area = min(len(polar), 8)
         self._r = r
-        self._area = min(len(polar), 5)
 
     # the integer number of nearest neighbors to consider during evaluation of a point.
     def set_area(self, a):
         self._area = min(len(self._pts), a)
         return self
+
+    def plot(self, img):
+        f = plt.figure()
+        img0 = get_middle(img)
+        f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
+
+        ax = f.add_subplot(1, 2, 2)
+        pts = coordinates.polar_points_3d((1024, 1024))
+        r = self.eval(pts)
+        clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
+        pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
 
     def average_r(arr):
         pts = arr[0]._pts
@@ -352,13 +396,15 @@ class DepthMap():
         return DepthMap(self._pts[indices], self._r[indices])
 
     def eval(self, c):
-        #return 1 * np.ones(c.shape[:-1], np.float32)
         c_1 = c
         if len(c.shape) == 3:
             c_1 = coordinates.to_1d(c)
 
         c_1 = coordinates.polar_to_cart(c_1, 1)
         dist, idx = self._tree.query(c_1, k=self._area, workers=8)
+
+        if self._area == 1:
+            return self._r[idx].reshape(c.shape[:-1])
 
         limit = (np.max(dist, axis=-1) + np.min(dist, axis=-1)).reshape(dist.shape[:-1] + (1,))
         dist = (limit - dist) ** 2
@@ -382,11 +428,16 @@ class DepthMapper():
         k[in_circle] = 1
         return k
 
+    def _filter_radii(self, r, d, err):
+        inc = np.abs(d) < err
+        return r[inc], inc
+
     def _generate_map(self, img, polar, polar_r):
         mn = polar_r < self._mid
         mx = polar_r > self._mid
 
         r = polar_r.copy()
+        """
         if np.count_nonzero(mn) > 0 and np.min(polar_r) < self._min:
             mn_scale = (self._mid - self._min) / (self._mid - np.min(polar_r))
             r[mn] = self._mid - (self._mid - r[mn]) * mn_scale
@@ -394,20 +445,9 @@ class DepthMapper():
         if np.count_nonzero(mx) > 0 and np.max(polar_r) > self._max:
             mx_scale = (self._max - self._mid) / (np.max(polar_r) - self._mid)
             r[mx] = (r[mx] - self._mid) * mx_scale + self._mid
+        """
 
         m = DepthMap(polar, r)
-
-        if self._debug.enable('depth-map'):
-            f = plt.figure()
-            img0 = get_middle(img)
-            f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
-
-            ax = f.add_subplot(1, 2, 2)
-            pts = coordinates.polar_points_3d((1024, 1024))
-            r = m.eval(pts)
-            clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
-            pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
 
         return m
 
@@ -427,7 +467,7 @@ class DepthMapperSlice(DepthMapper):
         ]
         self._maps = None
         self._matches = None
-        self._radii = None
+        self._max_err_dist = 0.02
 
     def map(self):
         if self._maps is not None:
@@ -442,19 +482,34 @@ class DepthMapperSlice(DepthMapper):
         self._matches[:,3] = matches[:,3]
         matches = self._matches
 
-        self._debug.log('matches', matches.shape[0])
         dim = self._images[0].shape[0]
         maps = [[] for i in range(4)]
+        inc_all = np.ones((self._matches.shape[0],), bool)
+        shift = np.array([0, math.pi/2], np.float32)
         pairs = [(0, 2), (1, 3)]
         for p in pairs:
-            match_r, dd = radius_compute(matches[:,p[0]], \
+            r_l, r_r, d = radius_compute(matches[:,p[0]], \
                                          matches[:,p[1]], \
                                          self._positions[p[0]], \
                                          self._positions[p[1]])
-            maps[p[0]] += [self._generate_map(self._images[p[0]], matches[:,p[0]], match_r)]
-            maps[p[1]] += [self._generate_map(self._images[p[1]], matches[:,p[1]] - [0, math.pi/2], match_r)]
 
+            r_l, inc = self._filter_radii(r_l, d, self._max_err_dist)
+            r_r, _ = self._filter_radii(r_r, d, self._max_err_dist)
+            inc_all = np.logical_and(inc[:,0], inc_all)
+
+            maps[p[0]] += [self._generate_map(self._images[p[0]], \
+                                              matches[inc[:,0], p[0]] - int(p[0]/2)*shift, r_l)]
+            maps[p[1]] += [self._generate_map(self._images[p[1]], \
+                                              matches[inc[:,0], p[1]] - int(p[1]/2)*shift, r_r)]
+
+        self._matches = self._matches[inc_all]
+        self._debug.log('map points:', self._matches.shape[0])
         self._maps = [DepthMap.average_r(m) for m in maps]
+
+        if self._debug.enable('depth-map'):
+            for m, img in zip(self._maps, self._images):
+                m.plot(img)
+
         return self._maps
 
 
@@ -476,9 +531,9 @@ class DepthMapper2D(DepthMapper):
             matches = FeatureMatcher2(self._img_left, self._img_right, self._debug).matches()
 
             self._debug.log('matches', matches.shape[0])
-            match_r, dd = radius_compute(matches[:,0], matches[:,1], self._p_left, self._p_right)
+            r_l, r_r, d = radius_compute(matches[:,0], matches[:,1], self._p_left, self._p_right)
 
-            self._map_left = self._generate_map(self._img_left, matches[:,0], match_r)
-            self._map_right = self._generate_map(self._img_right, matches[:,1], match_r)
+            self._map_left = self._generate_map(self._img_left, matches[:,0], r_l)
+            self._map_right = self._generate_map(self._img_right, matches[:,1], r_r)
 
         return (self._map_left, self._map_right)

@@ -6,6 +6,7 @@ import cv2 as cv
 from scipy.spatial import KDTree
 from Equirec2Perspec import Equirectangular
 from linear_regression import trim_outliers_by_diff
+from linear_regression import trim_outliers
 from matplotlib import pyplot as plt
 
 # A collection of feature matching behaviors.
@@ -38,7 +39,7 @@ class FeatureMatcher():
     def _dedup(self, kp):
         keep = np.ones((len(kp.keypoints),), bool)
         t = KDTree(kp.polar)
-        dups_idx = t.query_ball_point(kp.polar, 0.001, workers=8)
+        dups_idx = t.query_ball_point(kp.polar, 0.0001, workers=8)
         for i, dups in enumerate(dups_idx):
             if not keep[i]:
                 continue
@@ -94,7 +95,7 @@ class FeatureMatcher():
 
         return pkp
 
-    def _determine_matches(self, kp_a, kp_b, threshold):
+    def _determine_matches_0(self, kp_a, kp_b, thres=0.75):
         # BFMatcher with default params
         bf = cv.BFMatcher()
         matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=2)
@@ -109,49 +110,43 @@ class FeatureMatcher():
 
         def compute_range(ai, bi):
             dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
-            p_diff = np.sqrt(np.sum(np.array(dp) * np.array(dp)))
-            a_diff = math.sqrt((sin_a[ai] - sin_b[bi]) * (sin_a[ai] - sin_b[bi]) + \
-                               (cos_a[ai] - cos_b[bi]) * (cos_a[ai] - cos_b[bi]))
-
-
-            diff = np.array([p_diff, a_diff])
-            diff = np.sqrt(np.sum(diff * diff))
-            return diff
+            da = [(sin_a[ai] - sin_b[bi]), (cos_a[ai] - cos_b[bi])]
+            d = np.array([dp[0], dp[1], da[0], da[1]], np.float32)
+            return np.sqrt(np.sum(d**2))
 
         for ma in matches:
             p = None
-            if len(ma) >= 2 and ma[0].distance < 0.75 * ma[1].distance:
+            if len(ma) >= 2 and ma[0].distance < thres * ma[1].distance:
                 diff = compute_range(ma[0].queryIdx, ma[0].trainIdx)
                 r = ma[0].queryIdx
                 good_matches[r, 1] = ma[0].trainIdx
                 good_matches[r, 2] = diff
                 good_matches[r, 3] = ma[0].distance
 
-        plt.figure()
-        plt.hist(good_matches[good_matches[:,2] > 0,2], bins=20)
-
         vals, cnt = np.unique(good_matches[:,1], return_counts=True)
         dups = cnt > 1
-        print('duplicates', np.count_nonzero(dups) - 1)
+        self._debug.log('duplicates', np.count_nonzero(dups) - 1)
         for v in vals[dups][1:]: # the first entry is always -1
             possible = (good_matches[:,1] == v)
             flt = good_matches[possible]
             best = None
             for i in range(flt.shape[0]):
                 if best is None or \
-                   (0.9 * best[3] < flt[i,3] and best[2] > flt[i,2]) or \
-                   flt[i,3] < 0.75 * best[3]:
+                   (best[3] < thres * flt[i,3] and best[2] > flt[i,2]) or \
+                   flt[i,3] < thres * best[3]:
                     best = flt[i]
 
             good_matches[possible,1] = -1
             good_matches[int(best[0]),1] = v
 
+        #good_matches[good_matches[:,2]>0.2,1] = -1
+
         return good_matches[:,:2]
 
-    def _determine_matches_range(self, kp_a, kp_b, threshold):
+    def _determine_matches(self, kp_a, kp_b, dist=0.125, thres=0.75):
         # BFMatcher with default params
         bf = cv.BFMatcher()
-        matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=4)
+        matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=6)
 
         sin_a = np.sin(kp_a.rotation)
         cos_a = np.cos(kp_a.rotation)
@@ -163,62 +158,37 @@ class FeatureMatcher():
         good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
 
         def compute_range(ai, bi):
-            pr = phi_ratio[ai]
             dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
-            dp_t = [0.8*threshold, threshold]
-            in_range = np.count_nonzero(dp < dp_t) == 2
-            if not in_range:
-                return False, 0
+            da = [(sin_a[ai] - sin_b[bi]), (cos_a[ai] - cos_b[bi])]
+            d = np.array([dp[0], dp[1], da[0], da[1]], np.float32)
+            return np.sqrt(np.sum(d**2))
 
-            a_diff = math.sqrt((sin_a[ai] - sin_b[bi]) * (sin_a[ai] - sin_b[bi]) + \
-                               (cos_a[ai] - cos_b[bi]) * (cos_a[ai] - cos_b[bi]))
-
-            # have the acceptable rotation scale with phi
-            if a_diff < threshold + 0.5 * threshold * pr:
-                p_diff = np.sqrt(np.sum(np.array(dp) * np.array(dp)))
-                diff = np.array([p_diff, a_diff])
-                diff = np.sqrt(np.sum(diff * diff))
-                return True, diff
-
-            return False, 0
-
-
-        out_of_range = 0
         for ma in matches:
             p = None
-            if len(ma) >= 2 and ma[0].distance < 0.75 * ma[1].distance:
-                valid, diff = compute_range(ma[0].queryIdx, ma[0].trainIdx)
-                if not valid:
-                    out_of_range += 1
-                p = (ma[0], diff)
+            if len(ma) >= 2 and ma[0].distance < thres * ma[1].distance:
+                d = compute_range(ma[0].queryIdx, ma[0].trainIdx)
+                p = [ma[0].queryIdx, ma[0].trainIdx, d, ma[0].distance]
 
             for m in ma:
-                valid, diff = compute_range(m.queryIdx, m.trainIdx)
-                if valid and (p is None or p[1] > diff):
-                    p = (m, diff)
+                if m.distance * thres >  ma[0].distance:
+                    break
+                d = compute_range(m.queryIdx, m.trainIdx)
+                if d < dist and (p is None or d < p[1]):
+                    p = [m.queryIdx, m.trainIdx, d, m.distance]
 
             if p is not None:
-                r = p[0].queryIdx
-                if good_matches[r, 1] == -1 or \
-                   (0.9 * p[0].distance < good_matches[r, 3] and good_matches[r, 2] > p[1]) or \
-                   p[0].distance < 0.75 * good_matches[r, 3]:
-                    good_matches[r, 1] = p[0].trainIdx
-                    good_matches[r, 2] = p[1]
-                    good_matches[r, 3] = p[0].distance
+                good_matches[p[0]] = p
 
-
-        print('out of range:', out_of_range)
         vals, cnt = np.unique(good_matches[:,1], return_counts=True)
         dups = cnt > 1
-        print('duplicates', np.count_nonzero(dups) - 1)
         for v in vals[dups][1:]: # the first entry is always -1
             possible = (good_matches[:,1] == v)
             flt = good_matches[possible]
             best = None
             for i in range(flt.shape[0]):
                 if best is None or \
-                   (0.9 * best[3] < flt[i,3] and best[2] > flt[i,2]) or \
-                   flt[i,3] < 0.75 * best[3]:
+                   (thres * flt[i,3] <  best[3] and best[2] > flt[i,2]) or \
+                   flt[i,3] < thres * best[3]:
                     best = flt[i]
 
             good_matches[possible,1] = -1
@@ -237,7 +207,6 @@ class FeatureMatcher2(FeatureMatcher):
 
     def matches(self):
         imgs = [self._img_left, self._img_right]
-        thetas = [45, -45]
         angles = [(60, -45), (0, -45), (-60, -45), \
                   (60, 0), (0, 0), (-60, 0), \
                   (60, 45), (0, 45), (-60, 45)]
@@ -250,7 +219,7 @@ class FeatureMatcher2(FeatureMatcher):
 
         kp_indices = np.zeros((len(kp[0].keypoints), 2), dtype=np.int) - 1
         kp_indices[:, 0] = np.arange(0, len(kp[0].keypoints))
-        m = self._determine_matches(kp[0], kp[1], self._threshold)
+        m = self._determine_matches_0(kp[0], kp[1])
         kp_indices[:, 1] = m[:,1]
 
         kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]
@@ -261,8 +230,7 @@ class FeatureMatcher2(FeatureMatcher):
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
 
-        inc = self._refine_matches(pts[:,0], pts[:,1], self._filter, self._filter)
-        return pts[inc]
+        return pts
 
 
 # Used for seam alignment. Searches the right side of the left images
@@ -274,8 +242,6 @@ class FeatureMatcher4(FeatureMatcher):
         super().__init__(debug)
         self._imgs_left = imgs_left
         self._imgs_right = imgs_right
-        self._threshold = 0.15
-        self._filter = 2.0
 
     # returns aligned to [ left eye images, right eye images]
     def matches(self):
@@ -284,7 +250,7 @@ class FeatureMatcher4(FeatureMatcher):
 
         kp = [None] * 4
         for i in range(4):
-            angles = [(50, thetas[i]), (0, thetas[i]), (-50, thetas[i])]
+            angles = [(60, thetas[i]), (0, thetas[i]), (-60, thetas[i])]
             kp[i] = self._create_polar_keypoints(imgs[i], angles)
             if kp[i].empty():
                 return None
@@ -293,7 +259,7 @@ class FeatureMatcher4(FeatureMatcher):
         kp_indices = np.zeros((len(kp[0].keypoints), 4), dtype=np.int) - 1
         kp_indices[:, 0] = np.arange(0, len(kp[0].keypoints))
         for i in range(1, 4):
-            m = self._determine_matches(kp[0], kp[i], self._threshold)
+            m = self._determine_matches(kp[0], kp[i])
             kp_indices[:, i] = m[:,1]
 
         kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]
@@ -304,10 +270,12 @@ class FeatureMatcher4(FeatureMatcher):
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j]]
 
-        #f = [self._filter, self._filter]
-        #inc0 = trim_outliers_by_diff(pts[:,0], pts[:,2], self._filter)
-        #inc1 = trim_outliers_by_diff(pts[:,1], pts[:,3], self._filter)
-        #pts = pts[np.logical_and(inc0, inc1)]
+        inc = np.ones((pts.shape[0],), bool)
+        inc = np.logical_and(inc, trim_outliers_by_diff(pts[:,0], pts[:,1], 1))
+        inc = np.logical_and(inc, trim_outliers_by_diff(pts[:,2], pts[:,3], 1))
+        #for i in range(4):
+        #    inc = np.logical_and(inc, trim_outliers(pts[:,i,1], 3))
+        pts = pts[inc]
 
         self._debug.log('FeatureMatcher4: matches:', len(pts))
 
@@ -317,17 +285,9 @@ class FeatureMatcher4(FeatureMatcher):
                 ax = f.add_subplot(2, 2, i+1)
                 img = imgs[i].copy()
                 p = pts[:,i].copy()
-                p[:,1] -= (thetas[0] - thetas[i]) * math.pi / 180
+                p[:,1] -= (i%2)*math.pi/2
                 p = np.round(coordinates.polar_to_eqr(p, img.shape)).astype(np.int)
-                img[p[:,1], p[:,0]] = [0, 0, 255]
-                img[p[:,1]-1, p[:,0]] = [0, 0, 255]
-                img[p[:,1]+1, p[:,0]] = [0, 0, 255]
-                img[p[:,1], p[:,0]+1] = [0, 0, 255]
-                img[p[:,1], p[:,0]-1] = [0, 0, 255]
-                img[p[:,1]-1, p[:,0]-1] = [0, 0, 255]
-                img[p[:,1]+1, p[:,0]+1] = [0, 0, 255]
-                img[p[:,1]-1, p[:,0]+1] = [0, 0, 255]
-                img[p[:,1]+1, p[:,0]-1] = [0, 0, 255]
                 ax.imshow(cv.cvtColor(get_middle(img), cv.COLOR_BGR2RGB))
+                ax.plot(p[:,0] - img.shape[0]/2, p[:,1], 'ro', markersize=1)
 
         return pts

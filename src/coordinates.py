@@ -17,7 +17,7 @@ def to_2d(a):
 # angle between 2 vectors
 def angle(v1, v2):
     d = np.sqrt(np.sum(v1*v1, axis=-1)) * np.sqrt(np.sum(v2*v2, axis=-1))
-    return to_2d(np.arccos(np.sum(v1 * v2, axis=-1) / d))
+    return np.arccos(np.sum(v1 * v2, axis=-1) / d).reshape(v1.shape[:-1] + (1,))
 
 # @param c a matrix with N rows and 2 columns, (x, y)
 # @param shape a tuple with at least 2 values, (height, width)

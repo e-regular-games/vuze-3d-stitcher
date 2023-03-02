@@ -65,6 +65,14 @@ def trim_outliers_by_diff(a, b, d):
         inc = np.logical_and(mn - d*std < diff, diff < mn + d*std).all(axis=1)
         return inc
 
+# is in a N by 1 vector.
+def trim_outliers(i, d):
+    m = np.mean(i)
+    std = np.std(i)
+
+    inc = np.logical_and(m - d*std < i, i < m + d*std)
+    return inc
+
 class LinearRegression():
     # order an array of X integers for the order of each independent variable.
     # an order of 2 indicates that terms x^2 and x will be used along with a constant.
