@@ -27,8 +27,8 @@ class Transform():
     # between (0, pi/2) and (pi/2, 3pi/2) and print to the debug log
     # the mean squared error between the initial and final values.
     def validate(self):
-        res = 20
-        plr = coordinates.polar_points_3d((res, res))[1:-1,1:-1]
+        res = 10
+        plr = coordinates.polar_points_3d((res, res))[4:5,1:-1]
 
         ev = self.reverse(plr)
         ev0 = self.forward(ev)
@@ -204,14 +204,87 @@ class TransformDepth(Transform):
         above = (P[...,2:3] >= 0) + -1 * (P[...,2:3] < 0)
         phi = math.pi/2 - above * coordinates.angle(P - C_1, P_l - C_1)
 
-        return np.concatenate([phi, theta], axis=-1) + [0, math.pi]
+        result = np.concatenate([phi, theta], axis=-1) + [0, math.pi]
+
+        return result
 
 
     def forward(self, c):
-        shift = self._apply(np.array([[[math.pi/2, math.pi]]]))[0,0] - [math.pi/2, math.pi]
-        return self._apply(c) - shift
+        #shift = self._apply(np.array([[[math.pi/2, math.pi]]]))[0,0] - [math.pi/2, math.pi]
+        return self._apply(c)
+
 
     def reverse(self, c):
+        p_0 = self._p_0[:,0:2]
+        R = np.linalg.norm(p_0)
+
+        r = self._depth.eval(c).reshape(c.shape[:-1] + (1,)) # TODO this should not be c...
+
+        rho = coordinates.cart_to_polar(self._p_0)[0,1]
+        c = [math.pi/2, rho] - (c - [0, math.pi])
+        p_1 = np.zeros(c.shape[:-1] + (3, 1), np.float32)
+        p_1[...,0,0] = R * np.cos(c[...,1])
+        p_1[...,1,0] = R * np.sin(c[...,1])
+
+        #print('p_1')
+        #print(p_1)
+
+        alpha = self._eye * -self._alpha
+        R_alpha = np.array([[math.cos(alpha), -math.sin(alpha), 0], \
+                            [math.sin(alpha), math.cos(alpha), 0], \
+                            [0, 0, 1]], np.float32)
+
+        # compute the direction of P from p_1 along the camera plane
+        # normalize the direction since it will be used as a unit vector
+        H_theta = R_alpha @ p_1
+        H_theta = H_theta / np.linalg.norm(H_theta, axis=-2).reshape(c.shape[:-1] + (1, 1))
+
+        #print('H_theta')
+        #print(H_theta.shape)
+        #print(H_theta)
+
+        R_H = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], np.float32)
+
+        #print('R_H @ H_theta')
+        #print(R_H @ H_theta)
+
+        # transform transposed to convert from the unit vectors for H_theta
+        T_H_T = np.zeros(c.shape[:-1] + (3, 3), np.float32)
+        T_H_T[...,0:3,0] = H_theta[...,0]
+        T_H_T[...,0:3,1] = (R_H @ H_theta)[...,0]
+        T_H_T[...,0:3,2] = [0, 0, 1]
+
+        #print('T_H_T')
+        #print(T_H_T[0,0])
+
+        # R_phi = R_phi @ [1, 0, 0]
+        R_phi = np.zeros(c.shape[:-1] + (3, 1), np.float32)
+        R_phi[...,0,0] = np.cos(-c[...,0])
+        R_phi[...,2,0] = -np.sin(-c[...,0])
+
+        #print('R_phi')
+        #print(R_phi)
+
+        H_phi = T_H_T @ R_phi
+        #print('H_phi')
+        #print(H_phi.shape)
+        #print(H_phi)
+
+        R_E = R
+        C_1 = p_1 - R_E * H_theta
+
+        # intersect with lens sphere
+        p_0 = (self._p_0 * np.array([[1, 1, 0]], np.float32)).reshape((3, 1))
+        offset = C_1 - p_0
+        disc = np.sum(H_phi * offset, axis=-2) ** 2 - (np.linalg.norm(offset, axis=-2)**2 - r**2)
+        d = -np.sum(H_phi * offset, axis=-2) + np.sqrt(disc)
+
+        P = (C_1 + d.reshape((d.shape + (1,))) * H_phi) - p_0
+        result = [0, 3*math.pi/2] + [1, -1] * coordinates.cart_to_polar(P.reshape(c.shape[:-1] + (3,)))
+
+        return  result
+
+    def reverse_vector(self, c):
         p_0 = self._p_0[:,0:2]
         R = np.linalg.norm(p_0)
 

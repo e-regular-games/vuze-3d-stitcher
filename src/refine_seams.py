@@ -263,8 +263,9 @@ class RefineSeams():
                 .set_eye(i % 2, switch_axis(self.calibration[i].t)) \
                 .set_position(switch_axis(self.calibration[i].t)) \
                 .set_depth(depth_maps[i])
-            #t.validate()
+            t.validate()
             transforms.append(t)
+
 
         matches_by_seam = []
         seams = []
