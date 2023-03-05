@@ -26,15 +26,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="0.44809863"
-     inkscape:cx="320.24199"
-     inkscape:cy="440.75118"
+     inkscape:zoom="1.2488985"
+     inkscape:cx="475.21877"
+     inkscape:cy="695.41281"
      inkscape:window-width="1870"
      inkscape:window-height="1044"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer7"
+     inkscape:current-layer="g119329-1-9"
      inkscape:snap-global="false"
      fit-margin-top="20"
      fit-margin-left="20"
@@ -43,6 +43,34 @@
      lock-margins="true" />
   <defs
      id="defs1309">
+    <marker
+       style="overflow:visible;"
+       id="marker84681"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4) rotate(180) translate(10,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path84679" />
+    </marker>
+    <marker
+       style="overflow:visible;"
+       id="marker60660"
+       refX="0.0"
+       refY="0.0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="scale(0.4) rotate(180) translate(10,0)"
+         style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
+         d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
+         id="path60658" />
+    </marker>
     <marker
        style="overflow:visible;"
        id="Arrow1Mend"
@@ -70,6 +98,20 @@
          style="fill-rule:evenodd;fill:context-stroke;stroke:context-stroke;stroke-width:1.0pt;"
          d="M 0.0,0.0 L 5.0,-5.0 L -12.5,0.0 L 5.0,5.0 L 0.0,0.0 z "
          id="path42893" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="Arrow1Mend-1"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow1Mend"
+       inkscape:isstock="true">
+      <path
+         transform="matrix(-0.4,0,0,-0.4,-4,0)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 0,0 5,-5 -12.5,0 5,5 Z"
+         id="path42899-9" />
     </marker>
   </defs>
   <g
@@ -1180,7 +1222,7 @@
      inkscape:groupmode="layer"
      id="layer7"
      inkscape:label="lens_to_head_phi"
-     style="display:inline">
+     style="display:none">
     <g
        id="g119329-1"
        transform="translate(-386.16151,5.4880582)"
@@ -1925,6 +1967,706 @@
              style="font-size:3.52778px;stroke-width:0.171418"
              x="145.0614"
              y="-22.647961">1</tspan></text>
+      </g>
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer9"
+     inkscape:label="head_to_lens_phi"
+     style="display:inline">
+    <g
+       id="g119329-1-9"
+       transform="translate(-386.16151,5.4880582)"
+       style="display:inline">
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1.21931;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1209-9-0-7"
+         transform="rotate(26.5)"
+         sodipodi:type="arc"
+         sodipodi:cx="483.03183"
+         sodipodi:cy="-36.755505"
+         sodipodi:rx="66.675003"
+         sodipodi:ry="66.675003"
+         sodipodi:start="4.4240929"
+         sodipodi:end="0.94145884"
+         sodipodi:arc-type="arc"
+         sodipodi:open="true"
+         d="m 464.07486,-100.67881 a 66.675003,66.675003 0 0 1 78.73625,34.393775 66.675003,66.675003 0 0 1 -20.53375,83.430779" />
+      <ellipse
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1684-6-0-7-8"
+         cx="476.77512"
+         cy="-56.652302"
+         rx="3.2057142"
+         ry="2.9944685"
+         transform="rotate(29.108383)" />
+      <path
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.998756;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1832-1-5-2"
+         sodipodi:type="arc"
+         sodipodi:cx="447.51093"
+         sodipodi:cy="184.10931"
+         sodipodi:rx="200.00063"
+         sodipodi:ry="200.00063"
+         sodipodi:start="5.3778811"
+         sodipodi:end="0.76274893"
+         sodipodi:open="true"
+         sodipodi:arc-type="arc"
+         d="M 571.00057,26.786217 A 200.00063,200.00063 0 0 1 647.00371,169.86581 200.00063,200.00063 0 0 1 592.09927,322.29202" />
+      <circle
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:0.956863"
+         id="path2966-26-8-5"
+         cx="514.92938"
+         cy="182.4453"
+         r="2.6458333" />
+      <g
+         id="g35707-4-7-70-3"
+         transform="matrix(1.9676151,0,0,1.9676151,226.77972,224.20442)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="141.93573"
+           y="-23.647264"
+           id="text28395-7-5-48-4"><tspan
+             sodipodi:role="line"
+             id="tspan28393-2-6-0-9"
+             style="stroke-width:0.264583"
+             x="141.93573"
+             y="-23.647264">P</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="143.98566"
+           y="-22.379023"
+           id="text31801-4-9-4-0"><tspan
+             sodipodi:role="line"
+             id="tspan31799-0-8-2-2"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="143.98566"
+             y="-22.379023">1</tspan></text>
+      </g>
+      <g
+         id="g35707-4-0-0-9-0"
+         transform="matrix(1.9676151,0,0,1.9676151,151.79167,233.08869)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="142.07782"
+           y="-23.408522"
+           id="text28395-7-8-3-6-1"><tspan
+             sodipodi:role="line"
+             id="tspan28393-2-1-4-1-9"
+             style="stroke-width:0.264583"
+             x="142.07782"
+             y="-23.408522">C</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="145.0614"
+           y="-22.647961"
+           id="text31801-4-3-0-0-6"><tspan
+             sodipodi:role="line"
+             id="tspan31799-0-1-3-4-2"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="145.0614"
+             y="-22.647961">1</tspan></text>
+      </g>
+      <circle
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:0.956863"
+         id="path2966-2-0-2-1"
+         cx="630.35272"
+         cy="183.00882"
+         r="2.6458333" />
+      <g
+         id="g35707-5-22-2"
+         transform="matrix(1.9676151,0,0,1.9676151,339.67806,224.40489)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="141.93573"
+           y="-23.647264"
+           id="text28395-6-0-0"><tspan
+             sodipodi:role="line"
+             id="tspan28393-6-5-7"
+             style="stroke-width:0.264583"
+             x="141.93573"
+             y="-23.647264">P</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="143.98566"
+           y="-22.379023"
+           id="text31801-40-5-3"><tspan
+             sodipodi:role="line"
+             id="tspan31799-04-2-1"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="143.98566"
+             y="-22.379023">H</tspan></text>
+      </g>
+      <circle
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:0.956863"
+         id="path2966-2-0-7-9-1"
+         cx="629.55157"
+         cy="100.29848"
+         r="2.6458333" />
+      <g
+         id="g35707-5-2-0-9"
+         transform="matrix(1.9676151,0,0,1.9676151,351.47666,143.38624)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="141.93573"
+           y="-23.647264"
+           id="text28395-6-8-2-0"><tspan
+             sodipodi:role="line"
+             id="tspan28393-6-2-8-5"
+             style="stroke-width:0.264583"
+             x="141.93573"
+             y="-23.647264">P</tspan></text>
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1, 4;stroke-dashoffset:0;stroke-opacity:1"
+         d="m 334.19149,-173.92368 58.49308,-32.34658"
+         id="path2221-0-1-3-6"
+         inkscape:transform-center-x="-32.001792"
+         inkscape:transform-center-y="-0.30766831"
+         transform="rotate(29.108383,-295.1436,224.14699)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         d="m 514.83345,182.6032 114.62677,0.33183"
+         id="path2221-0-1-6-8-7"
+         inkscape:transform-center-x="-54.880509"
+         inkscape:transform-center-y="-0.52762902" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         d="M 448.50896,182.31236 629.3066,101.86816"
+         id="path2221-0-1-6-2-04-7"
+         inkscape:transform-center-x="-86.076592"
+         inkscape:transform-center-y="-39.596113" />
+      <path
+         style="display:inline;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker-end:url(#marker84681)"
+         d="M 449.49035,181.81413 486.0181,165.56145"
+         id="path2221-0-1-6-2-04-7-1"
+         inkscape:transform-center-x="-17.390629"
+         inkscape:transform-center-y="-7.9998645" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:4, 4;stroke-dashoffset:0;stroke-opacity:1"
+         d="m 629.68943,100.31643 -0.29089,82.61878"
+         id="path2221-0-1-6-6-0-4"
+         inkscape:transform-center-x="-0.46253788"
+         inkscape:transform-center-y="39.555859" />
+      <text
+         xml:space="preserve"
+         style="font-size:17.6389px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="508.06943"
+         y="99.302139"
+         id="text52577-9-0"><tspan
+           sodipodi:role="line"
+           id="tspan52575-19-6"
+           style="font-size:17.6389px;stroke-width:0.264583"
+           x="508.06943"
+           y="99.302139">Side View</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1.3479;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1209-91-4-6-4"
+         transform="rotate(26.5)"
+         sodipodi:type="arc"
+         sodipodi:cx="481.39011"
+         sodipodi:cy="-35.511192"
+         sodipodi:rx="73.706757"
+         sodipodi:ry="73.706757"
+         sodipodi:start="5.3981705"
+         sodipodi:end="5.8162035"
+         sodipodi:arc-type="arc"
+         sodipodi:open="true"
+         d="m 528.06698,-92.554647 a 73.706757,73.706757 0 0 1 19.13818,23.861167" />
+      <text
+         xml:space="preserve"
+         style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="519.89716"
+         y="165.63242"
+         id="text104292-9-2-7"><tspan
+           sodipodi:role="line"
+           id="tspan104290-1-5-4"
+           style="stroke-width:0.264583"
+           x="519.89716"
+           y="165.63242"><tspan
+             style="font-size:10.5833px"
+             id="tspan105394-0-4-8">φ</tspan></tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:6.94131px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.337285"
+         x="525.46722"
+         y="169.75812"
+         id="text31801-8-4-5"><tspan
+           sodipodi:role="line"
+           id="tspan31799-7-9-8"
+           style="font-size:6.94131px;stroke-width:0.337285"
+           x="525.46722"
+           y="169.75812">H</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';text-align:center;text-anchor:middle;stroke-width:0.264583"
+         x="466.55807"
+         y="222.9597"
+         id="text29565-9-2"><tspan
+           sodipodi:role="line"
+           id="tspan29563-3-6"
+           style="font-size:10.5833px;text-align:center;text-anchor:middle;stroke-width:0.264583"
+           x="466.55807"
+           y="222.9597">Head Tilt</tspan><tspan
+           sodipodi:role="line"
+           style="font-size:10.5833px;text-align:center;text-anchor:middle;stroke-width:0.264583"
+           x="466.55807"
+           y="236.18883"
+           id="tspan29567-6-0">1 Eye</tspan></text>
+      <g
+         id="g33017-9-0-6"
+         transform="translate(1099.9102,-22.750948)"
+         style="display:inline">
+        <text
+           xml:space="preserve"
+           style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="-621.32538"
+           y="214.61639"
+           id="text30532-9-5-6"><tspan
+             sodipodi:role="line"
+             id="tspan30530-1-0-4"
+             style="font-size:10.5833px;stroke-width:0.264583"
+             x="-621.32538"
+             y="214.61639">R</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:6.94131px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';display:inline;stroke-width:0.337285"
+           x="-616.41864"
+           y="216.73444"
+           id="text31801-4-8-0-2-4-2-6"><tspan
+             sodipodi:role="line"
+             id="tspan31799-0-6-3-82-9-9-2"
+             style="font-size:6.94131px;stroke-width:0.337285"
+             x="-616.41864"
+             y="216.73444">H</tspan></text>
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Arrow1Mend-1)"
+         d="m 515.29792,182.64337 28.75362,0.11025"
+         id="path42888-8" />
+      <g
+         id="g58249-9"
+         transform="translate(8.2729396,0.08866326)">
+        <text
+           xml:space="preserve"
+           style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="528.1261"
+           y="193.75623"
+           id="text44818-6"><tspan
+             sodipodi:role="line"
+             id="tspan44816-0"
+             style="font-size:10.5833px;stroke-width:0.264583"
+             x="528.1261"
+             y="193.75623">H</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:6.35px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="533.91974"
+           y="195.50066"
+           id="text30532-5-7"><tspan
+             sodipodi:role="line"
+             id="tspan30530-17-0"
+             style="font-size:6.35px;stroke-width:0.264583"
+             x="533.91974"
+             y="195.50066">θ</tspan></text>
+      </g>
+      <g
+         id="g58249-9-0"
+         transform="translate(-68.189282,-24.372345)"
+         style="display:inline">
+        <text
+           xml:space="preserve"
+           style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="528.1261"
+           y="193.75623"
+           id="text44818-6-1"><tspan
+             sodipodi:role="line"
+             id="tspan44816-0-3"
+             style="font-size:10.5833px;stroke-width:0.264583"
+             x="528.1261"
+             y="193.75623">H</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:6.35px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="533.91974"
+           y="195.50066"
+           id="text30532-5-7-7"><tspan
+             sodipodi:role="line"
+             id="tspan30530-17-0-7"
+             style="font-size:6.35px;stroke-width:0.264583"
+             x="533.91974"
+             y="195.50066">φ</tspan></text>
+      </g>
+      <text
+         xml:space="preserve"
+         style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="549.36615"
+         y="131.24883"
+         id="text82132"><tspan
+           sodipodi:role="line"
+           id="tspan82130"
+           style="font-size:10.5833px;stroke-width:0.264583"
+           x="549.36615"
+           y="131.24883">d</tspan></text>
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer8"
+     inkscape:label="head_to_lens_theta"
+     style="display:none">
+    <g
+       id="g119291-4"
+       transform="translate(48.287467,75.453364)"
+       style="display:inline">
+      <g
+         id="g87439-2-1-4"
+         transform="translate(-106.93226,-0.69506897)"
+         style="display:inline">
+        <path
+           style="fill:none;stroke:#ff1919;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 177.23883,174.28859 h 38.61468"
+           id="path55360-8-1-5"
+           sodipodi:nodetypes="cc" />
+        <path
+           style="fill:none;stroke:#ff1919;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 215.54832,174.27086 -11.89548,-5.29602"
+           id="path81858-8-0-9" />
+        <path
+           style="fill:none;stroke:#ff1919;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 215.5917,174.28586 -11.89548,5.29602"
+           id="path81858-1-8-8-3" />
+      </g>
+      <g
+         id="g87439-3-6-5-5"
+         transform="rotate(-90,121.11444,224.66942)"
+         style="display:inline;stroke:#2b19ff;stroke-opacity:1">
+        <path
+           style="fill:none;stroke:#2b19ff;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 171.5929,174.28859 h 44.26061"
+           id="path55360-2-8-0-7"
+           sodipodi:nodetypes="cc" />
+        <path
+           style="fill:none;stroke:#2b19ff;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 215.54832,174.27086 -11.89548,-5.29602"
+           id="path81858-15-3-6-0" />
+        <path
+           style="fill:none;stroke:#2b19ff;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+           d="m 215.5917,174.28586 -11.89548,5.29602"
+           id="path81858-1-9-8-4-8" />
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="M 75.162556,107.37582 141.7301,-14.760792"
+         id="path2221-9" />
+      <path
+         style="display:inline;fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker60660)"
+         d="M 76.412716,105.47309 92.378106,76.180155"
+         id="path2221-9-0" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1, 4;stroke-dashoffset:0;stroke-opacity:1"
+         d="M 48.662344,156.43837 75.504468,107.18905"
+         id="path2221-0-2" />
+      <ellipse
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1684-8"
+         cx="146.31679"
+         cy="117.21193"
+         rx="3.2057142"
+         ry="2.9944685"
+         transform="rotate(29.108383)" />
+      <ellipse
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1684-4-6"
+         cx="118.84837"
+         cy="118.25736"
+         rx="3.2057142"
+         ry="2.9944685"
+         transform="rotate(29.108383)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+         d="M 70.861606,173.12044 79.550616,52.838393"
+         id="path19149-3"
+         sodipodi:nodetypes="cc"
+         inkscape:transform-center-x="-4.3681326"
+         inkscape:transform-center-y="-60.546727" />
+      <circle
+         style="fill:none;stroke:#000000;stroke-width:1.21931;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1209-38"
+         cx="141.7532"
+         cy="122.09095"
+         transform="rotate(26.5)"
+         r="66.675003" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1.3479;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1209-91-0"
+         transform="rotate(26.5)"
+         sodipodi:type="arc"
+         sodipodi:cx="141.04083"
+         sodipodi:cy="124.22002"
+         sodipodi:rx="30"
+         sodipodi:ry="30"
+         sodipodi:start="4.3180572"
+         sodipodi:end="5.8162035"
+         sodipodi:arc-type="arc"
+         sodipodi:open="true"
+         d="m 129.51509,96.522412 a 30,30 0 0 1 38.31368,14.191808" />
+      <path
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.998756;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1832-4"
+         sodipodi:type="arc"
+         sodipodi:cx="72.383095"
+         sodipodi:cy="172.51335"
+         sodipodi:rx="200.00063"
+         sodipodi:ry="200.00063"
+         sodipodi:start="4.5070465"
+         sodipodi:end="5.4427003"
+         sodipodi:open="true"
+         sodipodi:arc-type="arc"
+         d="M 31.602476,-23.285503 A 200.00063,200.00063 0 0 1 205.80383,23.519534" />
+      <text
+         xml:space="preserve"
+         style="font-size:14.1111px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="60.054813"
+         y="184.55095"
+         id="text19964-62-8"><tspan
+           sodipodi:role="line"
+           id="tspan19962-99-9"
+           style="font-size:14.1111px;stroke-width:0.264583"
+           x="60.054813"
+           y="184.55095">C</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:14.1111px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="79.942474"
+         y="73.744331"
+         id="text19964-6-8"><tspan
+           sodipodi:role="line"
+           id="tspan19962-9-7"
+           style="font-size:14.1111px;stroke-width:0.264583"
+           x="79.942474"
+           y="73.744331">α</tspan></text>
+      <circle
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:0.956863"
+         id="path2966-9"
+         cx="5.0456905"
+         cy="-65.260574"
+         r="2.6458333"
+         transform="translate(70.980139,171.40974)" />
+      <circle
+         style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:0.956863"
+         id="path2966-2-3"
+         cx="142.60156"
+         cy="-15.33075"
+         r="2.6458333" />
+      <g
+         id="g35707-3"
+         transform="matrix(1.9676151,0,0,1.9676151,-145.42744,25.536158)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="141.93573"
+           y="-23.647264"
+           id="text28395-73"><tspan
+             sodipodi:role="line"
+             id="tspan28393-26"
+             style="stroke-width:0.264583"
+             x="141.93573"
+             y="-23.647264">P</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="143.98566"
+           y="-22.379023"
+           id="text31801-5"><tspan
+             sodipodi:role="line"
+             id="tspan31799-2"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="143.98566"
+             y="-22.379023">H</tspan></text>
+      </g>
+      <g
+         id="g35707-4-6"
+         transform="matrix(1.9676151,0,0,1.9676151,-203.60205,169.40753)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="141.93573"
+           y="-23.647264"
+           id="text28395-7-58"><tspan
+             sodipodi:role="line"
+             id="tspan28393-2-7"
+             style="stroke-width:0.264583"
+             x="141.93573"
+             y="-23.647264">P</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="143.98566"
+           y="-22.379023"
+           id="text31801-4-96"><tspan
+             sodipodi:role="line"
+             id="tspan31799-0-0"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="143.98566"
+             y="-22.379023">1</tspan></text>
+      </g>
+      <g
+         id="g35707-4-0-4"
+         transform="matrix(1.9676151,0,0,1.9676151,-244.73885,214.61319)">
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="142.07782"
+           y="-23.408522"
+           id="text28395-7-8-1"><tspan
+             sodipodi:role="line"
+             id="tspan28393-2-1-0"
+             style="stroke-width:0.264583"
+             x="142.07782"
+             y="-23.408522">C</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:3.52778px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.171418"
+           x="145.0614"
+           y="-22.647961"
+           id="text31801-4-3-4"><tspan
+             sodipodi:role="line"
+             id="tspan31799-0-1-8"
+             style="font-size:3.52778px;stroke-width:0.171418"
+             x="145.0614"
+             y="-22.647961">1</tspan></text>
+      </g>
+      <text
+         xml:space="preserve"
+         style="font-size:17.6389px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="40.952118"
+         y="6.8204765"
+         id="text52577-7-7"><tspan
+           sodipodi:role="line"
+           id="tspan52575-6-0"
+           style="font-size:17.6389px;stroke-width:0.264583"
+           x="40.952118"
+           y="6.8204765">Top View</tspan></text>
+      <g
+         id="g60305"
+         transform="translate(-59.418009,6.8050683)">
+        <text
+           xml:space="preserve"
+           style="font-size:6.94131px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.337285"
+           x="150.35796"
+           y="157.37347"
+           id="text31801-7-3"><tspan
+             sodipodi:role="line"
+             id="tspan31799-5-8"
+             style="font-size:6.94131px;stroke-width:0.337285"
+             x="150.35796"
+             y="157.37347">H</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="145.37044"
+           y="155.28775"
+           id="text104292-7"><tspan
+             sodipodi:role="line"
+             id="tspan104290-93"
+             style="stroke-width:0.264583"
+             x="145.37044"
+             y="155.28775"><tspan
+               style="font-size:10.5833px"
+               id="tspan105394-9">θ</tspan></tspan></text>
+      </g>
+      <g
+         id="g60305-8"
+         transform="translate(-101.90619,-12.807652)"
+         style="display:inline">
+        <text
+           xml:space="preserve"
+           style="font-size:6.94131px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.337285"
+           x="150.35796"
+           y="157.37347"
+           id="text31801-7-3-9"><tspan
+             sodipodi:role="line"
+             id="tspan31799-5-8-1"
+             style="font-size:6.94131px;stroke-width:0.337285"
+             x="150.35796"
+             y="157.37347">H</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="145.37044"
+           y="155.28775"
+           id="text104292-7-5"><tspan
+             sodipodi:role="line"
+             id="tspan104290-93-4"
+             style="stroke-width:0.264583"
+             x="145.37044"
+             y="155.28775"><tspan
+               style="font-size:10.5833px"
+               id="tspan105394-9-9">R</tspan></tspan></text>
+      </g>
+      <text
+         xml:space="preserve"
+         style="font-size:7.05556px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+         x="65.335861"
+         y="158.58212"
+         id="text104292-7-5-4"><tspan
+           sodipodi:role="line"
+           id="tspan104290-93-4-9"
+           style="stroke-width:0.264583"
+           x="65.335861"
+           y="158.58212"><tspan
+             style="font-size:10.5833px"
+             id="tspan105394-9-9-9">R</tspan></tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:10.5833px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';text-align:center;text-anchor:middle;stroke-width:0.264583"
+         x="70.908028"
+         y="219.12448"
+         id="text22839-2"><tspan
+           sodipodi:role="line"
+           id="tspan22837-8"
+           style="font-size:10.5833px;text-align:center;text-anchor:middle;stroke-width:0.264583"
+           x="70.908028"
+           y="219.12448">Head Rotation</tspan><tspan
+           sodipodi:role="line"
+           style="font-size:10.5833px;text-align:center;text-anchor:middle;stroke-width:0.264583"
+           x="70.908028"
+           y="232.35361"
+           id="tspan22841-3">with 2 Eyes</tspan></text>
+      <g
+         id="g76691"
+         transform="translate(-19.186127,-3.1007153)">
+        <text
+           xml:space="preserve"
+           style="font-size:14.1111px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';stroke-width:0.264583"
+           x="105.5871"
+           y="104.3811"
+           id="text62846"><tspan
+             sodipodi:role="line"
+             id="tspan62844"
+             style="font-size:14.1111px;stroke-width:0.264583"
+             x="105.5871"
+             y="104.3811">H</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:6.94131px;line-height:1.25;font-family:'Ubuntu Condensed';-inkscape-font-specification:'Ubuntu Condensed, ';display:inline;stroke-width:0.337285"
+           x="113.36987"
+           y="107.27985"
+           id="text31801-7-3-1"><tspan
+             sodipodi:role="line"
+             id="tspan31799-5-8-7"
+             style="font-size:6.94131px;stroke-width:0.337285"
+             x="113.36987"
+             y="107.27985">θ</tspan></text>
       </g>
     </g>
   </g>
