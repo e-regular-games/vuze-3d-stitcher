@@ -8,7 +8,6 @@ import debug_utils
 import linear_regression
 from transform import TransformDepth
 from transform import Transform
-from transform import TransformScale
 from transform import Transforms
 from transform import TransformLinReg
 from matplotlib import pyplot as plt
@@ -23,6 +22,7 @@ from depth_mesh import switch_axis
 from depth_mesh import DepthMapperSlice
 from depth_mesh import DepthMapper2D
 from depth_mesh import DepthMap
+from depth_mesh import DepthMapCloud
 from feature_matcher import FeatureMatcher2
 from feature_matcher import FeatureMatcher4
 from coordinates import to_1d
@@ -50,25 +50,22 @@ class RefineSeams():
     """
     def __init__(self, images, debug):
         self._images = images
-        self._transforms = []
-        self._feature_points = []
         self._debug = debug
 
-        self.seam_points = 50
-        self.seam_window = 20
         self.calibration = None
 
-        self._targets = None
-        self._matches = None
         self._seams = None
+        self._transforms = []
 
-        self._matches_side = None
         self._matches_seam = None
 
         for i, img in enumerate(images):
             t = Transform(debug)
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
+
+    def data(self):
+        return self._seams, self._transforms
 
     def _calculate_R(self):
         p = np.zeros((len(self.calibration), 3), np.float32)
@@ -84,6 +81,9 @@ class RefineSeams():
 
         self._debug.log('initial', np.mean(err_0, axis=0), np.std(err_0, axis=0))
         self._debug.log('final', np.mean(err, axis=0), np.std(err, axis=0))
+
+        if not self._debug.enable('align-regression'):
+            return
 
         f = plt.figure()
         ax = f.add_subplot(1, 2, 1, projection='3d')
@@ -122,7 +122,7 @@ class RefineSeams():
         md = np.median(points[0][:,1])
         top = np.ones((1, 4, 2)) * [[[0.0, md]]]
         bottom = np.ones((1, 4, 2)) * [[[math.pi, md]]]
-        return np.concatenate([top, bottom]) - [0, math.pi]
+        #return np.concatenate([top, bottom]) - [0, math.pi]
 
         matches = np.zeros((points[0].shape[0], 4, 2), np.float32)
         for i, p in enumerate(points):
@@ -170,7 +170,7 @@ class RefineSeams():
 
         error = np.zeros((dim, dim), np.float32)
         for i in range(4):
-            err_map = DepthMap(points[i], err[i])
+            err_map = DepthMapCloud(points[i], err[i])
             p = create_path(m[sort_idx,i:i+1].reshape((1, dim, 2)), D)
             path_err = err_map.eval(p.reshape((dim, D*dim, 2))).reshape((dim, dim, D))
             error[path_valid] += np.sum(path_err[...,:-1] * delta_position, axis=-1)[path_valid]
@@ -239,11 +239,11 @@ class RefineSeams():
             pred = rpred[0, pred]
 
         path_points = np.flip(m[sort_idx][path], axis=0)
-        path_points_r = dmaps[0].eval(path_points[:,0]).reshape((path_points.shape[0], 1, 1))
+        return path_points - [0, math.pi]
+        #path_points_r = dmaps[0].eval(path_points[:,0]).reshape((path_points.shape[0], 1, 1))
 
-        path_points_r = path_points_r * np.ones(path_points.shape[0:2] + (1,))
+        #path_points_r = path_points_r * np.ones(path_points.shape[0:2] + (1,))
         return np.concatenate([path_points, path_points_r], axis=-1) - [0, math.pi, 0]
-
 
     def align(self):
         dim = self._images[0].shape[0]
@@ -255,15 +255,14 @@ class RefineSeams():
         depth_maps = [DepthMap(5) for i in range(8)]
 
         transforms = []
-        #transforms = [TransformScale([1.5, 0.7], self._debug) for i in range(8)]
-
         for i in range(8):
             t = TransformDepth(self._debug) \
-                .override_params(R, 0.06) \
-                .set_eye(i % 2, switch_axis(self.calibration[i].t)) \
+                .set_interocular(R, 0.06) \
+                .set_eye(i % 2) \
                 .set_position(switch_axis(self.calibration[i].t)) \
                 .set_depth(depth_maps[i])
-            t.validate()
+            if self._debug.verbose:
+                t.validate()
             transforms.append(t)
 
 
@@ -271,7 +270,16 @@ class RefineSeams():
         seams = []
         for i in range(0, 8, 2):
             matches = FeatureMatcher4(imgs[i:i+4:2], imgs[i+1:i+4:2], self._debug).matches()
-            matches_by_seam.append(matches[:,[0,2,1,3]])
+            if matches is not None:
+                matches = matches[:,[0,2,1,3]]
+            if self._matches_seam is not None:
+                keep = self._filter_existing_matches(self._matches_seam[int(i/2)], matches)
+                combined = np.concatenate([self._matches_seam[int(i/2)][keep], matches])
+                matches_by_seam.append(combined)
+            else:
+                matches_by_seam.append(matches)
+
+        self._matches_seam = matches_by_seam
 
         initial = [[] for i in range(8)]
         target = [[] for i in range(8)]
@@ -285,9 +293,6 @@ class RefineSeams():
                 ij = j % 2
                 shift = int(j/2)*np.array([0, -math.pi/2], np.float32)
                 adj[:,j] = transforms[ii].forward(ms[:,j] + shift) - shift
-
-                undo = transforms[ii].reverse(adj[:,j] + shift) - shift
-                print('undo', np.mean((undo - ms[:,j])**2, axis=0))
                 initial[ii].append(adj[:,j] + shift)
 
             for j in range(4):
@@ -319,124 +324,17 @@ class RefineSeams():
             lrf = LinearRegression(np.array([3, 4]), True)
             lrf.regression(ii - offset, ti - offset)
 
-            if self._debug.enable('align-regression'):
-                self._debug_fit(ti - offset, ii - offset, err[kept])
+            self._debug_fit(ti - offset, ii - offset, err[kept])
 
             tlr = TransformLinReg(self._debug) \
                 .set_regression(lrf, lrr) \
                 .set_offset(offset)
             transforms[i] = Transforms([transforms[i], tlr])
-            transforms[i].validate()
-            #transforms[i].show(get_middle(self._images[i]))
 
-        align_err_by_seam = [[] for i in range(4)]
-        for s in range(4):
-            for j in range(4):
-                i = (s * 2 + j) % 8
-                err = align_err[i]
-                align_err_by_seam[s].append(err[side[i] == int(j/2)])
-
-        seams = []
-        for i in range(4):
-            s = self._find_seam(depth_maps_by_seam[i], target_by_seam[i], align_err_by_seam[i])
-            self._debug.log('seam length: ', s.shape[0])
-            seams.append(s[:,0])
-            seams.append(s[:,1])
-
-        self._seams = seams
-        self._transforms = transforms
-        return seams
-
-    def align_depth(self):
-        dim = self._images[0].shape[0]
-        imgs = self._images + self._images[:2]
-        locations = [c.t for c in self.calibration]
-        locations = locations + locations[:2]
-
-        depth_maps_by_seam = [[] for i in range(4)]
-        depth_maps = [[] for i in range(8)]
-        matches_by_seam = []
-        seams = []
-        for i in range(0, 8, 2):
-            slc = DepthMapperSlice(imgs[i:i+4], locations[i:i+4], self._debug)
-            dmaps = slc.map()
-            matches_by_seam.append(slc._matches)
-            for j in range(4):
-                depth_maps_by_seam[int(i/2)].append(dmaps[j])
-                depth_maps[(i+j)%8].append(dmaps[j])
-
-        depth_maps = [DepthMap.merge(d).set_area(1) if d else None for d in depth_maps]
-
-        transforms = []
-        R = self._calculate_R()
-        for i in range(8):
-            d = depth_maps[i]
-            t = TransformDepth(self._debug) \
-                .override_params(R, 0.06) \
-                .set_eye(i%2, switch_axis(self.calibration[i].t)) \
-                .set_position(switch_axis(self.calibration[i].t)) \
-                .set_depth(d)
-            transforms.append(t)
-
-        initial = [[] for i in range(8)]
-        target = [[] for i in range(8)]
-        side = [[] for i in range(8)]
-        target_by_seam = [[] for i in range(4)]
-        for i, ms in enumerate(matches_by_seam):
-            adj = np.zeros(ms.shape, np.float32)
-            for j in range(4):
-                ii = (i*2+j) % 8
-                # account for shift after the mean process of targeting
-                shift = int(j/2)*np.array([0, -math.pi/2], np.float32)
-                adj[:,j] = transforms[ii].apply(ms[:,j].copy() + shift) - shift
-                initial[ii].append(ms[:,j].copy() + shift)
-
-            for j in range(4):
-                ii = (i*2+j) % 8
-                ij = j % 2
-                shift = int(j/2)*np.array([0, -math.pi/2], np.float32)
-                print('using average')
-                adjd = (adj[:,ij] - adj[:,ij+2])
-                print('adj', np.sqrt(np.mean(adjd**2, axis=0)))
-                print(np.min(np.abs(adjd), axis=0), np.max(np.abs(adjd), axis=0))
-                avgd = (ms[:,ij] - ms[:,ij+2])
-                print('avg', np.sqrt(np.mean(avgd**2, axis=0)))
-                print(np.min(np.abs(avgd), axis=0), np.max(np.abs(avgd), axis=0))
-                t = (ms[:,ij] + ms[:,ij+2]) / 2
-                target[ii].append(t + shift)
-                depth_maps_by_seam[i][j] = DepthMap(t + shift, depth_maps_by_seam[i][j]._r)
-                target_by_seam[i].append(t)
-                side[ii].append(int(j/2) * np.ones((t.shape[0], ), np.float32))
-
-        plt.show()
-        exit(1)
-
-        initial = [np.concatenate(c) for c in initial]
-        target = [np.concatenate(c) for c in target]
-        side = [np.concatenate(c) for c in side]
-
-        offset = [math.pi/2, math.pi]
-        transforms = []
-        align_err = []
-        for i in range(8):
-            lr = LinearRegression(np.array([2, 4]), True)
-            kept = trim_outliers_by_diff(target[i], initial[i], [3, 3])
-            ti = target[i][kept]
-            ii = initial[i][kept]
-            err = target[i] - initial[i]
-            err[kept] = lr.regression(ti - offset, ii - offset)
-            align_err.append(np.sqrt(np.sum(err*err, axis=-1)))
-            if self._debug.enable('align-regression'):
-                self._debug_fit(ti - offset, ii - offset, err[kept])
-
-            t = TransformLinReg(self._debug) \
-                .set_regression(lr) \
-                .set_offset(offset)
-            err0 = target[i] - initial[i]
-            err = t.eval(target[i]) - initial[i]
-            self._debug.log('initial', i, np.mean(err0, axis=0), np.std(err0, axis=0))
-            self._debug.log('final', i, np.mean(err, axis=0), np.std(err, axis=0))
-            transforms.append(t)
+            if self._debug.verbose:
+                transforms[i].validate()
+            if self._debug.enable('image-transforms'):
+                transforms[i].show(get_middle(self._images[i]))
 
         align_err_by_seam = [[] for i in range(4)]
         for s in range(4):
@@ -460,26 +358,15 @@ class RefineSeams():
         d = {
             'seams': [],
             'transforms': [],
-            'matches': [],
-            'targets': []
+            'matchesBySeam': []
         }
 
         for s in self._seams:
             d['seams'].append(s.tolist())
-
         for t in self._transforms:
-            d['transforms'].append({
-                'phiOrder': t.phi_coeffs_order,
-                'thetaOrder': t.theta_coeffs_order,
-                'phiCoeffs': t.phi_coeffs.tolist(),
-                'thetaCoeffs': t.theta_coeffs.tolist()
-            })
-
-        for m in self._matches:
-            d['matches'].append(m.tolist())
-
-        for t in self._targets:
-            d['targets'].append(t.tolist())
+            d['transforms'].append(t.to_dict())
+        for m in self._matches_seam:
+            d['matchesBySeam'].append(m.tolist())
 
         return d
 
@@ -490,19 +377,11 @@ class RefineSeams():
 
         self._transforms = []
         for s in d['transforms']:
-            t = Transform(self._debug)
-            t.phi_coeffs_order = s['phiOrder']
-            t.theta_coeffs_order = s['thetaOrder']
-            t.phi_coeffs = np.array(s['phiCoeffs'])
-            t.theta_coeffs = np.array(s['thetaCoeffs'])
+            t = Transform.from_dict(s, self._debug)
             self._transforms.append(t)
 
-        self._matches = []
-        for m in d['matches']:
-            self._matches.append(np.array(m))
-
-        self._targets = []
-        for t in d['targets']:
-            self._targets.append(np.array(t))
+        self._matches_seam = []
+        for m in d['matchesBySeam']:
+            self._matches_seam.append(np.array(m))
 
         return self

@@ -4,11 +4,12 @@ import math
 import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
+from linear_regression import LinearRegression
 
 # Generic class to transform coordinates C to C'.
 # The base class performs no transformation.
 class Transform():
-    def __init__(self, debug):
+    def __init__(self, debug=None):
         self._debug = debug
 
     # coordinates are a NxMx2 matrix of polar coordinates (phi, theta)
@@ -28,7 +29,7 @@ class Transform():
     # the mean squared error between the initial and final values.
     def validate(self):
         res = 10
-        plr = coordinates.polar_points_3d((res, res))[4:5,1:-1]
+        plr = coordinates.polar_points_3d((res, res))[1:-1,1:-1]
 
         ev = self.reverse(plr)
         ev0 = self.forward(ev)
@@ -62,6 +63,22 @@ class Transform():
         f.add_subplot(1, 1, 1).imshow(img0)
         f.suptitle('Untransformed')
 
+    def to_dict(self):
+        return {'type': 'identity'}
+
+    @staticmethod
+    def from_dict(d, debug=None):
+        if not 'type' in d:
+            return Transform(debug)
+        elif d['type'] == 'transforms':
+            return Transforms.from_dict(d, debug)
+        elif d['type'] == 'linreg':
+            return TransformLinReg.from_dict(d, debug)
+        elif d['type'] == 'depth':
+            return TransformDepth.from_dict(d, debug)
+        return Transform(debug)
+
+
 class Transforms(Transform):
     """
     Transforms applied in order, ie the evaluated coordinates from the
@@ -83,17 +100,18 @@ class Transforms(Transform):
             res = t.forward(res)
         return res
 
-class TransformScale(Transform):
-    def __init__(self, scale, debug):
-        super().__init__(debug)
-        self._scale = scale
+    def to_dict(self):
+        return {
+            'type': 'transforms',
+            'transforms': [t.to_dict() for t in self._transforms]
+        }
 
-    def reverse(self, c):
-        return c / self._scale
-
-
-    def forward(self, c):
-        return c * self._scale
+    @staticmethod
+    def from_dict(d, debug):
+        if not 'type' in d or d['type'] != 'transforms':
+            return Transform(debug)
+        arr = [Transform.from_dict(t, debug) for t in d['transforms']]
+        return Transforms(arr)
 
 class TransformLinReg(Transform):
     """
@@ -128,6 +146,29 @@ class TransformLinReg(Transform):
 
         return self._forward.evaluate(c - self._offset) + self._offset
 
+    def to_dict(self):
+        r = {'type': 'linreg'}
+        if self._forward is not None:
+            r['forward'] = self._forward.to_dict()
+        if self._reverse is not None:
+            r['reverse'] = self._reverse.to_dict()
+        r['offset'] = self._offset
+        return r
+
+    @staticmethod
+    def from_dict(d, debug):
+        if not 'type' in d or d['type'] != 'linreg':
+            return Transform(debug)
+
+        t = TransformLinReg(debug)
+        t._offset = d['offset']
+        if 'forward' in d:
+            t._forward = LinearRegression().from_dict(d['forward'])
+        if 'reverse' in d:
+            t._reverse = LinearRegression().from_dict(d['reverse'])
+        return t
+
+
 class TransformDepth(Transform):
     """
     Determine transforms for image coordinates based on polar coordinates system
@@ -138,30 +179,46 @@ class TransformDepth(Transform):
     def __init__(self, debug):
         super().__init__(debug)
         self._p_0 = None
-        self._shift = None
-        self._center = None
         self._eye = 1
+        self._alpha = 0
+        self._depth = None
 
-        # set, _R, _interocular and _alpha
-        self.override_params(0.064, 0.06)
+        # overrides _alpha based on the
+        self.set_interocular(0.064, 0.06)
 
         self._debug = debug
 
-    def override_params(self, R, interocular):
-        self._R = R
-        self._interocular = interocular
-        self._alpha = math.asin(self._interocular / (2 * self._R))
+    def to_dict(self):
+        d = {'type': 'depth'}
+        d['p0'] = self._p_0.tolist()
+        d['eye'] = self._eye
+        d['alpha'] = self._alpha
+        if self._depth is not None:
+            d['depth'] = self._depth.to_dict()
+        return d
+
+    @staticmethod
+    def from_dict(d, debug):
+        if not 'type' in d or d['type'] != 'linreg':
+            return Transform(debug)
+        t = TransformDepth(debug)
+        t._p_0 = np.array(self._p_0, np.float32)
+        t._eye = d['eye']
+        t._alpha = d['alpha']
+        t._depth = DepthMap.from_dist(d['depth'])
+        return t
+
+    def set_interocular(self, R, interocular):
+        self._alpha = math.asin(interocular / (2 * R))
         return self
 
     # e is either [0, 1] for [left, right] respecitvely
     # center is a cartesian coordinate, normally the same as position
-    def set_eye(self, e, center):
+    def set_eye(self, e):
         if e == 0:
             self._eye = 1
         elif e == 1:
             self._eye = -1
-
-        self._center = center
         return self
 
     def set_position(self, p_0):
@@ -172,7 +229,7 @@ class TransformDepth(Transform):
         self._depth = dmap
         return self
 
-    def _apply(self, c):
+    def forward(self, c):
         dim = c.shape[0]
         r = self._depth.eval(c)
         R = np.linalg.norm(self._p_0[:,0:2])
@@ -208,12 +265,6 @@ class TransformDepth(Transform):
 
         return result
 
-
-    def forward(self, c):
-        #shift = self._apply(np.array([[[math.pi/2, math.pi]]]))[0,0] - [math.pi/2, math.pi]
-        return self._apply(c)
-
-
     def reverse(self, c):
         p_0 = self._p_0[:,0:2]
         R = np.linalg.norm(p_0)
@@ -226,9 +277,6 @@ class TransformDepth(Transform):
         p_1[...,0,0] = R * np.cos(c[...,1])
         p_1[...,1,0] = R * np.sin(c[...,1])
 
-        #print('p_1')
-        #print(p_1)
-
         alpha = self._eye * -self._alpha
         R_alpha = np.array([[math.cos(alpha), -math.sin(alpha), 0], \
                             [math.sin(alpha), math.cos(alpha), 0], \
@@ -239,14 +287,7 @@ class TransformDepth(Transform):
         H_theta = R_alpha @ p_1
         H_theta = H_theta / np.linalg.norm(H_theta, axis=-2).reshape(c.shape[:-1] + (1, 1))
 
-        #print('H_theta')
-        #print(H_theta.shape)
-        #print(H_theta)
-
         R_H = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], np.float32)
-
-        #print('R_H @ H_theta')
-        #print(R_H @ H_theta)
 
         # transform transposed to convert from the unit vectors for H_theta
         T_H_T = np.zeros(c.shape[:-1] + (3, 3), np.float32)
@@ -254,21 +295,12 @@ class TransformDepth(Transform):
         T_H_T[...,0:3,1] = (R_H @ H_theta)[...,0]
         T_H_T[...,0:3,2] = [0, 0, 1]
 
-        #print('T_H_T')
-        #print(T_H_T[0,0])
-
         # R_phi = R_phi @ [1, 0, 0]
         R_phi = np.zeros(c.shape[:-1] + (3, 1), np.float32)
         R_phi[...,0,0] = np.cos(-c[...,0])
         R_phi[...,2,0] = -np.sin(-c[...,0])
 
-        #print('R_phi')
-        #print(R_phi)
-
         H_phi = T_H_T @ R_phi
-        #print('H_phi')
-        #print(H_phi.shape)
-        #print(H_phi)
 
         R_E = R
         C_1 = p_1 - R_E * H_theta
@@ -283,86 +315,3 @@ class TransformDepth(Transform):
         result = [0, 3*math.pi/2] + [1, -1] * coordinates.cart_to_polar(P.reshape(c.shape[:-1] + (3,)))
 
         return  result
-
-    def reverse_vector(self, c):
-        p_0 = self._p_0[:,0:2]
-        R = np.linalg.norm(p_0)
-
-        r = self._depth.eval(c).reshape(c.shape[:-1] + (1,)) # TODO this should not be c...
-        z = (r + R) * np.sin(math.pi/2 - c[...,0:1])
-        y = np.sqrt((r + R)**2 - z**2) - R
-        above = (c[...,0:1] < math.pi) + -1 * (c[...,0:1] >= math.pi)
-        r = r * np.cos(np.arctan2(z, y))
-        phi = math.pi/2 - above * np.arctan2(z, y)
-
-        rho = coordinates.cart_to_polar(self._p_0 * [1, 1, 0])[0,1]
-
-        p_1_l_plr = [math.pi/2, rho] + [0,-1] * (c - [0, math.pi])
-        p_1_l = coordinates.polar_to_cart(p_1_l_plr, R)
-
-        P_d = coordinates.polar_to_cart(p_1_l_plr - [0, self._eye * self._alpha], 1)
-
-        m_1x = P_d[...,0:1]
-        m_1y = P_d[...,1:2]
-
-        P_0x = p_0[0,0]
-        P_0y = p_0[0,1]
-
-        P_1x = p_1_l[...,0:1]
-        P_1y = p_1_l[...,1:2]
-
-        # solve P_d + d_0 * m_1 == P_0 + r * m_2 for beta
-        # where m_2 = [ cos(beta); sin(beta) ]
-        beta = -2*np.arctan2((m_1x*r - np.sqrt(-P_0x**2*m_1y**2 + 2*P_0x*P_0y*m_1x*m_1y + 2*P_0x*P_1x*m_1y**2 - 2*P_0x*P_1y*m_1x*m_1y - P_0y**2*m_1x**2 - 2*P_0y*P_1x*m_1x*m_1y + 2*P_0y*P_1y*m_1x**2 - P_1x**2*m_1y**2 + 2*P_1x*P_1y*m_1x*m_1y - P_1y**2*m_1x**2 + m_1x**2*r**2 + m_1y**2*r**2)), (-P_0x*m_1y + P_0y*m_1x + P_1x*m_1y - P_1y*m_1x + m_1y*r))
-
-        theta = 3*math.pi/2 - beta
-
-        return np.concatenate([phi, theta], axis=-1)
-
-
-
-    # Expects c to be a NxMx2 3d matrix where the last dimension is (phi, theta)
-    def reverse_trig(self, c):
-
-        p_0 = self._p_0 * [1, 1, 0]
-        R = np.linalg.norm(p_0)
-
-        r = self._depth.eval(c).reshape(c.shape[:-1] + (1,)) # TODO this should not be c...
-        z = (r + R) * np.sin(math.pi/2 - c[...,0:1])
-        y = np.sqrt((r + R)**2 - z**2) - R
-        above = (c[...,0:1] < math.pi) + -1 * (c[...,0:1] >= math.pi)
-        phi = math.pi/2 - above * np.arctan2(z, y)
-
-        rho = coordinates.cart_to_polar(self._p_0)[0,1]
-
-        p_1_l_plr = [math.pi/2, rho] + [0,-1] * (c - [0, math.pi])
-        p_1_l = coordinates.polar_to_cart(p_1_l_plr, R)
-
-        P_d = coordinates.polar_to_cart(p_1_l_plr - [0, self._eye * self._alpha], 1)
-
-        # this math only works because we assume z=0 for all points.
-        # ie we are operating in the x-y-axis plane
-        angle_P_d = coordinates.angle(P_d, np.array([1, 0, 0], np.float32))
-
-        rho_2 = coordinates.angle(p_1_l - p_0, np.array([1, 0, 0], np.float32))
-        flip = np.logical_and((p_1_l - p_0)[...,1:2] < 0, rho_2 < math.pi/2)
-        rho_2[flip] = -1 * rho_2[flip]
-        rho_2[rho_2 > math.pi/2] = math.pi - rho_2[rho_2 > math.pi/2]
-
-        rho_1 = angle_P_d - rho_2
-        flip = rho_1 >= math.pi/2
-        d = np.sqrt(np.sum((p_1_l - p_0)**2, axis=-1)).reshape(c.shape[:-1] + (1,))
-
-        qa = 1 + np.tan(rho_1)**2
-        qb = 2 * d
-        qc = (d**2 - y**2)
-
-        x = (-qb + np.sqrt(qb*qb - 4*qa*qc)) / (2*qa)
-        x[qa > 1000000] = 0
-
-        beta = np.arccos((d + x) / y)
-        beta[flip] = math.pi - beta[flip]
-
-        theta = 3*math.pi/2 - (beta + rho_2)
-
-        return np.concatenate([phi, theta], axis=-1)

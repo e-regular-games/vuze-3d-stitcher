@@ -24,7 +24,6 @@ def print_usage():
     print('-i,--image <file_prefix>\t\tOverride the input and output config options.')
     print('-I,--in <file_prefix>\t\tOverride the input config option.')
     print('-O,--out <file_prefix>\t\tOverride the output config option.')
-    print('-C,--color <type>\t\tOverride the color_correction config option.')
     print('-q,--quality <verticle_pixels>\t\tVertical resolution of the full output image.')
     print('-F,--fast <level>\t\t\tSkip recomputing seams and color correction. Levels {1: skip seams, 2: skip color, 3: skip seams and color}.')
     print('-f,--format <spec>\t\tA "," separated list of output formats: {gpano, stereo, over-under}. See the config file description below for more information.')
@@ -48,8 +47,6 @@ def print_usage():
     print('resolution,<pixels>\t\t\tOutput vertical resolution.')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
-    print('color_correction,mean-seams\t\t\tAdjust colors of all lenses using the mean between lenses along the entire seam.')
-    print('color_correction,mean-matches\t\t\tAdjust colors of all lenses using the mean between lenses for matching points between images.')
     print('accel_align,<enabled>\t\t\tUse the accelerometer to rotate and translate the lens. default: false')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
     print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
@@ -81,13 +78,12 @@ class ProgramOptions:
         self.out_override = ''
         self.format = []
         self.resolution = 0
-        self.color_correction = None
         self.fast = 0
         self.load_processed = None
 
         options, arguments = getopt.getopt(
             sys.argv[1:],
-            'd:hF:w:r:vc:i:f:I:O:q:C:a:l:o:',
+            'd:hF:w:r:vc:i:f:I:O:q:a:l:o:',
             [
                 'help',
                 'image=',
@@ -102,7 +98,6 @@ class ProgramOptions:
                 'verbose',
                 'display=',
                 'quality=',
-                'color=',
                 'ellipse-coeffs',
                 'fast=',
                 'yaml-config=',
@@ -151,8 +146,6 @@ class ProgramOptions:
                 self.in_override = a
             elif o in ("-O", "--out"):
                 self.out_override = a
-            elif o in ("-C", "--color"):
-                self.color_correction = a
             elif o in ("-q", "--quality"):
                 self.resolution = int(a)
             elif o in ("-f", "--format"):
@@ -191,10 +184,9 @@ class Config:
         self.super_res = []
         self.super_res_config = {}
         self.super_res_buckets = {}
-        self.color_correct = 'mean-seams'
         self.accel_align = True
         self.contrast_equ = None
-        self.seam_blend_margin = 5 * math.pi / 180
+        self.seam_blend_margin = 4 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
 
@@ -239,8 +231,6 @@ class Config:
             self.super_res_config[cmd[1]] = cmd[2]
         elif cmd[0] == 'accel_align' and len(cmd) == 2:
             self.accel_align = (cmd[1] == 'true')
-        elif cmd[0] == 'color_correction' and len(cmd) >= 2:
-            self.color_correct = cmd[1]
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:

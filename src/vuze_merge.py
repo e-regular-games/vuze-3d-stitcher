@@ -178,8 +178,6 @@ def main():
         config.output = options.out_override
     if options.resolution > 0:
         config.resolution = options.resolution
-    if options.color_correction is not None:
-        config.color_correct = options.color_correction
 
     if len(options.format) > 0:
         config.format = {}
@@ -259,17 +257,11 @@ def main():
             json.dump(content, f, indent=4)
         print('alignment coeffs added to file:', options.alignment_file)
 
-    stitches = seam._seams
-    matches = seam._matches
-    ts = seam._transforms
+    seams, transforms = seam.data()
 
-    if config.color_correct == 'mean-seams' and options.fast != 2 and options.fast != 3:
-        color = color_correction.ColorCorrectionSeams(images, ts, stitches, debug)
+    if options.fast != 2 and options.fast != 3:
+        color = color_correction.ColorCorrectionSeams(images, transforms, seams, debug)
         print('computing color mean-seams')
-        cc = color.match_colors()
-    elif config.color_correct == 'mean-matches' and options.fast != 2 and options.fast != 3:
-        color = color_correction.ColorCorrectionMatches(images, matches, debug)
-        print('computing color mean-matches')
         cc = color.match_colors()
 
     print('')
@@ -288,15 +280,15 @@ def main():
         splice_right.set_camera_rotations(rotate_x, rotate_y)
 
     for s in range(4):
-        st_l = stitches[2*s].copy()
+        st_l = seams[2*s].copy()
         st_l[:,1] += s * math.pi / 2
         splice_left.set_stitch(s, st_l)
-        splice_left.set_transform(s, ts[2*s])
+        splice_left.set_transform(s, transforms[2*s])
 
-        st_r = stitches[2*s+1].copy()
+        st_r = seams[2*s+1].copy()
         st_r[:,1] += s * math.pi / 2
         splice_right.set_stitch(s, st_r)
-        splice_right.set_transform(s, ts[2*s+1])
+        splice_right.set_transform(s, transforms[2*s+1])
 
         if cc is not None:
             splice_left.set_color_transform(s, cc[2*s])

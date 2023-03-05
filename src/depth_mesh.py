@@ -170,7 +170,7 @@ class DepthCalibration():
         return self
 
     def initial_sqr_err(self, a, b, r_exp):
-        r, d = radius_compute(a, b, self._p_left, self._p_right)
+        r, _, d = radius_compute(a, b, self._p_left, self._p_right)
         err = np.sum((r-r_exp)*(r-r_exp))
         print('initial squared error:', err)
         print('initial distance at intersect (r_d*r_d):', np.sum(d*d))
@@ -220,7 +220,7 @@ class DepthCalibration():
 
     def finalize(self):
         r_exp = self._r_expected
-        r, d = radius_compute(self._coords[0], self._coords[1], self._p_left, self._p_right)
+        r, _, d = radius_compute(self._coords[0], self._coords[1], self._p_left, self._p_right)
         print('initial squared error:', np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0])
         print('initial distance at intersect (r_d*r_d):', np.sum(d*d))
         print('samples:', self._expected.shape[0])
@@ -311,7 +311,7 @@ class DepthCalibration():
         info = np.zeros((4,), np.float32)
         coords, expected, r_exp = \
             self._determine_coordinates(self._img_left, self._img_right, self._patches)
-        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+        r, _, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
         info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[2] = np.sum(d*d)
 
@@ -323,7 +323,7 @@ class DepthCalibration():
 
         coords, expected, r_exp = \
             self._determine_coordinates(self._img_left, right, self._patches)
-        r, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+        r, _, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
         info[1] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[3] = np.sum(d*d)
         return info
@@ -349,6 +349,22 @@ class DepthMap():
     def eval(self, c):
         return self._r * np.ones(c.shape[:-1], np.float32)
 
+    def to_dict(self):
+        d = {'type': 'constant'}
+        d['r'] = self._r
+        return d
+
+    @staticmethod
+    def from_dict(d):
+        if not 'type' in d:
+            return DepthMap(1)
+
+        if d['type'] == 'constant':
+            return DepthMap(d['r'])
+        elif d['type'] == 'cloud':
+            return DepthMapCloud.from_dict(d)
+
+        return DepthMap(1)
 
 class DepthMapCloud(DepthMap):
     def __init__(self, polar, r):
@@ -358,6 +374,25 @@ class DepthMapCloud(DepthMap):
         self._tree = KDTree(coordinates.polar_to_cart(polar, 1))
         self._area = min(len(polar), 8)
         self._r = r
+
+    def to_dict(self):
+        d = {'type': 'cloud'}
+        d['points'] = self._pts.tolist()
+        d['area'] = self._area
+        d['r'] = self._r.tolist()
+        return d
+
+    @staticmethod
+    def from_dict(d):
+        if not 'type' in d or d['type'] != 'cloud':
+            return DepthMap(1)
+
+        plr = np.array(d['points'], np.float32)
+        r = np.array(d['r'], np.float32)
+
+        d = DepthMapCloud(plr, r)
+        d.set_area(d['area'])
+        return d
 
     # the integer number of nearest neighbors to consider during evaluation of a point.
     def set_area(self, a):
