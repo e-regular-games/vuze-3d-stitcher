@@ -73,7 +73,6 @@ class RefineSeams():
             p[i] = switch_axis(self.calibration[i].t)
 
         R = np.mean(np.sqrt(np.sum(p*p, axis=1)))
-        print('R', R)
         return R
 
     def _debug_fit(self, x, y, err):
@@ -111,139 +110,6 @@ class RefineSeams():
                 keep[d] = 0
         self._debug.log('existing kept matches:', np.count_nonzero(keep), 'of', existing.shape[0])
         return keep
-
-    # each input is an array of length 4.
-    # the result is the seam to the right of the image with center at 0
-    # the seam will be approximately at pi/4
-    def _find_seam(self, dmaps, points, err):
-        # note: phi=0 is the top of the image, phi=pi is the bottom
-        # theta is around 3pi/2
-
-        md = np.median(points[0][:,1])
-        top = np.ones((1, 4, 2)) * [[[0.0, md]]]
-        bottom = np.ones((1, 4, 2)) * [[[math.pi, md]]]
-        #return np.concatenate([top, bottom]) - [0, math.pi]
-
-        matches = np.zeros((points[0].shape[0], 4, 2), np.float32)
-        for i, p in enumerate(points):
-            matches[:,i] = p.copy()
-
-        m = np.concatenate([top, matches, bottom])
-        dim = m.shape[0]
-        sort_idx = np.argsort(m[:,0,0])
-        m0_col = m[sort_idx,0:1]
-        m0_row = m0_col.reshape((1, dim, 2))
-
-        valid = np.ones((dim, dim, 1), bool)
-        for i in range(4):
-            dphi = m[sort_idx,i:i+1,0].reshape((1, dim, 1)) - m[sort_idx,i:i+1,0:1]
-            valid = np.logical_and(valid, dphi > 0.01)
-
-        def square_and_scale(cost):
-            if np.count_nonzero(cost>0) == 0:
-                return cost
-            cost = cost / np.min(cost[cost>0])
-            cost = cost * cost
-            cost = (999 * (cost-1) / np.max(cost - 1)) + 1
-            return cost
-
-        def create_path(pts, D):
-            dim = pts.shape[1]
-            phi_ff, phi_ii = np.meshgrid(pts[...,0], pts[...,0])
-            theta_ff, theta_ii = np.meshgrid(pts[...,1], pts[...,1])
-
-            rg = np.arange(D).reshape((1, 1, D, 1))
-            path_at = np.zeros((dim, dim, D, 2), np.float32)
-            path_at[...,0:1] = phi_ii.reshape((dim, dim, 1, 1)) \
-                + rg * (phi_ff.reshape((dim, dim, 1, 1)) - phi_ii.reshape((dim, dim, 1, 1))) / (D-1)
-            path_at[...,1:2] = theta_ii.reshape((dim, dim, 1, 1)) \
-                + rg * (theta_ff.reshape((dim, dim, 1, 1)) - theta_ii.reshape((dim, dim, 1, 1))) / (D-1)
-            return path_at
-
-        D = 50
-        path_at = create_path(m0_row, D)
-        path_r = dmaps[0].eval(path_at.reshape((dim, D*dim, 2))).reshape((dim, dim, D))
-
-        delta_position = path_at[...,1:,:] - path_at[...,:-1,:]
-        delta_position = np.sqrt(np.sum(delta_position * delta_position, axis=-1))
-        path_valid = np.all(delta_position > 0.00001, axis=-1)
-
-        error = np.zeros((dim, dim), np.float32)
-        for i in range(4):
-            err_map = DepthMapCloud(points[i], err[i])
-            p = create_path(m[sort_idx,i:i+1].reshape((1, dim, 2)), D)
-            path_err = err_map.eval(p.reshape((dim, D*dim, 2))).reshape((dim, dim, D))
-            error[path_valid] += np.sum(path_err[...,:-1] * delta_position, axis=-1)[path_valid]
-        error_cost = square_and_scale(error)
-
-        position_cost = square_and_scale(np.sum(delta_position, axis=-1))
-
-        path_cart = coordinates.polar_to_cart(path_at, path_r)
-        delta_cart = path_cart[...,1:,:] - path_cart[...,:-1,:]
-        delta_cart = np.sqrt(np.sum(delta_cart * delta_cart, axis=-1))
-        cart_cost = square_and_scale(np.sum(delta_cart, axis=-1))
-
-        slope = np.zeros((dim, dim), np.float32)
-        slope[path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1]) / delta_position, axis=-1)[path_valid]
-        slope_cost = square_and_scale(slope)
-
-        phi_cost = square_and_scale(m0_row[...,0] - m0_col[...,0])
-
-        mat = 0.2*slope_cost + 0.5*error_cost + 0.1*cart_cost + 0.1*position_cost + 0.1*phi_cost
-        mat[np.logical_not(valid.reshape((dim, dim)))] = 0
-
-        if self._debug.enable('seam-path-cost'):
-            f = plt.figure()
-            ax = f.add_subplot(2, 3, 2)
-            ax.set_title('Slope Cost')
-            clr = colors.TwoSlopeNorm(vmin=np.min(slope_cost), vcenter=np.mean(slope_cost), vmax=np.max(slope_cost))
-            pos = ax.imshow(slope_cost, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-            ax = f.add_subplot(2, 3, 3)
-            ax.set_title('Position Cost')
-            pos = ax.imshow(position_cost, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-            ax = f.add_subplot(2, 3, 4)
-            ax.set_title('Cartesian Cost')
-            clr = colors.TwoSlopeNorm(vmin=np.min(cart_cost), vcenter=np.mean(cart_cost), vmax=np.max(cart_cost))
-            pos = ax.imshow(cart_cost, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-            ax = f.add_subplot(2, 3, 5)
-            ax.set_title('Error Cost')
-            clr = colors.TwoSlopeNorm(vmin=np.min(error_cost), vcenter=np.mean(error_cost), vmax=np.max(error_cost))
-            pos = ax.imshow(error_cost, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-            ax = f.add_subplot(2, 3, 6)
-            ax.set_title('Phi Cost')
-            clr = colors.TwoSlopeNorm(vmin=np.min(phi_cost), vcenter=np.mean(phi_cost), vmax=np.max(phi_cost))
-            pos = ax.imshow(phi_cost, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-            ax = f.add_subplot(2, 3, 1)
-            ax.set_title('Combined Cost')
-            clr = colors.TwoSlopeNorm(vmin=np.min(mat), vcenter=np.mean(mat), vmax=np.max(mat))
-            pos = ax.imshow(mat, norm=clr, cmap='summer', interpolation='none')
-            f.colorbar(pos, ax=ax)
-
-        rdist, rpred = shortest_path(mat, return_predecessors=True)
-
-        top_idx = m0_col.shape[0]-1
-        path = [top_idx]
-        pred = rpred[0,top_idx]
-        while pred >= 0:
-            path.append(pred)
-            pred = rpred[0, pred]
-
-        path_points = np.flip(m[sort_idx][path], axis=0)
-        return path_points - [0, math.pi]
-        #path_points_r = dmaps[0].eval(path_points[:,0]).reshape((path_points.shape[0], 1, 1))
-
-        #path_points_r = path_points_r * np.ones(path_points.shape[0:2] + (1,))
-        return np.concatenate([path_points, path_points_r], axis=-1) - [0, math.pi, 0]
 
     def align(self):
         dim = self._images[0].shape[0]
@@ -345,7 +211,11 @@ class RefineSeams():
 
         seams = []
         for i in range(4):
-            s = self._find_seam(depth_maps_by_seam[i], target_by_seam[i], align_err_by_seam[i])
+            s = ChooseSeam(self._debug) \
+                .depth_maps(depth_maps_by_seam[i]) \
+                .matches(target_by_seam[i]) \
+                .error(align_err_by_seam[i]) \
+                .find_seam()
             self._debug.log('seam length: ', s.shape[0])
             seams.append(s[:,0])
             seams.append(s[:,1])
@@ -385,3 +255,191 @@ class RefineSeams():
             self._matches_seam.append(np.array(m))
 
         return self
+
+# each input is an array of length 4.
+# the result is the seam to the right of the image with center at 0
+# the seam will be approximately at pi/4
+class ChooseSeam():
+    def __init__(self, debug):
+        self._debug = debug
+        self._dmaps = None
+        self._points = None
+        self._err = None
+
+        self._D = 50
+        self._valid = None
+        self._path_valid = None
+        self._sort_index = None
+        self._delta_position = None
+
+        self._error_cost = None
+        self._position_cost = None
+        self._cart_cost = None
+        self._slope_cost = None
+        self._phi_cost = None
+        self._mat = None
+
+
+    def depth_maps(self, dmaps):
+        self._dmaps = dmaps
+        return self
+
+    # list of np arrays, one for each images in the seam
+    def matches(self, matches):
+        self._points = matches
+        return self
+
+    def error(self, err):
+        self._err = err
+        return self
+
+    def _create_error_cost(self, m):
+        dim = m.shape[0]
+        error = np.zeros((dim, dim), np.float32)
+        for i in range(4):
+            err_map = DepthMapCloud(self._points[i], self._err[i])
+            p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
+            path_err = err_map.eval(p.reshape((dim, self._D * dim, 2))).reshape((dim, dim, self._D))
+            error[self._path_valid] += \
+                np.sum(path_err[...,:-1] * self._delta_position, axis=-1)[self._path_valid]
+        self._error_cost = self._square_and_scale(error)
+
+    def _plot(self):
+        f = plt.figure()
+        ax = f.add_subplot(2, 3, 2)
+        ax.set_title('Slope Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._slope_cost), \
+                                  vcenter=np.mean(self._slope_cost), \
+                                  vmax=np.max(self._slope_cost))
+        pos = ax.imshow(self._slope_cost, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+        ax = f.add_subplot(2, 3, 3)
+        ax.set_title('Position Cost')
+        pos = ax.imshow(self._position_cost, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+        ax = f.add_subplot(2, 3, 4)
+        ax.set_title('Cartesian Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._cart_cost), \
+                                  vcenter=np.mean(self._cart_cost), \
+                                  vmax=np.max(self._cart_cost))
+        pos = ax.imshow(self._cart_cost, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+        ax = f.add_subplot(2, 3, 5)
+        ax.set_title('Error Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._error_cost),
+                                  vcenter=np.mean(self._error_cost), \
+                                  vmax=np.max(self._error_cost))
+        pos = ax.imshow(self._error_cost, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+        ax = f.add_subplot(2, 3, 6)
+        ax.set_title('Phi Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._phi_cost), \
+                                  vcenter=np.mean(self._phi_cost), \
+                                  vmax=np.max(self._phi_cost))
+        pos = ax.imshow(self._phi_cost, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+        ax = f.add_subplot(2, 3, 1)
+        ax.set_title('Combined Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._mat), \
+                                  vcenter=np.mean(self._mat), \
+                                  vmax=np.max(self._mat))
+        pos = ax.imshow(self._mat, norm=clr, cmap='summer', interpolation='none')
+        f.colorbar(pos, ax=ax)
+
+    def _create_valid(self, m):
+        dim = m.shape[0]
+        self._valid = np.ones((dim, dim, 1), bool)
+        for i in range(4):
+            dphi = m[self._sort_idx,i:i+1,0].reshape((1, dim, 1)) - m[self._sort_idx,i:i+1,0:1]
+            self._valid = np.logical_and(self._valid, dphi > 0.01)
+
+    def find_seam(self):
+        # note: phi=0 is the top of the image, phi=pi is the bottom
+        # theta is around 3pi/2
+
+        md = np.median(self._points[0][:,1])
+        top = np.ones((1, 4, 2)) * [[[0.0, md]]]
+        bottom = np.ones((1, 4, 2)) * [[[math.pi, md]]]
+
+        matches = np.zeros((self._points[0].shape[0], 4, 2), np.float32)
+        for i, p in enumerate(self._points):
+            matches[:,i] = p.copy()
+
+        m = np.concatenate([top, matches, bottom])
+        self._sort_idx = np.argsort(m[:,0,0])
+        dim = m.shape[0]
+        m0_col = m[self._sort_idx,0:1]
+        m0_row = m0_col.reshape((1, dim, 2))
+
+        self._create_valid(m)
+
+        path_at = self._create_path(m0_row)
+        path_r = self._dmaps[0].eval(path_at.reshape((dim, self._D*dim, 2))).reshape((dim, dim, self._D))
+
+        delta_position = path_at[...,1:,:] - path_at[...,:-1,:]
+        self._delta_position = np.sqrt(np.sum(delta_position * delta_position, axis=-1))
+        self._path_valid = np.all(self._delta_position > 0.00001, axis=-1)
+
+        self._create_error_cost(m)
+
+        self._position_cost = self._square_and_scale(np.sum(self._delta_position, axis=-1))
+
+        path_cart = coordinates.polar_to_cart(path_at, path_r)
+        delta_cart = path_cart[...,1:,:] - path_cart[...,:-1,:]
+        delta_cart = np.sqrt(np.sum(delta_cart * delta_cart, axis=-1))
+        self._cart_cost = self._square_and_scale(np.sum(delta_cart, axis=-1))
+
+        slope = np.zeros((dim, dim), np.float32)
+        slope[self._path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1]) / self._delta_position, axis=-1)[self._path_valid]
+        self._slope_cost = self._square_and_scale(slope)
+
+        self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])
+
+        self._mat = 0.2 * self._slope_cost \
+            + 0.5 * self._error_cost \
+            + 0.1 * self._cart_cost \
+            + 0.1 * self._position_cost \
+            + 0.1 * self._phi_cost
+        self._mat[np.logical_not(self._valid.reshape((dim, dim)))] = 0
+
+        if self._debug.enable('seam-path-cost'):
+            self._plot()
+
+        rdist, rpred = shortest_path(self._mat, return_predecessors=True)
+
+        top_idx = m0_col.shape[0]-1
+        path = [top_idx]
+        pred = rpred[0,top_idx]
+        while pred >= 0:
+            path.append(pred)
+            pred = rpred[0, pred]
+
+        path_points = np.flip(m[self._sort_idx][path], axis=0)
+        return path_points - [0, math.pi]
+
+
+    def _square_and_scale(self, cost):
+        if np.count_nonzero(cost>0) == 0:
+            return cost
+        cost = cost / np.min(cost[cost>0])
+        cost = cost * cost
+        cost = (999 * (cost-1) / np.max(cost - 1)) + 1
+        return cost
+
+    def _create_path(self, pts):
+        dim = pts.shape[1]
+        phi_ff, phi_ii = np.meshgrid(pts[...,0], pts[...,0])
+        theta_ff, theta_ii = np.meshgrid(pts[...,1], pts[...,1])
+
+        rg = np.arange(self._D).reshape((1, 1, self._D, 1))
+        path_at = np.zeros((dim, dim, self._D, 2), np.float32)
+        path_at[...,0:1] = phi_ii.reshape((dim, dim, 1, 1)) \
+            + rg * (phi_ff.reshape((dim, dim, 1, 1)) - phi_ii.reshape((dim, dim, 1, 1))) / (self._D-1)
+        path_at[...,1:2] = theta_ii.reshape((dim, dim, 1, 1)) \
+            + rg * (theta_ff.reshape((dim, dim, 1, 1)) - theta_ii.reshape((dim, dim, 1, 1))) / (self._D-1)
+        return path_at

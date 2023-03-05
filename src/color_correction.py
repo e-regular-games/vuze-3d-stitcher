@@ -82,9 +82,14 @@ class ColorTransform():
 
         try:
             Q, R = np.linalg.qr(x)
+            R_inv = np.linalg.inv(R)
+            if np.count_nonzero(np.isinf(R_inv)) > 0:
+                self._debug.log('error computing coefficients: infinity')
+                return hsv_error(i, f)
+
             self._c = np.linalg.inv(R).dot(np.transpose(Q)) @ y
         except:
-            print('error computing coefficients')
+            self._debug.log('error computing coefficients: exception')
             return hsv_error(i, f)
 
         self._range = KDTree(x[:,:4])
