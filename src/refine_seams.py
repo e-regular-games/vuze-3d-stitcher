@@ -308,10 +308,10 @@ class ChooseSeam():
         f = plt.figure()
         ax = f.add_subplot(2, 3, 2)
         ax.set_title('Slope Cost')
-        clr = colors.TwoSlopeNorm(vmin=np.min(self._slope_cost), \
-                                  vcenter=np.mean(self._slope_cost), \
-                                  vmax=np.max(self._slope_cost))
-        pos = ax.imshow(self._slope_cost, norm=clr, cmap='summer', interpolation='none')
+        #clr = colors.TwoSlopeNorm(vmin=np.min(self._slope_cost), \
+                                  #vcenter=np.mean(self._slope_cost), \
+                                  #vmax=np.max(self._slope_cost))
+        pos = ax.imshow(self._slope_cost, cmap='summer', interpolation='none')
         f.colorbar(pos, ax=ax)
 
         ax = f.add_subplot(2, 3, 3)
@@ -395,7 +395,7 @@ class ChooseSeam():
         self._cart_cost = self._square_and_scale(np.sum(delta_cart, axis=-1))
 
         slope = np.zeros((dim, dim), np.float32)
-        slope[self._path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1]) / self._delta_position, axis=-1)[self._path_valid]
+        slope[self._path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1])[self._path_valid] / self._delta_position[self._path_valid], axis=-1)
         self._slope_cost = self._square_and_scale(slope)
 
         self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])

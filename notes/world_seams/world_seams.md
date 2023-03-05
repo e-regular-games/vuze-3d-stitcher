@@ -25,7 +25,7 @@ Each lens takes a single fisheye image centered around its position on the camer
 
 | Top View | Side View |
 | :------: | :-------: |
-| <img src="lens_top.png" alt="Top view of the lens coordinate system." width="400px" /> | <img src="lens_side.png" alt="Side view of the lens coordinate system." width="400px" /> |
+| <img src="lens_top.png" alt="Top view of the lens coordinate system." width="450px" /> | <img src="lens_side.png" alt="Side view of the lens coordinate system." width="450px" /> |
 
 ### Eye Coordinates
 
@@ -33,7 +33,7 @@ The eye coordinate system will be used to identify locations within the final $3
 
 | Top View | Side View |
 | :------: | :-------: |
-| <img src="head_top.png" alt="Top view of the head coordinate system." width="400px" /> | <img src="head_side.png" alt="Side view of the head coordinate system." width="400px" /> |
+| <img src="head_top.png" alt="Top view of the head coordinate system." width="450px" /> | <img src="head_side.png" alt="Side view of the head coordinate system." width="450px" /> |
 
 ### Determining the Radius
 
@@ -95,7 +95,7 @@ The following diagrams labels the distances in a specific example using a locati
 
 | Top View | Side View |
 | :------: | :-------: |
-| <img src="lens_to_head_theta.png" alt="Additional labels to compute theta." width="400px" /> | <img src="lens_to_head_phi.png" alt="Additional labels to compute phi." width="400px" /> |
+| <img src="lens_to_head_theta.png" alt="Additional labels to compute theta." width="450px" /> | <img src="lens_to_head_phi.png" alt="Additional labels to compute phi." width="450px" /> |
 
 ### Eye to Lens Transform
 
@@ -107,7 +107,7 @@ $$\begin{array}
 & R = \left\\| \vec{p_0} \right\\| & \alpha = -e \sin^{-1} \left( \frac{E}{2R} \right)
 \end{array}$$
 
-Three rotation matrices will be required $R_\alhpa$, $R_{\phi_H}$, and $R_z$. The rotation $R_\alhpa$ rotates a vector about the x-axis by an angle of $\alpha$. The rotation $R_{\phi_H}$ rotates a vector about the y-axis by an angle of $\phi_H$. The rotation $R_z$ rotates a vector $90^\circ$ about the z-axis.
+Three rotation matrices will be required $R_\alpha$, $R_{\phi_H}$, and $R_z$. The rotation $R_\alpha$ rotates a vector about the x-axis by an angle of $\alpha$. The rotation $R_{\phi_H}$ rotates a vector about the y-axis by an angle of $\phi_H$. The rotation $R_z$ rotates a vector $90^\circ$ about the z-axis.
 
 $$\begin{array}
 & R_\alpha = \begin{bmatrix}
@@ -123,7 +123,7 @@ $$\begin{array}
 & R_z = \begin{bmatrix}
 0 & -1 & 0 \\\\
 1 & 0 & 0 \\\\
-0 & 0 & 1 \\\\
+0 & 0 & 1
 \end{bmatrix}
 \end{array}$$
 
@@ -142,8 +142,8 @@ $$C_1 = P_1 - R_H \vec{H_\theta}$$
 To determine $H_\phi$ the vector $H_\theta$ will be rotated about $C_1$ by the angle $\phi_H$. This will require create a basis for the space which allows for easier rotation using $R_{\phi_H}$. Since $\vec{H_\theta}$ is in the x-y-axis plane the $R_z$ rotation can be used to create a perpendicular unit vector. The basis will be defined as follows. Using this bases the unit vector in the x-direction can be rotated by $R_\phi$ and then untransformed from this bases to obtain $\vec{H_\phi}$.
 
 $$T_H = \begin{bmatrix}
-\rule[.5ex]{2.5ex}{0.5pt} & \vec{H_\theta} & \rule[.5ex]{2.5ex}{0.5pt} \\\\
-\rule[.5ex]{2.5ex}{0.5pt} & R_z \vec{H_\theta} & \rule[.5ex]{2.5ex}{0.5pt} \\\\
+ & \vec{H_\theta} & \\\\
+ & R_z \vec{H_\theta} & \\\\
 0 & 0 & 1
 \end{bmatrix}$$
 
@@ -155,7 +155,7 @@ $$P = C_1 + d \vec{H_\phi}$$
 
 $$\left\\| P - P_0 \right\\|^2 = r^2$$
 
-Using the intersection of a line and sphere from Wikipedia there are two possible solutions for $d$. Again the solution which yields a positive value for $d$ is used.
+Using the intersection of a line and sphere from Wikipedia there are two possible solutions for $d$. Again the solution which yields a positive value for $d$ is used. The radius from $P_0$ to $P$ was assumed to be a constant value for all points.
 
 $$d = -\vec{H_\phi} \cdot (C_1 - P_0) + \sqrt{ \left( \vec{H_\phi} \cdot (C_1 - P_0) \right) ^2 - \left( \left\\| C_1 - P_0 \right\\| ^2 - r^2 \right)}$$
 
@@ -163,17 +163,50 @@ This $d$ can be used to compute $P$ and the polar coordinates of $P$ from $P_0$ 
 
 | Top View | Side View |
 | :------: | :-------: |
-| <img src="head_to_lens_theta.png" alt="Additional labels to compute theta." width="400px" /> | <img src="head_to_lens_phi.png" alt="Additional labels to compute phi." width="400px" /> |
+| <img src="head_to_lens_theta.png" alt="Additional labels to compute theta." width="450px" /> | <img src="head_to_lens_phi.png" alt="Additional labels to compute phi." width="450px" /> |
+
+### Intelligent Seam Determination
+
+To determine the best path along a seam the matching feature points from each lens will be used as possible points along the path. The cost to move between points is calculated as the weighted average of 5 metrics. These metrics are based on the polar path between the nodes along the arc determined by a linear progression of $\phi$ and $\theta$. The arc is divided into 50 discrete segments which are used to estimate the values along the path.
+
+The Error, $C_e$, cost between nodes is the error from the linear regression used to ensure the feature points from each image align in the final head coordinate space.
+
+The Cartesian, $C_c$, cost is the distance measured between the cartesian coordinates along the image sphere. This measure accounts for the radius of each point along the sphere when calculating the coordinates.
+
+The Phi, $C_\phi$, cost is the difference between $\phi$ of different nodes.
+
+The Slope, $C_s$, cost is most relevant when the radius of the sphere is allowed to change with respect to the polar coordinate. It represents the changes in the radius with respect to changes in the polar coordinates. The increased cost with increased slope will deter selections of points in which there are drastic changes in the radius.
+
+The Position, $C_p$, cost is the distance between pairs of polar coordinates $(\phi, \theta)$ by taking the norm of the difference between polar points along the path.
+
+Each cost is squared and scaled such that the minimum value is 1 and the maximum value is 1000. The costs are then combined using the following weights.
+
+$$0.5C_e + 0.2C_s + 0.1C_c + 0.1C_p + 0.1C_\phi$$
+
+The path with the lowest cost is determined using the `scipy.sparse.csgraph.shortest_path` function. An example of the cost used as input to the function is provided below. The HET_0014 images is used to generate the example and the seam lengths for the image are detailed below.
+
+| Cost between Nodes |
+| :------: |
+| <img src="seam_path_cost.png" alt="" width="600px" /> |
+
+| Seam | Length |
+| :----: | :-----: |
+| 1 | 18 |
+| 2 | 17 |
+| 3 | 18 |
+| 4 | 19 |
 
 ### Results
 
+To verify the transforms were working as expected a matrix of polar coordinates were run through the forward calculations and then the reverse. The intial value with the final values were compared and the difference was seen to be extremely close to 0. A similar process was performed using the reverse and then forward calculation and again the result was extremely close to 0.
+
 | HET_0014 with new Transforms |
 | :------: |
-| <img src="../../test/HET_0014_world_seams.JPG" alt="HET_0014 scaled to 25%" width="500px" /> |
+| <img src="../../test/HET_0014_world_seams.JPG" alt="HET_0014 scaled to 25%" width="600px" /> |
 
 | HET_0017 with new Transforms |
 | :------: |
-| <img src="../../test/HET_0017_world_seams.JPG" alt="HET_0017 scaled to 25%" width="500px" /> |
+| <img src="../../test/HET_0017_world_seams.JPG" alt="HET_0017 scaled to 25%" width="600px" /> |
 
 
 ## Saved Calibration Configuration

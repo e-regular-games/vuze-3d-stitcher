@@ -9,7 +9,7 @@
    id="svg1312"
    inkscape:version="1.1.2 (0a00cf5339, 2022-02-04)"
    sodipodi:docname="eye_coordinates.svg"
-   inkscape:export-filename="/home/ryebread/Documents/photos/vuze3d/project/notes/world_seams/lens_to_head_phi.png"
+   inkscape:export-filename="/home/ryebread/Documents/photos/vuze3d/project/notes/world_seams/head_to_lens_theta.png"
    inkscape:export-xdpi="92"
    inkscape:export-ydpi="92"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -26,15 +26,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:document-units="mm"
      showgrid="false"
-     inkscape:zoom="1.2488985"
-     inkscape:cx="475.21877"
-     inkscape:cy="695.41281"
+     inkscape:zoom="0.49962254"
+     inkscape:cx="471.35584"
+     inkscape:cy="633.47823"
      inkscape:window-width="1870"
      inkscape:window-height="1044"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="g119329-1-9"
+     inkscape:current-layer="layer9"
      inkscape:snap-global="false"
      fit-margin-top="20"
      fit-margin-left="20"
@@ -1974,7 +1974,7 @@
      inkscape:groupmode="layer"
      id="layer9"
      inkscape:label="head_to_lens_phi"
-     style="display:inline">
+     style="display:none">
     <g
        id="g119329-1-9"
        transform="translate(-386.16151,5.4880582)"
@@ -2322,7 +2322,7 @@
      inkscape:groupmode="layer"
      id="layer8"
      inkscape:label="head_to_lens_theta"
-     style="display:none">
+     style="display:inline">
     <g
        id="g119291-4"
        transform="translate(48.287467,75.453364)"

@@ -182,6 +182,7 @@ class TransformDepth(Transform):
         self._eye = 1
         self._alpha = 0
         self._depth = None
+        self._R_E = 0.03
 
         # overrides _alpha based on the
         self.set_interocular(0.064, 0.06)
@@ -193,6 +194,7 @@ class TransformDepth(Transform):
         d['p0'] = self._p_0.tolist()
         d['eye'] = self._eye
         d['alpha'] = self._alpha
+        d['radiusEye'] = self._R_E
         if self._depth is not None:
             d['depth'] = self._depth.to_dict()
         return d
@@ -206,6 +208,8 @@ class TransformDepth(Transform):
         t._eye = d['eye']
         t._alpha = d['alpha']
         t._depth = DepthMap.from_dist(d['depth'])
+        if 'radiusEye' in d:
+            t._R_E = d['radiusEye']
         return t
 
     def set_interocular(self, R, interocular):
@@ -256,7 +260,7 @@ class TransformDepth(Transform):
 
         P_hl = P_h - P_l
         n = np.sqrt(np.sum(P_hl*P_hl, axis=-1)).reshape(c.shape[:-1] + (1,))
-        C_1 = P_hl * R / n + P_h
+        C_1 = P_hl * self._R_E / n + P_h
 
         above = (P[...,2:3] >= 0) + -1 * (P[...,2:3] < 0)
         phi = math.pi/2 - above * coordinates.angle(P - C_1, P_l - C_1)
@@ -302,8 +306,7 @@ class TransformDepth(Transform):
 
         H_phi = T_H_T @ R_phi
 
-        R_E = R
-        C_1 = p_1 - R_E * H_theta
+        C_1 = p_1 - self._R_E * H_theta
 
         # intersect with lens sphere
         p_0 = (self._p_0 * np.array([[1, 1, 0]], np.float32)).reshape((3, 1))
