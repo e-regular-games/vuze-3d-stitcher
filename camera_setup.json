@@ -13,6 +13,12 @@
       "calibration/colored_far_left",
       "calibration/colored_far_right"
     ],
+    "seams": [
+      {"seam": 0, "name": "calibration/colored_seam_a"},
+      {"seam": 1, "name": "calibration/colored_seam_b"},
+      {"seam": 2, "name": "calibration/colored_seam_c"},
+      {"seam": 3, "name": "calibration/colored_seam_d"}
+    ],
     "patches": [
       {
         "color": "940505",

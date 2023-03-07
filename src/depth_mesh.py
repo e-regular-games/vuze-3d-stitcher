@@ -118,18 +118,13 @@ def radius_compute(left, right, p_l, p_r, minimum=0.1, maximum=10):
 
 class DepthCalibration():
     def __init__(self, debug=None):
-        self._img_left = None
-        self._img_right = None
-        self._p_left = None
-        self._p_right = None
-
         self._patches = None
-
         self._debug = debug
 
         self._coords = np.zeros((2, 0, 2), np.float32)
         self._expected = np.zeros((0, 2), np.float32)
         self._r_expected = np.zeros((0, 1), np.float32)
+        self._r_initial = np.zeros((0, 1), np.float32)
 
         self._mode = 'linreg'
         self._linreg = None
@@ -139,15 +134,9 @@ class DepthCalibration():
         self._patches = patches;
         return self
 
+    # mode is either 'kabsch' or 'linreg'
     def set_mode(self, mode):
         self._mode = mode
-        return self
-
-    def set_image_pair(self, img_left, img_right, p_left, p_right):
-        self._img_left = get_middle(img_left)
-        self._img_right = get_middle(img_right)
-        self._p_left = switch_axis(p_left)
-        self._p_right = switch_axis(p_right)
         return self
 
     def to_dict(self):
@@ -168,13 +157,6 @@ class DepthCalibration():
         if 'rotation' in d:
             self._rotation = np.array(d['rotation'])
         return self
-
-    def initial_sqr_err(self, a, b, r_exp):
-        r, _, d = radius_compute(a, b, self._p_left, self._p_right)
-        err = np.sum((r-r_exp)*(r-r_exp))
-        print('initial squared error:', err)
-        print('initial distance at intersect (r_d*r_d):', np.sum(d*d))
-        return err
 
     # returns a tuple (coords, valid)
     # assumes img is the middle of an equirectangular image
@@ -199,30 +181,40 @@ class DepthCalibration():
     # returns the theta and phi of the center of the color patch within the image
     def _find_color(self, img, c):
         tol = 10
-        ind = np.nonzero(np.logical_and(np.logical_and(np.abs(img[...,0].astype(np.float32) - c[0]) < tol, np.abs(img[...,1].astype(np.float32) - c[1]) < tol), np.abs(img[...,2].astype(np.float32) - c[2]) < tol))
+        ind = np.nonzero(np.logical_and(np.logical_and(np.abs(img[...,0].astype(np.float32) - c[0]) < tol, \
+                                                       np.abs(img[...,1].astype(np.float32) - c[1]) < tol), \
+                                        np.abs(img[...,2].astype(np.float32) - c[2]) < tol))
         if ind[0].shape[0] == 0 or ind[1].shape[0] == 0:
             return None
         return np.array([np.mean(ind[0]), np.mean(ind[1])])
 
-    def determine_coordinates(self):
+    # images a and b and their positions.
+    # note: adjustments are made to image a only.
+    def add_coordinates(self, a, b, p_a, p_b):
+        a = get_middle(a)
+        b = get_middle(b)
+        p_a = switch_axis(p_a)
+        p_b = switch_axis(p_b)
         coords, expected, r_expected = \
-            self._determine_coordinates(self._img_left, self._img_right, self._patches)
+            self._determine_coordinates(a, b, p_a, p_b, self._patches)
+        r_initial, _, _ = radius_compute(coords[0], coords[1], p_a, p_b)
+
         self._coords = np.concatenate([self._coords, coords], axis=1)
         self._expected = np.concatenate([self._expected, expected], axis=0)
         self._r_expected = np.concatenate([self._r_expected, r_expected], axis=0)
+        self._r_initial = np.concatenate([self._r_initial, r_initial], axis=0)
 
-    def apply(self, right):
+    def apply(self, img):
         if self._mode == 'linreg':
-            return self._apply_linreg(self._linreg, right)
+            return self._apply_linreg(self._linreg, img)
         if self._mode == 'kabsch':
-            return self._apply_kabsch(self._rotation, right)
+            return self._apply_kabsch(self._rotation, img)
         return None
 
     def finalize(self):
         r_exp = self._r_expected
-        r, _, d = radius_compute(self._coords[0], self._coords[1], self._p_left, self._p_right)
+        r = self._r_initial
         print('initial squared error:', np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0])
-        print('initial distance at intersect (r_d*r_d):', np.sum(d*d))
         print('samples:', self._expected.shape[0])
 
         if self._debug.enable('depth-samples'):
@@ -230,14 +222,23 @@ class DepthCalibration():
             ax = plt.figure().add_subplot(projection='3d')
             ax.scatter(c[:,0], c[:,1], c[:,2], marker='.')
 
+        if self._debug.enable('depth-error'):
+            d = self._coords[0] - self._expected
+            f = plt.figure()
+            f.add_subplot(1, 2, 1, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d[:,0], marker='.')
+            f.add_subplot(1, 2, 2, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d[:,1], marker='.')
+
+
         if self._mode == 'linreg':
-            self._finalize_linreg()
+            self._finalize_linreg(self._coords[0], self._expected)
         if self._mode == 'kabsch':
-            self._finalize_kabsch()
+            self._finalize_kabsch(self._coords[0], self._expected)
 
         return self
 
-    def _determine_coordinates(self, left, right, patches):
+    def _determine_coordinates(self, a, b, p_a, p_b, patches):
         r_expected = np.zeros((len(patches), 1))
         for pi, p in enumerate(patches):
             r_expected[pi,0] = p['distance']
@@ -245,7 +246,7 @@ class DepthCalibration():
         n = len(patches)
         coords = np.zeros((2, n, 2))
         valid = np.zeros((2, n), dtype=np.bool)
-        for ii, i in enumerate([left, right]):
+        for ii, i in enumerate([a, b]):
             coords[ii], valid[ii] = self._find_colors(i, patches)
 
         valid_pair = np.logical_and(valid[0], valid[1])
@@ -253,77 +254,81 @@ class DepthCalibration():
         r_expected = r_expected[valid_pair]
         n = np.count_nonzero(valid_pair)
 
-        expected = np.zeros((n,2))
-        cart_left = coordinates.polar_to_cart(coords[0], 1)
-        p_exp = self._p_left + r_expected * cart_left
-        cart_right_exp = p_exp - self._p_right
-        cart_right_exp = cart_right_exp / np.linalg.norm(cart_right_exp, axis=1).reshape((n, 1))
-        expected = coordinates.cart_to_polar(cart_right_exp)
+        cart_a = coordinates.polar_to_cart(coords[0], 1)
+        cart_b = coordinates.polar_to_cart(coords[1], 1)
+        p_a_exp = p_a + r_expected * cart_a
+        p_b_exp = p_b + r_expected * cart_b
+        p_exp = 0.5 * (p_a_exp + p_b_exp)
+        cart_a_exp = p_exp - p_a
+        cart_a_exp = cart_a_exp / np.linalg.norm(cart_a_exp, axis=1).reshape((n, 1))
+        expected = coordinates.cart_to_polar(cart_a_exp)
 
         return coords, expected, r_expected
 
-    def _apply_linreg(self, linreg, right):
-        shape_full = (right.shape[0], 2*right.shape[0])
+    def _apply_linreg(self, linreg, img):
+        shape_full = (img.shape[0], 2*img.shape[0])
         shape_half = (shape_full[0], int(shape_full[1] / 2))
 
         center_pts = coordinates.polar_points_3d(shape_half)
         center_pts = linreg.evaluate(center_pts)
         center_pts = coordinates.polar_to_eqr_3d(center_pts, shape_full)
         center_pts -= [shape_full[1]/4, 0]
-        return coordinates.eqr_interp_3d(center_pts, right)
+        return coordinates.eqr_interp_3d(center_pts, img)
 
-    def _apply_kabsch(self, rot, right):
-        s = (right.shape[0], right.shape[1])
+    def _apply_kabsch(self, rot, img):
+        s = (img.shape[0], img.shape[1])
         center_pts = coordinates.polar_points_3d(s)
         center_pts_cart = coordinates.polar_to_cart([0, 3/2*math.pi] + np.array([1, -1]) * center_pts, 1)
         center_pts_cart = np.transpose(np.matmul(rot, np.transpose(center_pts_cart.reshape((s[0] * s[1], 3))))).reshape(s + (3,))
         center_pts = [0, 3/2*math.pi] + np.array([1, -1]) * coordinates.cart_to_polar(center_pts_cart)
         center_pts_eqr = coordinates.polar_to_eqr_3d(center_pts, (s[0], 2*s[0]))
         center_pts_eqr -= [s[1]/2, 0]
-        return coordinates.eqr_interp_3d(center_pts_eqr, right)
+        return coordinates.eqr_interp_3d(center_pts_eqr, img)
 
-    def _finalize_linreg(self):
+    def _finalize_linreg(self, act, exp):
         # convert back to coordinates with the image centered at pi
-        exp = self._expected.copy()
-        exp[:,1] = 3*math.pi/2 - exp[:,1]
-        act = self._coords[1].copy()
-        act[:,1] = 3*math.pi/2 - act[:,1]
+        exp = [0, 3*math.pi/2] + [1, -1] * exp
+        act = [0, 3*math.pi/2] + [1, -1] * act
 
         self._linreg = LinearRegression(np.array([2, 4]), False)
         err = self._linreg.regression(exp, act)
         print('linear regression depth squared error:', np.sum(err*err, axis=0))
 
-    def _finalize_kabsch(self):
-        cart_left = coordinates.polar_to_cart(self._coords[0], 1)
-        cart_right = coordinates.polar_to_cart(self._coords[1], 1)
-        cart_right_exp = coordinates.polar_to_cart(self._expected, 1)
+    def _finalize_kabsch(self, act, exp):
+        cart_a = coordinates.polar_to_cart(act, 1)
+        cart_a_exp = coordinates.polar_to_cart(exp, 1)
 
-        rot, rssd = Rotation.align_vectors(cart_right, cart_right_exp)
+        rot, rssd = Rotation.align_vectors(cart_a, cart_a_exp)
         print('kabsch rssd', rssd)
 
-        est = np.transpose(np.matmul(rot.as_matrix(), np.transpose(cart_right_exp)))
-        err = est - cart_right
-        print('kabsch cart init:', np.sum((cart_right - cart_right_exp)*(cart_right - cart_right_exp)))
+        est = np.transpose(np.matmul(rot.as_matrix(), np.transpose(cart_a_exp)))
+        err = est - cart_a
+        print('kabsch cart init:', np.sum((cart_a - cart_a_exp)*(cart_a - cart_a_exp)))
         print('kabsch cart err:', np.sum(err * err))
         self._rotation = rot.as_matrix()
 
-    def result_info(self):
+    def result_info(self, a, b, p_a, p_b):
+        a = get_middle(a)
+        b = get_middle(b)
+        p_a = switch_axis(p_a)
+        p_b = switch_axis(p_b)
+
         info = np.zeros((4,), np.float32)
         coords, expected, r_exp = \
-            self._determine_coordinates(self._img_left, self._img_right, self._patches)
-        r, _, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+            self._determine_coordinates(a, b, p_a, p_b, self._patches)
+        r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
         info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[2] = np.sum(d*d)
 
-        right = self.apply(self._img_right)
+        b_adj = self.apply(b)
         if self._debug.enable('depth-cal-finalize'):
-            self._debug.subplot('depth-cal-left').imshow(self._img_left)
-            self._debug.subplot('depth-cal-original').imshow(self._img_right)
-            self._debug.subplot('depth-cal-right').imshow(right)
+            self._debug.subplot('depth-cal-left').imshow(a)
+            self._debug.subplot('depth-cal-original').imshow(b)
+            self._debug.subplot('depth-cal-right').imshow(b_adj)
 
         coords, expected, r_exp = \
-            self._determine_coordinates(self._img_left, right, self._patches)
-        r, _, d = radius_compute(coords[0], coords[1], self._p_left, self._p_right)
+            self._determine_coordinates(a, b_adj, p_a, p_b, self._patches)
+        r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
         info[1] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[3] = np.sum(d*d)
         return info

@@ -80,6 +80,53 @@ class CameraSetup():
             c.from_yaml(yaml_coeffs[i], i)
         print('yaml config read.')
 
+    def _seams(self):
+        if not 'depth' in self._setup:
+            return
+
+        if not 'patches' in self._setup['depth']:
+            print('A "patches" list must be provided with color and distance information.')
+            return
+        if not 'method' in self._setup['depth']:
+            print('The "method" must be provided: {linreg, kabsch}.')
+            return
+        if not 'seams' in self._setup['depth']:
+            print('The "seams" must be provided as an array of objects with "name" and "seam".')
+            return
+
+        for c in self._calibration:
+            if c.empty():
+                print('The yaml or ellipse calibration must be performed before depth analysis.')
+                return
+
+        patches = self._setup['depth']['patches']
+        mode = self._setup['depth']['method']
+
+        seams = [SeamCalibration(self._debug) \
+                 .set_mode(mode) \
+                 .set_patches(patches) \
+                 for i in range(2)]
+
+        locations = [c.t for c in (self._calibration + self._calibration[-2:])]
+        for s in self._setup['depth']['seams']:
+            if not 'name' in s or not 'seam' in s:
+                print('Each object in seams must contain "seam" and "name".')
+                return
+            config = Config()
+            config.input = s['name']
+            loader = ImageLoader(config, self._debug)
+            images = loader.load(self._calibration)
+            images = images + images[-2:]
+            i = s['seam']
+            seam = seams[int(i/2)] \
+                .set_side(i%2) \
+                .set_images(images[i*2:i*2+4]) \
+                .set_locations(locations[i*2:i*2+4]) \
+                .determine_coordinates()
+
+
+        self._calibration[2*i+1].depth = d
+
     def _depth(self):
         if not 'depth' in self._setup:
             return
@@ -93,6 +140,9 @@ class CameraSetup():
         if not 'method' in self._setup['depth']:
             print('The "method" must be provided: {linreg, kabsch}.')
             return
+        if not 'seams' in self._setup['depth']:
+            print('The "seams" must be provided as an array of objects with "name" and "seam".')
+            return
 
         for c in self._calibration:
             if c.empty():
@@ -102,16 +152,18 @@ class CameraSetup():
         patches = self._setup['depth']['patches']
         mode = self._setup['depth']['method']
 
-        depths = [DepthCalibration(self._debug.set_subplot(1, 4, i+1)) \
+        depths = [DepthCalibration(self._debug.set_subplot(2, 4, i+1)) \
                   .set_mode(mode) \
                   .set_patches(patches) \
-                  for i in range(4)]
+                  for i in range(8)]
 
         class ImageSet:
-            def __init__(self, images, name):
+            def __init__(self, images, name, seam_only=None):
                 self.images = images
                 self.filename = name
+                self.seam_only = seam_only
 
+        locations = [c.t for c in self._calibration]
         image_sets = []
         for img in self._setup['depth']['images']:
             config = Config()
@@ -122,16 +174,49 @@ class CameraSetup():
 
         for s in image_sets:
             for i, d in enumerate(depths):
-                ii = 2*i
-                d.set_image_pair(s.images[ii], s.images[ii+1], \
-                                 self._calibration[ii].t, self._calibration[ii+1].t)
-                d.determine_coordinates()
+                o = 1 - 2*(i%2)
+                d.add_coordinates(s.images[i], s.images[i+o], locations[i], locations[i+o])
+
+        seam_sets = []
+        for s in self._setup['depth']['seams']:
+            if not 'name' in s or not 'seam' in s:
+                print('Each object in seams must contain "seam" and "name".')
+                return
+            config = Config()
+            config.input = s['name']
+            loader = ImageLoader(config, self._debug)
+            images = loader.load(self._calibration)
+            seam_sets.append(ImageSet(images, s['name'], s['seam']))
+
+        def rotate_seam_image(i, direction):
+            tmp = np.zeros(i.shape, np.float32)
+            w = i.shape[1]
+            if direction == 1:
+                tmp[:,int(w/2):] = i[:,int(w/4):int(3*w/4)]
+            elif direction == -1:
+                tmp[:,:int(w/2)] = i[:,int(w/4):int(3*w/4)]
+            return tmp
+
+        for s in seam_sets:
+            a = 2*s.seam_only
+            b = 2*s.seam_only + 1
+            c = (2*s.seam_only + 2) % 8
+            d = (2*s.seam_only + 3) % 8
+            #combos = [(a, b), (a, c), (a, d), (b, c), (b, d), (c, d)]
+            combos = [(a, c), (b, d)]
+            for m in combos:
+                i0 = s.images[m[0]]
+                i1 = s.images[m[1]]
+                depths[m[0]].add_coordinates(i0, rotate_seam_image(i1, 1), \
+                                             locations[m[0]], locations[m[1]])
+                depths[m[1]].add_coordinates(i1, rotate_seam_image(i0, -1), \
+                                             locations[m[1]], locations[m[0]])
 
         for i, d in enumerate(depths):
             d.finalize()
-            self._calibration[2*i+1].depth = d
+            self._calibration[i].depth = d
 
-        fit_info = np.zeros((len(image_sets), 4, 4))
+        fit_info = np.zeros((len(image_sets), 8, 4))
         for si, s in enumerate(image_sets):
             print(s.filename)
 
@@ -142,9 +227,8 @@ class CameraSetup():
                 self._debug.figure('depth-cal-right', True)
 
             for i, d in enumerate(depths):
-                ii = 2*i
-                d.set_image_pair(s.images[ii], s.images[ii+1], \
-                                 self._calibration[ii].t, self._calibration[ii+1].t)
-                fit_info[si, i] = d.result_info()
+                o = 1 - 2*(i%2)
+                fit_info[si, i] = d.result_info(s.images[i], s.images[i+o], \
+                                                locations[i], locations[i+o])
 
         print(fit_info)
