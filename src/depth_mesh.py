@@ -335,9 +335,13 @@ class DepthCalibration():
 
 class DepthMap():
 
-    # depth map for a constant radius
-    def __init__(self, r):
-        self._r = r
+    # depth map for a constant radius sphere
+    def __init__(self, radius, position=None):
+        self._r = radius
+        if position is not None:
+            self._p = position.reshape((3, 1))
+        else:
+            self._p = np.zeros((3,1), np.float32)
 
     def plot(self, img):
         f = plt.figure()
@@ -347,16 +351,38 @@ class DepthMap():
         ax = f.add_subplot(1, 2, 2)
         pts = coordinates.polar_points_3d((1024, 1024))
         r = self.eval(pts)
-        clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
-        pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
+        if np.min(r) != np.max(r) and np.mean(r) != np.max(r) and np.mean(r) != np.min(r):
+            clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
+            pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
+        else:
+            pos = ax.imshow(r, cmap='summer', interpolation='none')
         f.colorbar(pos, ax=ax)
 
+    # c is a set of polar coordinates, radiating from the center of the sphere.
+    # this is a special case of the intersect function
+    # returns the radius at each point in c.
     def eval(self, c):
-        return self._r * np.ones(c.shape[:-1], np.float32)
+        cart = coordinates.polar_to_cart(c, 1).reshape(c.shape[:-1] + (3, 1))
+        P = self.intersect(self._p, cart)
+        return np.linalg.norm(P - self._p[...,0], axis=-1)
+
+    # intersect with lens sphere, in cartesian space.
+    # c and slope are cartesian vectors
+    # can be higher dimensional as long as the last dimension of each
+    # is [...,3,1]
+    def intersect(self, c, slope):
+        offset = c - self._p
+        disc = np.sum(slope * offset, axis=-2) ** 2 \
+            - (np.linalg.norm(offset, axis=-2)**2 - self._r**2)
+        d = -np.sum(slope * offset, axis=-2) + np.sqrt(disc)
+
+        P = (c + d.reshape((d.shape + (1,))) * slope)
+        return P.reshape(slope.shape[:-2] + (3,))
 
     def to_dict(self):
         d = {'type': 'constant'}
         d['r'] = self._r
+        d['p'] = self._p.tolist()
         return d
 
     @staticmethod
@@ -365,11 +391,50 @@ class DepthMap():
             return DepthMap(1)
 
         if d['type'] == 'constant':
-            return DepthMap(d['r'])
+            return DepthMap(d['r'], np.array(d['p'], np.float32))
         elif d['type'] == 'cloud':
             return DepthMapCloud.from_dict(d)
+        elif d['type'] == 'ellipsoid':
+            return DepthMapEllipsoid.from_dict(d)
 
         return DepthMap(1)
+
+class DepthMapEllipsoid(DepthMap):
+
+    # depth map for an ellipsoid with r=[a, b, c] for the scaling
+    # along the x, y, z axes.
+    def __init__(self, radius, position=None):
+        super().__init__(radius.reshape((3, 1)), position)
+
+    # intersect with lens ellipsoid
+    # c and slope are cartesian vectors
+    # can be higher dimensional as long as the last dimension of each
+    # is [...,3,1]
+    def intersect(self, c, slope):
+        offset = c - self._p
+
+        rr = self._r**2
+        qa = np.sum(slope**2 / rr, axis=-2)
+        qb = np.sum(2 * slope * offset / rr, axis=-2)
+        qc = np.sum(offset**2 / rr, axis=-2) - 1
+        d = (-qb + np.sqrt(qb**2 - 4*qa*qc)) / (2 * qa)
+
+        P = (c + d.reshape((d.shape + (1,))) * slope)
+        return P.reshape(slope.shape[:-2] + (3,))
+
+    def to_dict(self):
+        d = {'type': 'ellipsoid'}
+        d['r'] = self._r.tolist()
+        d['p'] = self._p.tolist()
+        return d
+
+    @staticmethod
+    def from_dict(d):
+        if not 'type' in d or d['type'] != 'ellipsoid':
+            return DepthMap(1)
+        return DepthMapEllipsoid(np.array(d['r'], np.float32), \
+                                 np.array(d['p'], np.float32))
+
 
 class DepthMapCloud(DepthMap):
     def __init__(self, polar, r):
@@ -377,7 +442,7 @@ class DepthMapCloud(DepthMap):
 
         self._pts = polar
         self._tree = KDTree(coordinates.polar_to_cart(polar, 1))
-        self._area = min(len(polar), 8)
+        self._area = min(len(polar), 4)
         self._r = r
 
     def to_dict(self):
@@ -421,7 +486,7 @@ class DepthMapCloud(DepthMap):
         r = np.zeros(arr[0]._r.shape, np.float32)
         for m in arr:
             r += (m._r / len(arr))
-        return DepthMap(pts, r)
+        return DepthMapCloud(pts, r)
 
     def merge(arr):
         pts = []
@@ -430,10 +495,10 @@ class DepthMapCloud(DepthMap):
             pts += [m._pts]
             r += [m._r]
 
-        return DepthMap(np.concatenate(pts), np.concatenate(r))
+        return DepthMapCloud(np.concatenate(pts), np.concatenate(r))
 
     def filter(self, indices):
-        return DepthMap(self._pts[indices], self._r[indices])
+        return DepthMapCloud(self._pts[indices], self._r[indices])
 
     def eval(self, c):
         c_1 = c
@@ -487,7 +552,7 @@ class DepthMapper():
             r[mx] = (r[mx] - self._mid) * mx_scale + self._mid
         """
 
-        m = DepthMap(polar, r)
+        m = DepthMapCloud(polar, r)
 
         return m
 
@@ -508,6 +573,10 @@ class DepthMapperSlice(DepthMapper):
         self._maps = None
         self._matches = None
         self._max_err_dist = 0.02
+
+    # must call map() first.
+    def matches(self):
+        return self._matches
 
     def map(self):
         if self._maps is not None:
@@ -544,7 +613,7 @@ class DepthMapperSlice(DepthMapper):
 
         self._matches = self._matches[inc_all]
         self._debug.log('map points:', self._matches.shape[0])
-        self._maps = [DepthMap.average_r(m) for m in maps]
+        self._maps = [DepthMapCloud.average_r(m) for m in maps]
 
         if self._debug.enable('depth-map'):
             for m, img in zip(self._maps, self._images):
@@ -575,5 +644,10 @@ class DepthMapper2D(DepthMapper):
 
             self._map_left = self._generate_map(self._img_left, matches[:,0], r_l)
             self._map_right = self._generate_map(self._img_right, matches[:,1], r_r)
+
+        if self._debug.enable('depth-map'):
+            self._map_left.plot(self._img_left)
+            self._map_right.plot(self._img_right)
+
 
         return (self._map_left, self._map_right)

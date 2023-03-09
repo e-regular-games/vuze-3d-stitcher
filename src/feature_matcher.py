@@ -219,7 +219,7 @@ class FeatureMatcher2(FeatureMatcher):
 
         kp_indices = np.zeros((len(kp[0].keypoints), 2), dtype=np.int) - 1
         kp_indices[:, 0] = np.arange(0, len(kp[0].keypoints))
-        m = self._determine_matches_0(kp[0], kp[1])
+        m = self._determine_matches(kp[0], kp[1])
         kp_indices[:, 1] = m[:,1]
 
         kp_indices = kp_indices[(kp_indices != -1).all(axis=1)]

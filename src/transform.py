@@ -235,11 +235,12 @@ class TransformDepth(Transform):
 
     def forward(self, c):
         dim = c.shape[0]
-        r = self._depth.eval(c)
-        R = np.linalg.norm(self._p_0[:,0:2])
 
         c_adj = [0, 3*math.pi/2] + [1,-1]*c;
-        P = self._p_0 + coordinates.polar_to_cart(c_adj, r)
+        cart = coordinates.polar_to_cart(c_adj, 1).reshape(c.shape[:-1] + (3, 1))
+        p_0 = (self._p_0 * np.array([[1, 1, 0]], np.float32)).reshape((3, 1))
+        P = self._depth.intersect(p_0, cart)
+        R = np.linalg.norm(self._p_0[:,0:2])
 
         # assumes the camera plan is the x-y plane, ie z=0
         P_l = P * [1, 1, 0]
@@ -272,8 +273,6 @@ class TransformDepth(Transform):
     def reverse(self, c):
         p_0 = self._p_0[:,0:2]
         R = np.linalg.norm(p_0)
-
-        r = self._depth.eval(c).reshape(c.shape[:-1] + (1,)) # TODO this should not be c...
 
         rho = coordinates.cart_to_polar(self._p_0)[0,1]
         c = [math.pi/2, rho] - (c - [0, math.pi])
@@ -308,13 +307,5 @@ class TransformDepth(Transform):
 
         C_1 = p_1 - self._R_E * H_theta
 
-        # intersect with lens sphere
-        p_0 = (self._p_0 * np.array([[1, 1, 0]], np.float32)).reshape((3, 1))
-        offset = C_1 - p_0
-        disc = np.sum(H_phi * offset, axis=-2) ** 2 - (np.linalg.norm(offset, axis=-2)**2 - r**2)
-        d = -np.sum(H_phi * offset, axis=-2) + np.sqrt(disc)
-
-        P = (C_1 + d.reshape((d.shape + (1,))) * H_phi) - p_0
-        result = [0, 3*math.pi/2] + [1, -1] * coordinates.cart_to_polar(P.reshape(c.shape[:-1] + (3,)))
-
-        return  result
+        P = self._depth.intersect(C_1, H_phi) - self._p_0 * np.array([[1, 1, 0]], np.float32)
+        return [0, 3*math.pi/2] + [1, -1] * coordinates.cart_to_polar(P)

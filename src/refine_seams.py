@@ -22,6 +22,7 @@ from depth_mesh import switch_axis
 from depth_mesh import DepthMapperSlice
 from depth_mesh import DepthMapper2D
 from depth_mesh import DepthMap
+from depth_mesh import DepthMapEllipsoid
 from depth_mesh import DepthMapCloud
 from feature_matcher import FeatureMatcher2
 from feature_matcher import FeatureMatcher4
@@ -63,6 +64,10 @@ class RefineSeams():
             t = Transform(debug)
             t.label = 'lens:' + str(i+1)
             self._transforms.append(t)
+
+        self.world_radius = np.array([[40, 40, 10]], np.float32)
+        self.camera_height = 1.8
+        self.interocular = 0.06
 
     def data(self):
         return self._seams, self._transforms
@@ -114,23 +119,23 @@ class RefineSeams():
     def align(self):
         dim = self._images[0].shape[0]
         imgs = self._images + self._images[:2]
-        locations = [c.t for c in self.calibration]
+        locations = [switch_axis(c.t) for c in self.calibration]
         locations = locations + locations[:2]
 
         R = self._calculate_R()
-        depth_maps = [DepthMap(5) for i in range(8)]
+        z = np.array([[0, 0, self.world_radius[0,2] - self.camera_height]], np.float32)
+        depth_maps = [DepthMapEllipsoid(self.world_radius, locations[i] + z) for i in range(8)]
 
         transforms = []
         for i in range(8):
             t = TransformDepth(self._debug) \
-                .set_interocular(R, 0.06) \
+                .set_interocular(R, self.interocular) \
                 .set_eye(i % 2) \
-                .set_position(switch_axis(self.calibration[i].t)) \
+                .set_position(locations[i]) \
                 .set_depth(depth_maps[i])
             if self._debug.verbose:
                 t.validate()
             transforms.append(t)
-
 
         matches_by_seam = []
         seams = []
@@ -315,8 +320,11 @@ class ChooseSeam():
         f.colorbar(pos, ax=ax)
 
         ax = f.add_subplot(2, 3, 3)
-        ax.set_title('Position Cost')
-        pos = ax.imshow(self._position_cost, cmap='summer', interpolation='none')
+        ax.set_title('Theta Cost')
+        clr = colors.TwoSlopeNorm(vmin=np.min(self._theta_cost), \
+                                  vcenter=np.mean(self._theta_cost), \
+                                  vmax=np.max(self._theta_cost))
+        pos = ax.imshow(self._theta_cost, norm=clr, cmap='summer', interpolation='none')
         f.colorbar(pos, ax=ax)
 
         ax = f.add_subplot(2, 3, 4)
@@ -387,8 +395,6 @@ class ChooseSeam():
 
         self._create_error_cost(m)
 
-        self._position_cost = self._square_and_scale(np.sum(self._delta_position, axis=-1))
-
         path_cart = coordinates.polar_to_cart(path_at, path_r)
         delta_cart = path_cart[...,1:,:] - path_cart[...,:-1,:]
         delta_cart = np.sqrt(np.sum(delta_cart * delta_cart, axis=-1))
@@ -399,12 +405,13 @@ class ChooseSeam():
         self._slope_cost = self._square_and_scale(slope)
 
         self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])
+        self._theta_cost = self._square_and_scale(m0_row[...,1] - m0_col[...,1])
 
         self._mat = 0.2 * self._slope_cost \
-            + 0.5 * self._error_cost \
+            + 0.4 * self._error_cost \
             + 0.1 * self._cart_cost \
-            + 0.1 * self._position_cost \
-            + 0.1 * self._phi_cost
+            + 0.1 * self._phi_cost \
+            + 0.2 * self._theta_cost
         self._mat[np.logical_not(self._valid.reshape((dim, dim)))] = 0
 
         if self._debug.enable('seam-path-cost'):
