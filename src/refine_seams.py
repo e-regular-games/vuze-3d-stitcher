@@ -315,12 +315,17 @@ class ChooseSeam():
     def _create_error_cost(self, m):
         dim = m.shape[0]
         error = np.zeros((dim, dim), np.float32)
+
+        theta_offset = [-self._border / 2, -self._border/4, 0, self._border/4, self._border/2]
         for i in range(4):
             err_map = DepthMapCloud(self._points[i], self._err[i])
-            p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
-            path_err = err_map.eval(p.reshape((dim, self._D * dim, 2))).reshape((dim, dim, self._D))
-            error[self._path_valid] += \
-                np.sum(path_err[...,:-1] * self._delta_position, axis=-1)[self._path_valid]
+            for o in theta_offset:
+                o = np.array([0, o], np.float32)
+                p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
+                path_err = err_map.eval(p.reshape((dim, self._D * dim, 2)) + o) \
+                                  .reshape((dim, dim, self._D))
+                error[self._path_valid] += \
+                    np.sum(path_err[...,:-1] * self._delta_position, axis=-1)[self._path_valid]
         self._error_cost = self._square_and_scale(error)
 
     def _plot(self):
