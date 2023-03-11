@@ -326,16 +326,18 @@ class ImageLoader:
         self._debug.log_pause()
         for l in range(1, 9):
             if len(threads) >= parallel:
-                threads[0].join()
+                #threads[0].join()
                 images.append(threads[0].result)
                 threads = threads[1:]
 
             t = LoadImage(self._fish, self._calib[l-1], f + '_' + str(l))
-            t.start()
+            t.run()
+
+            #t.start()
             threads.append(t)
 
         for t in threads:
-            t.join()
+            #t.join()
             images.append(t.result)
 
         print('')

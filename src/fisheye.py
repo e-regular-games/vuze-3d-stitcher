@@ -4,6 +4,7 @@ import coordinates
 import math
 import numpy as np
 import cv2 as cv
+from matplotlib import pyplot as plt
 
 class FisheyeImage():
     def __init__(self, resolution, debug):
@@ -30,7 +31,33 @@ class FisheyeImage():
 
         c._img = img
         c._calib = calib
+        c._set_alpha_channel()
         return c
+
+    def _set_alpha_channel(self):
+        if self._img.shape[2] == 4:
+            return
+
+        img = self._img
+        ch_a = np.zeros(img.shape, np.float32)
+
+        x, y = np.meshgrid(np.arange(0, img.shape[1]), np.arange(0, img.shape[0]))
+        y = y.reshape(img.shape[:-1] + (1, 1))
+        x = x.reshape(img.shape[:-1] + (1, 1))
+        xy = np.concatenate([x, y], axis=-2)
+
+        c = np.array([[self._calib.ellipse[0]], [self._calib.ellipse[1]]], np.float32)
+        r = np.array([[self._calib.ellipse[2]], [self._calib.ellipse[3]]], np.float32)
+
+        a = self._calib.ellipse[5]
+        u = np.array([
+            [math.cos(a), -math.sin(a)],
+            [math.sin(a), math.cos(a)]
+        ], np.float32)
+
+        ch_a = np.sum((u @ (xy - c))**2 / r**2, axis=-2) <= 0.95
+        self._img = np.concatenate([img, ch_a], axis=-1)
+
 
     def to_equirect(self):
         if self._calib.vuze_config:

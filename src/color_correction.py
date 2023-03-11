@@ -508,14 +508,14 @@ class ColorCorrectionSeams(ColorCorrection):
         super().__init__(images, debug)
         self._transforms = transforms
         self._seams = seams
+        self.border = 5 / 180 * math.pi
 
     def _generate_regions(self):
         h = self._images[0].shape[0]
         w = self._images[0].shape[1]
         y = np.arange(0, h)
         phi = y / (h-1) * math.pi
-        theta_range = 10 / 180 * math.pi
-        x_range = theta_range / (2 * math.pi) * w
+        x_range = self.border / (2 * math.pi) * w
         x_delta = np.arange(math.floor(-1 * x_range / 2), math.ceil(x_range / 2))
         theta_delta = x_delta / (w-1) * 2 * math.pi
 

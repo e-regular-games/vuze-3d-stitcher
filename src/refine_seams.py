@@ -68,6 +68,7 @@ class RefineSeams():
         self.world_radius = np.array([[40, 40, 10]], np.float32)
         self.camera_height = 1.8
         self.interocular = 0.06
+        self.border = 5 * math.pi / 180
 
     def data(self):
         return self._seams, self._transforms
@@ -220,6 +221,8 @@ class RefineSeams():
                 .depth_maps(depth_maps_by_seam[i]) \
                 .matches(target_by_seam[i]) \
                 .error(align_err_by_seam[i]) \
+                .images(imgs[2*i:2*i+4]) \
+                .border(self.border) \
                 .find_seam()
             self._debug.log('seam length: ', s.shape[0])
             seams.append(s[:,0])
@@ -270,6 +273,8 @@ class ChooseSeam():
         self._dmaps = None
         self._points = None
         self._err = None
+        self._images = None
+        self._border = None
 
         self._D = 50
         self._valid = None
@@ -282,6 +287,7 @@ class ChooseSeam():
         self._cart_cost = None
         self._slope_cost = None
         self._phi_cost = None
+        self._valid_pixel_cost = None
         self._mat = None
 
 
@@ -292,6 +298,14 @@ class ChooseSeam():
     # list of np arrays, one for each images in the seam
     def matches(self, matches):
         self._points = matches
+        return self
+
+    def images(self, images):
+        self._images = images
+        return self
+
+    def border(self, b):
+        self._border = b
         return self
 
     def error(self, err):
@@ -328,11 +342,8 @@ class ChooseSeam():
         f.colorbar(pos, ax=ax)
 
         ax = f.add_subplot(2, 3, 4)
-        ax.set_title('Cartesian Cost')
-        clr = colors.TwoSlopeNorm(vmin=np.min(self._cart_cost), \
-                                  vcenter=np.mean(self._cart_cost), \
-                                  vmax=np.max(self._cart_cost))
-        pos = ax.imshow(self._cart_cost, norm=clr, cmap='summer', interpolation='none')
+        ax.set_title('Valid Pixel Cost')
+        pos = ax.imshow(self._valid_pixel_cost, cmap='summer', interpolation='none')
         f.colorbar(pos, ax=ax)
 
         ax = f.add_subplot(2, 3, 5)
@@ -365,6 +376,35 @@ class ChooseSeam():
         for i in range(4):
             dphi = m[self._sort_idx,i:i+1,0].reshape((1, dim, 1)) - m[self._sort_idx,i:i+1,0:1]
             self._valid = np.logical_and(self._valid, dphi > 0.01)
+        self._valid = self._valid.reshape((dim, dim))
+
+    def _create_valid_pixel_cost(self, m):
+        shape = self._images[0].shape
+        dim = m.shape[0]
+        cost = np.ones((dim, dim), np.float32)
+        kernel_size = int(self._border * shape[0] / math.pi) + 1
+        kernel_size += (kernel_size % 2) # make sure its odd
+        kernel = np.ones((kernel_size, kernel_size))
+        for i in range(4):
+            alpha = cv.filter2D(self._images[i][...,3:4].astype(np.float32), -1, kernel)
+            alpha = (alpha < (kernel_size**2 - 1)).astype(np.float32)
+
+            p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
+
+            if i >= 2:
+                p -= [0, math.pi/2]
+            p_eqr = coordinates.polar_to_eqr(p, shape) \
+                               .reshape((p.shape[0], p.shape[1] * p.shape[2], 2))
+            p_alpha = coordinates.eqr_interp_3d(p_eqr, alpha).reshape(p.shape[:-1])
+            out_of_bounds = np.sum(p_alpha, axis=-1) > 0
+            cost[out_of_bounds] = 0
+
+        # the first and last are probably considered out of bounds, because they are the
+        # start and end points, we must make them in-bounds.
+        cost[0,:20] = 1
+        cost[-20:,-1] = 1
+
+        self._valid_pixel_cost = cost
 
     def find_seam(self):
         # note: phi=0 is the top of the image, phi=pi is the bottom
@@ -394,11 +434,7 @@ class ChooseSeam():
         self._path_valid = np.all(self._delta_position > 0.00001, axis=-1)
 
         self._create_error_cost(m)
-
-        path_cart = coordinates.polar_to_cart(path_at, path_r)
-        delta_cart = path_cart[...,1:,:] - path_cart[...,:-1,:]
-        delta_cart = np.sqrt(np.sum(delta_cart * delta_cart, axis=-1))
-        self._cart_cost = self._square_and_scale(np.sum(delta_cart, axis=-1))
+        self._create_valid_pixel_cost(m)
 
         slope = np.zeros((dim, dim), np.float32)
         slope[self._path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1])[self._path_valid] / self._delta_position[self._path_valid], axis=-1)
@@ -407,12 +443,11 @@ class ChooseSeam():
         self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])
         self._theta_cost = self._square_and_scale(m0_row[...,1] - m0_col[...,1])
 
-        self._mat = 0.2 * self._slope_cost \
+        self._mat = 0.1 * self._slope_cost \
             + 0.4 * self._error_cost \
-            + 0.1 * self._cart_cost \
-            + 0.1 * self._phi_cost \
-            + 0.2 * self._theta_cost
-        self._mat[np.logical_not(self._valid.reshape((dim, dim)))] = 0
+            + 0.2 * self._phi_cost \
+            + 0.3 * self._theta_cost
+        self._mat *= self._valid * self._valid_pixel_cost
 
         if self._debug.enable('seam-path-cost'):
             self._plot()
@@ -427,8 +462,24 @@ class ChooseSeam():
             pred = rpred[0, pred]
 
         path_points = np.flip(m[self._sort_idx][path], axis=0)
-        return path_points - [0, math.pi]
+        path_points -= [0, math.pi]
 
+        if self._debug.enable('seam-path'):
+            self._plot_seam(path_points)
+
+        return path_points
+
+    def _plot_seam(self, path):
+        cart = coordinates.polar_to_cart(path, 1)
+        clr = ['bo', 'ro', 'go', 'ko']
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        ax.axes.set_xlim3d(left=-1, right=1)
+        ax.axes.set_ylim3d(bottom=-1, top=1)
+        ax.axes.set_zlim3d(bottom=-1, top=1)
+
+        for i in range(cart.shape[1]):
+            ax.plot3D(cart[:,i,0], cart[:,i,1], cart[:,i,2], clr[i], markersize=0.5)
 
     def _square_and_scale(self, cost):
         if np.count_nonzero(cost>0) == 0:

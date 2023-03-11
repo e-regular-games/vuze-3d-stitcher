@@ -241,6 +241,7 @@ def main():
     cc = None
     seam = refine_seams.RefineSeams(images, debug)
     seam.calibration = calibration
+    seam.border = 2 * config.seam_blend_margin
 
     if options.reuse_seams and saved_data is not None and 'seam' in saved_data:
         print('reusing seam data from alignment')
@@ -259,8 +260,14 @@ def main():
 
     seams, transforms = seam.data()
 
+    # remove the alpha channel from images.
+
+    for i, img in enumerate(images):
+        images[i] = img[...,0:3]
+
     if options.fast != 2 and options.fast != 3:
         color = color_correction.ColorCorrectionSeams(images, transforms, seams, debug)
+        color.border = 1.75 * config.seam_blend_margin
         print('computing color mean-seams')
         cc = color.match_colors()
 
