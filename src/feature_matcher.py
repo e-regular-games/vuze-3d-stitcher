@@ -8,6 +8,7 @@ from Equirec2Perspec import Equirectangular
 from linear_regression import trim_outliers_by_diff
 from linear_regression import trim_outliers
 from matplotlib import pyplot as plt
+import threading
 
 # A collection of feature matching behaviors.
 # FeatureMatcher is the base class which is not intended for use.
@@ -30,11 +31,75 @@ class PolarKeypoints():
     def empty(self):
         return len(self.keypoints) == 0
 
-class FeatureMatcher():
+class FilterMatches(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self._result = None
+        pass
+
+    def keypoints(self, a, b):
+        self._kp_a = a
+        self._kp_b = b
+        return self
+
+    def constants(self, dist, thres):
+        self._dist = dist
+        self._thres = thres
+        return self
+
+    def matches(self, matches, i):
+        self._matches = matches
+        self._idx = i
+        return self
+
+    # set or get the result
+    def result(self, result=None):
+        if result is not None:
+            self._result = result
+
+        return self._result
+
+
+    def run(self):
+        kp_a = self._kp_a
+        kp_b = self._kp_b
+        sin_a = np.sin(kp_a.rotation)
+        cos_a = np.cos(kp_a.rotation)
+        sin_b = np.sin(kp_b.rotation)
+        cos_b = np.cos(kp_b.rotation)
+
+        def compute_range(ai, bi):
+            dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
+            da = [(sin_a[ai] - sin_b[bi]), (cos_a[ai] - cos_b[bi])]
+            d = np.array([dp[0], dp[1], da[0], da[1]], np.float32)
+            return np.sqrt(np.sum(d**2))
+
+        for i in self._idx:
+            ma = self._matches[i]
+            p = None
+            if len(ma) >= 2 and ma[0].distance < self._thres * ma[1].distance:
+                d = compute_range(ma[0].queryIdx, ma[0].trainIdx)
+                p = [ma[0].queryIdx, ma[0].trainIdx, d, ma[0].distance]
+
+            for m in ma:
+                if m.distance * self._thres >  ma[0].distance:
+                    break
+                d = compute_range(m.queryIdx, m.trainIdx)
+                if d < self._dist and (p is None or d < p[2]):
+                    p = [m.queryIdx, m.trainIdx, d, m.distance]
+
+            if p is not None:
+                self._result[p[0]] = p
+
+
+class FeatureMatcher(threading.Thread):
     def __init__(self, debug):
+        super().__init__()
         self.rectilinear_resolution = 1000 # pixels
         self.rectilinear_fov = 62 # degrees
         self._debug = debug
+        self._parallel = 8
+        self.result = None
 
     def _dedup(self, kp):
         keep = np.ones((len(kp.keypoints),), bool)
@@ -95,89 +160,26 @@ class FeatureMatcher():
 
         return pkp
 
-    def _determine_matches_0(self, kp_a, kp_b, thres=0.75):
-        # BFMatcher with default params
-        bf = cv.BFMatcher()
-        matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=2)
-
-        sin_a = np.sin(kp_a.rotation)
-        cos_a = np.cos(kp_a.rotation)
-        sin_b = np.sin(kp_b.rotation)
-        cos_b = np.cos(kp_b.rotation)
-
-        good_matches = np.zeros((len(kp_a.keypoints), 4), np.float32) - 1
-        good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
-
-        def compute_range(ai, bi):
-            dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
-            da = [(sin_a[ai] - sin_b[bi]), (cos_a[ai] - cos_b[bi])]
-            d = np.array([dp[0], dp[1], da[0], da[1]], np.float32)
-            return np.sqrt(np.sum(d**2))
-
-        for ma in matches:
-            p = None
-            if len(ma) >= 2 and ma[0].distance < thres * ma[1].distance:
-                diff = compute_range(ma[0].queryIdx, ma[0].trainIdx)
-                r = ma[0].queryIdx
-                good_matches[r, 1] = ma[0].trainIdx
-                good_matches[r, 2] = diff
-                good_matches[r, 3] = ma[0].distance
-
-        vals, cnt = np.unique(good_matches[:,1], return_counts=True)
-        dups = cnt > 1
-        self._debug.log('duplicates', np.count_nonzero(dups) - 1)
-        for v in vals[dups][1:]: # the first entry is always -1
-            possible = (good_matches[:,1] == v)
-            flt = good_matches[possible]
-            best = None
-            for i in range(flt.shape[0]):
-                if best is None or \
-                   (best[3] < thres * flt[i,3] and best[2] > flt[i,2]) or \
-                   flt[i,3] < thres * best[3]:
-                    best = flt[i]
-
-            good_matches[possible,1] = -1
-            good_matches[int(best[0]),1] = v
-
-        #good_matches[good_matches[:,2]>0.2,1] = -1
-
-        return good_matches[:,:2]
-
     def _determine_matches(self, kp_a, kp_b, dist=0.125, thres=0.75):
         # BFMatcher with default params
         bf = cv.BFMatcher()
         matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=6)
 
-        sin_a = np.sin(kp_a.rotation)
-        cos_a = np.cos(kp_a.rotation)
-        sin_b = np.sin(kp_b.rotation)
-        cos_b = np.cos(kp_b.rotation)
-        phi_ratio = np.abs(kp_a.polar[:,0] - math.pi/2) / (math.pi/2)
-
         good_matches = np.zeros((len(kp_a.keypoints), 4), np.float32) - 1
         good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
 
-        def compute_range(ai, bi):
-            dp = np.abs(kp_a.polar[ai] - kp_b.polar[bi]) / [math.pi, 2*math.pi]
-            da = [(sin_a[ai] - sin_b[bi]), (cos_a[ai] - cos_b[bi])]
-            d = np.array([dp[0], dp[1], da[0], da[1]], np.float32)
-            return np.sqrt(np.sum(d**2))
+        threads = []
+        for p in range(self._parallel):
+            t = FilterMatches() \
+                .keypoints(kp_a, kp_b) \
+                .constants(dist, thres) \
+                .matches(matches, np.arange(p, len(matches), self._parallel))
+            t.result(good_matches)
+            threads.append(t)
+            t.start()
 
-        for ma in matches:
-            p = None
-            if len(ma) >= 2 and ma[0].distance < thres * ma[1].distance:
-                d = compute_range(ma[0].queryIdx, ma[0].trainIdx)
-                p = [ma[0].queryIdx, ma[0].trainIdx, d, ma[0].distance]
-
-            for m in ma:
-                if m.distance * thres >  ma[0].distance:
-                    break
-                d = compute_range(m.queryIdx, m.trainIdx)
-                if d < dist and (p is None or d < p[1]):
-                    p = [m.queryIdx, m.trainIdx, d, m.distance]
-
-            if p is not None:
-                good_matches[p[0]] = p
+        for t in threads:
+            t.join()
 
         vals, cnt = np.unique(good_matches[:,1], return_counts=True)
         dups = cnt > 1
@@ -205,7 +207,7 @@ class FeatureMatcher2(FeatureMatcher):
         self._threshold = 0.1
         self._filter = 1
 
-    def matches(self):
+    def run(self):
         imgs = [self._img_left, self._img_right]
         angles = [(60, -45), (0, -45), (-60, -45), \
                   (60, 0), (0, 0), (-60, 0), \
@@ -230,7 +232,7 @@ class FeatureMatcher2(FeatureMatcher):
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
 
-        return pts
+        self.result = pts
 
 
 # Used for seam alignment. Searches the right side of the left images
@@ -244,7 +246,7 @@ class FeatureMatcher4(FeatureMatcher):
         self._imgs_right = imgs_right
 
     # returns aligned to [ left eye images, right eye images]
-    def matches(self):
+    def run(self):
         imgs = self._imgs_left + self._imgs_right
         thetas = [40, -40, 40, -40]
 
@@ -290,4 +292,4 @@ class FeatureMatcher4(FeatureMatcher):
                 ax.imshow(cv.cvtColor(get_middle(img), cv.COLOR_BGR2RGB))
                 ax.plot(p[:,0] - img.shape[0]/2, p[:,1], 'ro', markersize=1)
 
-        return pts
+        self.result = pts

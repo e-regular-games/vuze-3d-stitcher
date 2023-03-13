@@ -33,8 +33,9 @@ def print_usage():
     print('')
 
     print('-v,--verbose\t\tMore detailed output to the console.')
-    print('-d,--display <enums>\t\tShow intermediate progress images. Enums separated by ",". {regression, exposure, fisheye, seams, matches}')
+    print('-d,--display <enums>\t\tShow intermediate progress images. Enums separated by ",". Use "--help-display" to see a complete list.')
     print('-h,--help\t\tDisplay this message.')
+    print('--help-display\t\tList the possible enums for the "display" arguement')
     print('\n')
     print('--Config File Format--    A comma separated value format file with various options.')
     print('')
@@ -56,6 +57,35 @@ def print_usage():
     print('super_resolution_config,<variable>,<value>\t\tSupport variables {outlier_limit,sharpen}. Outlier limit is a number of standard deviations, and sharpen is "true" or "false". By default sharpen is "false" and outlier limit is not applied.')
     print('lens,<1-8>,<x_pixels>,<y_pixels>\tThe center of the fisheye for each lens.')
     print('\n')
+
+def print_usage_display():
+    print('VuzeMerge 3D 360 Image Generator')
+    print('  By S. Ryan Edgar')
+    print('  August 1st, 2022')
+    print('')
+    print('Display Options')
+    print('')
+    print('fisheye', '\t\t\t', 'Graph the equirectangular conversion of the original fisheye images.')
+    print('fisheye-fio', '\t\t\t', 'Write to files "equirect_#" the equirectangular conversion of the original fisheye images.')
+    print('calib', '\t\t\t\t', 'Graph the elliptical calibration result.')
+    print('calib-fio', '\t\t\t', 'Write to files "lens_alignment_in_lens#", the elliptical calibration result.')
+    print('exposure-match', '\t\t\t', 'Graph the result of exposure matching between lenses.')
+    print('exposure-fuse', '\t\t\t', 'Graph the result of fusing exposure stacks across multiple images within the same lens.')
+    print('denoise', '\t\t\t', 'Graph the result of denoising the images.')
+    print('depth-samples', '\t\t\t', 'Plot in 3d the samples used during depth calibration and where they exist in the polar coordinate system relative to the lens.')
+    print('depth-error', '\t\t\t', 'Plot in 3d the error between the measured distance at each polar coordinate sample and the expected distance.')
+    print('depth-cal-finalize', '\t\t', 'Graph each lens after applying corrections to ensure the depth of each sample is as close to the expected value as possible.')
+    print('depth-map', '\t\t\t', 'Graph the distance in equirectangular space to each pixel.')
+    print('color-regression', '\t\t', 'Histogram the error for each color when calculating the linear regression for color corrections.')
+    print('color-delta', '\t\t\t', 'Graph the difference in each color channel within an image due to color correction.')
+    print('color-regression-kmeans', '\t', 'Graph the histogram of separating colors into kmeans.')
+    print('color-correction', '\t\t', 'Histogram of the number of pixels falling into each of the kmeans used to correct colors.')
+    print('color-histogram', '\t\t', 'Histogram of each color channel and the number of pixels with that value in each of the seams within the image.')
+    print('color', '\t\t\t\t', 'An image of the original colors, the desired color, and the corrected color per pixel for the image.')
+    print('features-keypoints', '\t\t', 'Show an image of all the detected keypoints (marked in red) within the image.')
+    print('features-matches', '\t\t', 'Show an image of all the matching keypoints (marked in red) between two or more images.')
+    print('seam-path', '\t\t\t', 'Plot in 3d the points along the seam paths between the images. Each plot will have points for each of the 4 images along the seam.')
+    print('seam-path-cost', '\t\t\t', 'Graph the cost matrix and its component costs used to find the lowest cost path between the top and bottom of the image, ie the seam.')
 
 class ProgramOptions:
     def __init__(self):
@@ -86,6 +116,7 @@ class ProgramOptions:
             'd:hF:w:r:vc:i:f:I:O:q:a:l:o:',
             [
                 'help',
+                'help-display',
                 'image=',
                 'in=',
                 'out=',
@@ -157,6 +188,9 @@ class ProgramOptions:
             elif o in ("-h", "--help"):
                 print_usage()
                 exit(0)
+            elif o == "--help-display":
+                print_usage_display();
+                exit(0)
 
     def valid(self):
         v = True
@@ -186,7 +220,7 @@ class Config:
         self.super_res_buckets = {}
         self.accel_align = True
         self.contrast_equ = None
-        self.seam_blend_margin = 5 * math.pi / 180
+        self.seam_blend_margin = 1 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
 

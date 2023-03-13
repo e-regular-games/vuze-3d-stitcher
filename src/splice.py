@@ -44,7 +44,7 @@ def filter_to_stitch(polar, l, margin, stitches):
     return f, flt
 
 class ComputeSegment(threading.Thread):
-    def __init__(self, image, polar, stitches, idx, margin, pt_transform, clr_transform):
+    def __init__(self, image, polar, stitches, idx, margin, pt_transform, clr_transform, debug):
         threading.Thread.__init__(self)
         self._image = image
         self._polar = polar
@@ -53,31 +53,40 @@ class ComputeSegment(threading.Thread):
         self._margin = margin
         self._pt_transform = pt_transform
         self._clr_transform = clr_transform
+        self._debug = debug
 
         self.result = np.zeros(polar.shape[:-1] + (3,), dtype=np.uint8)
 
     def run(self):
+        self._debug.perf('splice.filter')
         global_pts_polar = self._polar.copy()
         weight, flt = filter_to_stitch(self._polar, self._idx, self._margin, self._stitches)
+        self._debug.perf('splice.filter')
 
         global_pts_polar[flt,1] -= self._idx * math.pi / 2
         global_pts_polar[flt,1] += math.pi
         global_pts_polar[flt,1] = global_pts_polar[flt,1] % (2 * math.pi)
 
+        self._debug.perf('splice.transform')
         local_pts_polar = np.zeros(self._polar.shape)
         local_pts_polar[flt] = self._pt_transform.reverse(global_pts_polar[flt])
+        self._debug.perf('splice.transform')
 
+        self._debug.perf('splice.interp')
         local_pts_eqr = np.zeros(self._polar.shape)
         local_pts_eqr[flt] = coordinates.polar_to_eqr(local_pts_polar[flt], self._polar.shape)
 
         pixels = np.zeros(self._polar.shape[:-1] + (3,), np.uint8)
         pixels[flt] = coordinates.eqr_interp(local_pts_eqr[flt], self._image)
         local_pts_eqr = None
+        self._debug.perf('splice.interp')
 
+        self._debug.perf('splice.color')
         if self._clr_transform is not None:
             global_pts_polar -= [0, math.pi]
             pixels = self._clr_transform \
                          .correct_bgr(pixels, global_pts_polar, local_pts_polar, flt)
+        self._debug.perf('splice.color')
 
         n = np.count_nonzero(flt)
         self.result[flt] = (pixels[flt] * weight[flt].reshape((n, 1))).round().astype(np.uint8)
@@ -149,7 +158,7 @@ class SpliceImages():
         threads = []
         for s in range(len(self._stitches)):
             t = ComputeSegment(images[s], polar, self._stitches, s, margin, \
-                               self._transforms[s], self._color_transforms[s])
+                               self._transforms[s], self._color_transforms[s], self._debug)
 
             if self._debug.enable_threads:
                 t.start()

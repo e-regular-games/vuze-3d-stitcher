@@ -326,18 +326,16 @@ class ImageLoader:
         self._debug.log_pause()
         for l in range(1, 9):
             if len(threads) >= parallel:
-                #threads[0].join()
+                threads[0].join()
                 images.append(threads[0].result)
                 threads = threads[1:]
 
             t = LoadImage(self._fish, self._calib[l-1], f + '_' + str(l))
-            t.run()
-
-            #t.start()
+            t.start()
             threads.append(t)
 
         for t in threads:
-            #t.join()
+            t.join()
             images.append(t.result)
 
         print('')
@@ -395,7 +393,11 @@ class ImageLoader:
             alignMTB = cv.createAlignMTB()
             alignMTB.process(images_exp, images_exp)
             mergeMertens = cv.createMergeMertens()
-            images[l-1] = np.clip(mergeMertens.process(images_exp) * 255, 0, 255).round().astype(np.uint8)
+            images[l-1][...,:3] = \
+                np.clip(mergeMertens.process([i[...,:3] for i in images_exp]) * 255, 0, 255) \
+                  .round().astype(np.uint8)
+            for i in images_exp:
+                images[l-1][...,3:4] *= i[...,3:4]
             print('.', end='', flush=True)
         if self._debug.enable('exposure'): plot_lenses(images, 'Exposures Fused')
         print('')
@@ -430,12 +432,12 @@ class ImageLoader:
 
             if 'outlier_limit' in self._config.super_res_config:
                 limit = float(self._config.super_res_config['outlier_limit'])
-                avg = np.median(imgs, axis=0)
-                std = np.std(imgs, axis=0)
+                avg = np.median(imgs, axis=0)[...,:3]
+                std = np.std(imgs, axis=0)[...,:3]
                 for i in range(n):
-                    outliers = np.any(np.logical_or(imgs[i] > avg + limit * std, \
-                                                    imgs[i] < avg - limit * std), axis=-1)
-                    imgs[i, outliers] = avg[outliers]
+                    outliers = np.any(np.logical_or(imgs[i,...,:3] > avg + limit * std, \
+                                                    imgs[i,...,:3] < avg - limit * std), axis=-1)
+                    imgs[i,outliers,:3] = avg[outliers]
                     outliers = None
 
                 avg = None

@@ -24,6 +24,6 @@ do
         fi
 
         echo "raw/${dir}HETVR/HET_${pic}"
-        project/src/vuze_merge.py -a project/coeffs_v5.dat -I "raw/${dir}HETVR/HET_${pic}" -O "preview/HET${dir}_${pic}" --format over-under --fast 3 --quality 720 ${args_pass[@]}
+        project/src/vuze_merge.py -a project/coeffs_v6.json -I "raw/${dir}HETVR/HET_${pic}" -O "preview/HET${dir}_${pic}" --format over-under --fast 3 --quality 720 ${args_pass[@]}
     done
 done

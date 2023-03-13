@@ -2,6 +2,7 @@
 from matplotlib import pyplot as plt
 import math
 import numpy as np
+import time
 
 class Debug:
     def __init__(self, options=None):
@@ -13,6 +14,7 @@ class Debug:
         self._subplot = (1, 1, 1)
         self._msgs = []
         self._msg_pause = False
+        self._perfs = {}
 
     def log_pause(self):
         self._msg_pause = True
@@ -82,6 +84,13 @@ class Debug:
         d._msgs = self._msgs
         d._msg_pause = self._msg_pause
         return d
+
+    def perf(self, name):
+        if name in self._perfs:
+            self.log('performance', name, time.perf_counter() - self._perfs[name])
+            del self._perfs[name]
+        else:
+            self._perfs[name] = time.perf_counter()
 
     def none(self):
         return Debug()

@@ -21,6 +21,7 @@ from depth_mesh import DepthCalibration
 from debug_utils import Debug
 from config import ProgramOptions
 from config import Config
+from config import print_usage
 from camera_setup import CameraSetup
 
 def read_image_exif(fname):
@@ -162,7 +163,7 @@ def write_output(meta_map, left, right, config):
 def main():
     options = ProgramOptions()
     if not options.valid():
-        usage()
+        print_usage()
         print('\nERROR: The image file or config must be specified.')
         exit(1)
 
@@ -185,6 +186,9 @@ def main():
             config.format[c] = True
 
     debug = Debug(options)
+    debug.enable_threads = debug.enable_threads and \
+        len(config.super_res) == 0 and \
+        len(config.super_res_buckets) == 0
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
 
     if options.load_processed:
@@ -241,7 +245,7 @@ def main():
     cc = None
     seam = refine_seams.RefineSeams(images, debug)
     seam.calibration = calibration
-    seam.border = 2 * config.seam_blend_margin
+    seam.border = max(2*config.seam_blend_margin, 6*math.pi/180)
 
     if options.reuse_seams and saved_data is not None and 'seam' in saved_data:
         print('reusing seam data from alignment')
@@ -267,11 +271,9 @@ def main():
 
     if options.fast != 2 and options.fast != 3:
         color = color_correction.ColorCorrectionSeams(images, transforms, seams, debug)
-        color.border = 1.75 * config.seam_blend_margin
+        color.border = max(2*config.seam_blend_margin, 10*math.pi/180)
         print('computing color mean-seams')
         cc = color.match_colors()
-
-    print('')
 
     splice_left = splice.SpliceImages(images[0:8:2], debug)
     splice_left.set_initial_view(config.view_direction)

@@ -72,8 +72,8 @@ do
 
     echo "${dir}HETVR/HET_${pic}"
     if test -f "raw/config_${dir}_${pic}.dat"; then
-        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v5.dat -c "raw/config_${dir}_${pic}.dat" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
+        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v6.json -c "raw/config_${dir}_${pic}.dat" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
     else
-        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v5.dat -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
+        project/src/vuze_merge.py -f over-under,gpano -a project/coeffs_v6.json -I "raw/${dir}HETVR/HET_${pic}" -O "stitched/${list_dir}/HET${dir}_${pic}" ${addl[@]} ${args_pass[@]}
     fi
 done < "$list_file"

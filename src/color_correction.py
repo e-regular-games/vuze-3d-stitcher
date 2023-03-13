@@ -99,7 +99,7 @@ class ColorTransform():
 
         y_a = trig_norm_to_hsv(self._delta_tnorm(x[:,:4], c) + x[:,:4])
 
-        if self._debug.enable('color_regression'):
+        if self._debug.enable('color-regression'):
             b=10
             err0 = hsv_error(i, f)
             err1 = hsv_error(y_a, f)
@@ -117,10 +117,10 @@ class ColorTransform():
                 if np.count_nonzero(in1_bin) > 0:
                     clr1_center[c] = trig_norm_to_hsv(np.mean(hsv_to_trig_norm(f[in1_bin]), axis=0))
             self._debug.set_subplot(2, 1, 1) \
-                       .subplot('color_regression') \
+                       .subplot('color-regression') \
                        .bar(err_center, h0, color=hsv_to_rgb_hex(clr0_center), width=err_max/10)
             self._debug.set_subplot(2, 1, 2) \
-                       .subplot('color_regression') \
+                       .subplot('color-regression') \
                        .bar(err_center, h1, color=hsv_to_rgb_hex(clr1_center), width=err_max/10)
 
         self._debug.log('regression error', i.shape[0], \
@@ -137,12 +137,12 @@ class ColorTransform():
 
         kernel = np.ones((11,11), np.float32)/(11*11)
         delta = cv.filter2D(delta, -1, kernel)
-        if self._debug.enable('color_delta'):
+        if self._debug.enable('color-delta'):
             norm = (delta + 1) / 2
-            self._debug.figure('color_delta', True)
+            self._debug.figure('color-delta', True)
             for i in range(4):
                 self._debug.set_subplot(2, 2, i+1) \
-                    .subplot('color_delta') \
+                    .subplot('color-delta') \
                     .imshow(norm[...,i:i+1] * np.ones((1, 1, 3)))
 
         return np.clip(tnorm + delta, 0, 1)
@@ -162,7 +162,8 @@ class ColorTransform():
         if self._c is None:
             return np.zeros(tnorm.shape, np.float32)
         x = self._arrange_tnorm(tnorm, c_local)
-        density = np.array(self._range.query_ball_point(x[:,:4], 0.1, return_length=True))
+        density = np.array(self._range.query_ball_point(x[:,:4], 0.1, \
+                                                        workers=12, return_length=True))
         density = density.reshape(density.shape + (1,)) / self._range_max_density
         density = np.clip((density - 0.05) / 0.95, 0, 1)
 
@@ -242,8 +243,8 @@ class ColorTransformKMeansFixed(ColorTransform):
         self._kmeans_center = trig_norm_to_hsv(self._kmeans.cluster_centers_)
         labels = self._kmeans.labels_
 
-        if self._debug.enable('color_regression_kmeans'):
-            _, _, bars = self._debug.subplot('color_regression_kmeans') \
+        if self._debug.enable('color-regression-kmeans'):
+            _, _, bars = self._debug.subplot('color-regression-kmeans') \
                              .hist(labels, n, [0, n])
             colors = hsv_to_rgb_hex(self._kmeans_center)
             for j, b in enumerate(bars):
@@ -268,7 +269,7 @@ class ColorTransformKMeansFixed(ColorTransform):
         labels = np.full(tnorm.shape[:-1], -1) # use -1 because labels can be 0
         labels[flt] = self._kmeans.predict(tnorm[flt])
 
-        if self._debug.enable('color_correction'):
+        if self._debug.enable('color-correction'):
             _, _, bars = self._debug \
                              .subplot('color_correction_raw') \
                              .hist(labels[flt], self._num_means + 1, [-1, self._num_means])
@@ -358,9 +359,9 @@ class ColorCorrection():
                 hist_mean[:,c] = cv.calcHist([bgr], [c], None, [256], [0,256])[:,0]
             hist_targets.append(hist_mean / np.sum(hist_mean, axis=0))
 
-        if self._debug.enable('color_histogram'):
+        if self._debug.enable('color-histogram'):
             f, axs = plt.subplots(4, 5)
-            f.canvas.manager.set_window_title('color_histogram')
+            f.canvas.manager.set_window_title('color-histogram')
             for c, clr in enumerate(['b', 'g', 'r']):
                 for i in range(4):
                     for j in range(4):

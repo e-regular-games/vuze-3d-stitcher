@@ -6,6 +6,7 @@ import numpy as np
 import cv2 as cv
 import debug_utils
 import linear_regression
+import threading
 from transform import TransformDepth
 from transform import Transform
 from transform import Transforms
@@ -138,10 +139,22 @@ class RefineSeams():
                 t.validate()
             transforms.append(t)
 
+        threads = []
+        for i in range(0, 8, 2):
+            t = FeatureMatcher4(imgs[i:i+4:2], imgs[i+1:i+4:2], self._debug)
+            threads.append(t)
+            if self._debug.enable_threads:
+                t.start()
+            else:
+                t.run()
+
         matches_by_seam = []
         seams = []
         for i in range(0, 8, 2):
-            matches = FeatureMatcher4(imgs[i:i+4:2], imgs[i+1:i+4:2], self._debug).matches()
+            t = threads[int(i/2)]
+            if self._debug.enable_threads:
+                t.join()
+            matches = t.result
             if matches is not None:
                 matches = matches[:,[0,2,1,3]]
             if self._matches_seam is not None:
@@ -182,6 +195,7 @@ class RefineSeams():
         target = [np.concatenate(c) for c in target]
         side = [np.concatenate(c) for c in side]
 
+        self._debug.log('linear regression')
         offset = [math.pi/2, math.pi]
         align_err = []
         for i in range(8):
@@ -207,6 +221,7 @@ class RefineSeams():
                 transforms[i].validate()
             if self._debug.enable('image-transforms'):
                 transforms[i].show(get_middle(self._images[i]))
+        self._debug.log('linear regression - finish')
 
         align_err_by_seam = [[] for i in range(4)]
         for s in range(4):
@@ -215,19 +230,31 @@ class RefineSeams():
                 err = align_err[i]
                 align_err_by_seam[s].append(err[side[i] == int(j/2)])
 
+        self._debug.log('seam path finding')
         seams = []
+        threads = []
         for i in range(4):
-            s = ChooseSeam(self._debug) \
+            t = ChooseSeam(self._debug) \
                 .depth_maps(depth_maps_by_seam[i]) \
                 .matches(target_by_seam[i]) \
                 .error(align_err_by_seam[i]) \
                 .images(imgs[2*i:2*i+4]) \
-                .border(self.border) \
-                .find_seam()
+                .border(self.border)
+            threads.append(t)
+            if self._debug.enable_threads:
+                t.start()
+            else:
+                t.run()
+
+        for t in threads:
+            if self._debug.enable_threads:
+                t.join()
+            s = t.result
             self._debug.log('seam length: ', s.shape[0])
             seams.append(s[:,0])
             seams.append(s[:,1])
 
+        self._debug.log('seam path finding - finish')
         self._seams = seams
         self._transforms = transforms
         return seams
@@ -267,8 +294,9 @@ class RefineSeams():
 # each input is an array of length 4.
 # the result is the seam to the right of the image with center at 0
 # the seam will be approximately at pi/4
-class ChooseSeam():
+class ChooseSeam(threading.Thread):
     def __init__(self, debug):
+        super().__init__()
         self._debug = debug
         self._dmaps = None
         self._points = None
@@ -289,7 +317,7 @@ class ChooseSeam():
         self._phi_cost = None
         self._valid_pixel_cost = None
         self._mat = None
-
+        self.result = None
 
     def depth_maps(self, dmaps):
         self._dmaps = dmaps
@@ -399,8 +427,8 @@ class ChooseSeam():
             if i >= 2:
                 p -= [0, math.pi/2]
             p_eqr = coordinates.polar_to_eqr(p, shape) \
-                               .reshape((p.shape[0], p.shape[1] * p.shape[2], 2))
-            p_alpha = coordinates.eqr_interp_3d(p_eqr, alpha).reshape(p.shape[:-1])
+                               .reshape((p.shape[0] * p.shape[1] * p.shape[2], 2))
+            p_alpha = coordinates.eqr_interp(p_eqr, alpha).reshape(p.shape[:-1])
             out_of_bounds = np.sum(p_alpha, axis=-1) > 0
             cost[out_of_bounds] = 0
 
@@ -411,7 +439,7 @@ class ChooseSeam():
 
         self._valid_pixel_cost = cost
 
-    def find_seam(self):
+    def run(self):
         # note: phi=0 is the top of the image, phi=pi is the bottom
         # theta is around 3pi/2
 
@@ -449,8 +477,8 @@ class ChooseSeam():
         self._theta_cost = self._square_and_scale(m0_row[...,1] - m0_col[...,1])
 
         self._mat = 0.1 * self._slope_cost \
-            + 0.4 * self._error_cost \
-            + 0.2 * self._phi_cost \
+            + 0.5 * self._error_cost \
+            + 0.1 * self._phi_cost \
             + 0.3 * self._theta_cost
         self._mat *= self._valid * self._valid_pixel_cost
 
@@ -472,7 +500,7 @@ class ChooseSeam():
         if self._debug.enable('seam-path'):
             self._plot_seam(path_points)
 
-        return path_points
+        self.result = path_points
 
     def _plot_seam(self, path):
         cart = coordinates.polar_to_cart(path, 1)
