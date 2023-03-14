@@ -125,6 +125,8 @@ class FeatureMatcher(threading.Thread):
 
     # angles in degrees as a list of (phi, theta) tuples.
     def _create_polar_keypoints(self, img, angles):
+        self._debug.perf('feature-matcher-keypoints')
+
         sift = cv.SIFT_create()
         pkp = PolarKeypoints()
         r = self.rectilinear_resolution
@@ -158,16 +160,20 @@ class FeatureMatcher(threading.Thread):
             img_f[eqr[:,1], eqr[:,0]] = [0, 0, 255]
             plt.figure().add_subplot(1, 1, 1).imshow(cv.cvtColor(img_f, cv.COLOR_BGR2RGB))
 
+        self._debug.perf('feature-matcher-keypoints')
         return pkp
 
     def _determine_matches(self, kp_a, kp_b, dist=0.125, thres=0.75):
+        self._debug.perf('feature-matcher-matches-bf')
         # BFMatcher with default params
         bf = cv.BFMatcher()
         matches = bf.knnMatch(kp_a.descriptors, kp_b.descriptors, k=6)
+        self._debug.perf('feature-matcher-matches-bf')
 
         good_matches = np.zeros((len(kp_a.keypoints), 4), np.float32) - 1
         good_matches[:,0] = np.arange(0, len(kp_a.keypoints))
 
+        self._debug.perf('feature-matcher-matches-filter')
         threads = []
         for p in range(self._parallel):
             t = FilterMatches() \
@@ -181,6 +187,9 @@ class FeatureMatcher(threading.Thread):
         for t in threads:
             t.join()
 
+        self._debug.perf('feature-matcher-matches-filter')
+
+        self._debug.perf('feature-matcher-matches-dedup')
         vals, cnt = np.unique(good_matches[:,1], return_counts=True)
         dups = cnt > 1
         for v in vals[dups][1:]: # the first entry is always -1
@@ -196,6 +205,7 @@ class FeatureMatcher(threading.Thread):
             good_matches[possible,1] = -1
             good_matches[int(best[0]),1] = v
 
+        self._debug.perf('feature-matcher-matches-dedup')
         return good_matches[:,:2]
 
 class FeatureMatcher2(FeatureMatcher):

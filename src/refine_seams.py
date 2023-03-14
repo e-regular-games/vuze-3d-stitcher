@@ -123,6 +123,7 @@ class RefineSeams():
     # 0 values within_image_by_seam.
     def _compute_matches(self):
         imgs = self._images + self._images[:2]
+        self._debug.perf('seams-matches')
 
         threads = []
         for i in range(0, 8, 2):
@@ -155,9 +156,11 @@ class RefineSeams():
                 matches_by_seam.append(matches)
                 within_image_by_seam.append(np.ones((matches.shape[0],), bool))
 
+        self._debug.perf('seams-matches')
         return matches_by_seam, within_image_by_seam
 
     def _compute_targets(self, matches_by_seam, transforms):
+        self._debug.perf('seams-targets')
         initial = [[] for i in range(8)]
         target = [[] for i in range(8)]
         side = [[] for i in range(8)]
@@ -184,10 +187,11 @@ class RefineSeams():
         initial = [np.concatenate(c) for c in initial]
         target = [np.concatenate(c) for c in target]
         side = [np.concatenate(c) for c in side]
+        self._debug.perf('seams-targets')
         return initial, target, side, target_by_seam
 
     def _compute_transforms(self, initial, target, transforms):
-        self._debug.log('linear regression')
+        self._debug.perf('seams-transforms')
 
         offset = [math.pi/2, math.pi]
         align_err = []
@@ -216,12 +220,14 @@ class RefineSeams():
             if self._debug.enable('image-transforms'):
                 transforms_linreg[i].show(get_middle(self._images[i]))
 
-        self._debug.log('linear regression - finish')
+        self._debug.perf('seams-transforms')
         return transforms_linreg, align_err
 
     # requires _matches_by_seam_this to be populated
-    def _compute_seam_paths(self, depth_maps_by_seam, target_by_seam, align_err_by_seam, within_image_by_seam):
-        self._debug.log('seam path finding')
+    def _compute_seam_paths(self, depth_maps_by_seam, target_by_seam,
+                            align_err_by_seam, within_image_by_seam):
+        self._debug.perf('seams-paths')
+
         imgs = self._images + self._images[:2]
         locations = [switch_axis(c.t) for c in self.calibration]
         locations = locations + locations[:2]
@@ -266,7 +272,7 @@ class RefineSeams():
             seams.append(s[:,0])
             seams.append(s[:,1])
 
-        self._debug.log('seam path finding - finish')
+        self._debug.perf('seams-paths')
         return seams
 
 
@@ -400,10 +406,11 @@ class ChooseSeam(threading.Thread):
         return self
 
     def _create_error_cost(self, m):
+        self._debug.perf('seam-cost-error')
         dim = m.shape[0]
         error = np.zeros((dim, dim), np.float32)
 
-        theta_offset = [-self._border / 2, -self._border/4, 0, self._border/4, self._border/2]
+        theta_offset = [-self._border / 2, 0, self._border/2]
         for i in range(4):
             err_map = DepthMapCloud(self._points[i], self._err[i])
             for o in theta_offset:
@@ -414,6 +421,7 @@ class ChooseSeam(threading.Thread):
                 error[self._path_valid] += \
                     np.sum(path_err[...,:-1] * self._delta_position, axis=-1)[self._path_valid]
         self._error_cost = self._square_and_scale(error)
+        self._debug.perf('seam-cost-error')
 
     def _plot(self):
         f = plt.figure()
@@ -471,6 +479,7 @@ class ChooseSeam(threading.Thread):
         self._valid = self._valid.reshape((dim, dim))
 
     def _create_valid_pixel_cost(self, m):
+        self._debug.perf('seam-cost-valid-pixel')
         shape = self._images[0].shape
         dim = m.shape[0]
         cost = np.ones((dim, dim), np.float32)
@@ -494,6 +503,7 @@ class ChooseSeam(threading.Thread):
         cost[-20:,-1] = 1
 
         self._valid_pixel_cost = cost
+        self._debug.perf('seam-cost-valid-pixel')
 
     def run(self):
         # note: phi=0 is the top of the image, phi=pi is the bottom
@@ -541,7 +551,9 @@ class ChooseSeam(threading.Thread):
         if self._debug.enable('seam-path-cost'):
             self._plot()
 
+        self._debug.perf('seam-cost-shortest-path')
         rdist, rpred = shortest_path(self._mat, return_predecessors=True)
+        self._debug.perf('seam-cost-shortest-path')
 
         top_idx = m0_col.shape[0]-1
         path = [top_idx]

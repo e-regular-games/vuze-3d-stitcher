@@ -186,7 +186,7 @@ def main():
             config.format[c] = True
 
     debug = Debug(options)
-    debug.enable_threads = debug.enable_threads and \
+    debug.enable_threads_high_mem = debug.enable_threads and \
         len(config.super_res) == 0 and \
         len(config.super_res_buckets) == 0
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
@@ -315,7 +315,7 @@ def main():
         t_right = ComputeSplice(splice_right, config.resolution, config.seam_blend_margin)
 
         # must be done one at a time else, will run the computer out of memory.
-        if debug.enable_threads:
+        if debug.enable_threads_high_mem:
             t_left.start()
             t_right.start()
             t_left.join()

@@ -10,6 +10,7 @@ class Debug:
         self.display = options.display if options is not None else {}
         self.verbose = options.verbose if options is not None else False
         self.enable_threads = len(self.display) == 0
+        self.enable_threads_high_mem = len(self.display) == 0
         self._window_title = ''
         self._figures = {}
         self._subplot = (1, 1, 1)
@@ -82,6 +83,7 @@ class Debug:
         d._subplot = self._subplot
         d._window_title = self._window_title
         d.enable_threads = self.enable_threads
+        d.enable_threads_high_mem = self.enable_threads_high_mem
         d._msgs = self._msgs
         d._msg_pause = self._msg_pause
         return d

@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from skimage import exposure
 import threading
 from depth_mesh import DepthCalibration
+from concurrent.futures import (ThreadPoolExecutor, wait)
 
 def create_from_middle(middle):
     w = middle.shape[1] * 2
@@ -259,25 +260,6 @@ class CalibrationParams():
             self.camera_matrix[0,2] = self.ellipse[0]
             self.camera_matrix[1,2] = self.ellipse[1]
 
-class LoadImage(threading.Thread):
-    def __init__(self, fish, calib, f):
-        threading.Thread.__init__(self)
-        self._fish = fish
-        self._f = f
-
-        self.result = None
-        self.calib = calib
-
-    def run(self):
-        img = cv.imread(self._f + '.JPG')
-        img = np.rot90(img)
-        if self.calib.recalc_ellipse:
-            self.calib.from_image(img)
-            self.calib.recalc_ellipse = False
-        fish = self._fish.clone_with_image(img, self.calib)
-        self.result = fish.to_equirect()
-        print('.', end='', flush=True)
-
 class ImageLoader:
     def __init__(self, config, debug):
         self._config = config
@@ -293,6 +275,8 @@ class ImageLoader:
             self._calib = calib
 
         print('loading images')
+        self._debug.perf('image-loader-load')
+
         images = self._load_images(self._config.input)
         if self._debug.enable('fisheye'): plot_lenses(images, 'Equirectangular')
         if self._debug.enable('fisheye-fio'):
@@ -317,26 +301,33 @@ class ImageLoader:
         for i, img in enumerate(images):
             images[i] = create_from_middle(img)
 
+        self._debug.perf('image-loader-load')
         return images
 
-    def _load_images(self, f, parallel=2):
-        threads = []
-        images = []
+    def _load_images(self, f, parallel=4):
+
+        def thread_load_image(fish, calib, f):
+            img = cv.imread(f + '.JPG')
+            img = np.rot90(img)
+            if calib.recalc_ellipse:
+                calib.from_image(img)
+                calib.recalc_ellipse = False
+            fish = fish.clone_with_image(img, calib)
+            result = fish.to_equirect()
+            print('.', end='', flush=True)
+            return result
+
+        if not self._debug.enable_threads_high_mem:
+            parallel = 1
+        executor = ThreadPoolExecutor(max_workers=parallel)
 
         self._debug.log_pause()
-        for l in range(1, 9):
-            if len(threads) >= parallel:
-                threads[0].join()
-                images.append(threads[0].result)
-                threads = threads[1:]
 
-            t = LoadImage(self._fish, self._calib[l-1], f + '_' + str(l))
-            t.start()
-            threads.append(t)
-
-        for t in threads:
-            t.join()
-            images.append(t.result)
+        futures = \
+            [executor.submit(thread_load_image, self._fish, self._calib[l-1], f + '_' + str(l))
+             for l in range(1, 9)]
+        wait(futures)
+        images = [fut.result() for fut in futures]
 
         print('')
         self._debug.log_resume()

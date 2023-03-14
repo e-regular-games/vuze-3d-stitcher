@@ -506,7 +506,7 @@ class DepthMapCloud(DepthMap):
             c_1 = coordinates.to_1d(c)
 
         c_1 = coordinates.polar_to_cart(c_1, 1)
-        dist, idx = self._tree.query(c_1, k=self._area, workers=8)
+        dist, idx = self._tree.query(c_1, k=self._area, workers=12)
 
         if self._area == 1:
             return self._r[idx].reshape(c.shape[:-1])
