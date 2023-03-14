@@ -3,6 +3,7 @@ from matplotlib import pyplot as plt
 import math
 import numpy as np
 import time
+import threading
 
 class Debug:
     def __init__(self, options=None):
@@ -86,11 +87,15 @@ class Debug:
         return d
 
     def perf(self, name):
-        if name in self._perfs:
-            self.log('performance', name, time.perf_counter() - self._perfs[name])
-            del self._perfs[name]
+        t = str(threading.get_ident())
+        if not t in self._perfs:
+            self._perfs[t] = {}
+
+        if name in self._perfs[t]:
+            self.log('performance', name, t, time.perf_counter() - self._perfs[t][name])
+            del self._perfs[t][name]
         else:
-            self._perfs[name] = time.perf_counter()
+            self._perfs[t][name] = time.perf_counter()
 
     def none(self):
         return Debug()

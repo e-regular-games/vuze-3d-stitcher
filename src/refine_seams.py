@@ -59,7 +59,7 @@ class RefineSeams():
         self._seams = None
         self._transforms = []
 
-        self._matches_seam = None
+        self._matches_by_seam = None # matches from saved data and this image
 
         for i, img in enumerate(images):
             t = Transform(debug)
@@ -118,26 +118,11 @@ class RefineSeams():
         self._debug.log('existing kept matches:', np.count_nonzero(keep), 'of', existing.shape[0])
         return keep
 
-    def align(self):
-        dim = self._images[0].shape[0]
+    # returns the matches_by_seam, within_image_by_seam
+    # matches_by_seam may include matches from previous images, these are identified as
+    # 0 values within_image_by_seam.
+    def _compute_matches(self):
         imgs = self._images + self._images[:2]
-        locations = [switch_axis(c.t) for c in self.calibration]
-        locations = locations + locations[:2]
-
-        R = self._calculate_R()
-        z = np.array([[0, 0, self.world_radius[0,2] - self.camera_height]], np.float32)
-        depth_maps = [DepthMapEllipsoid(self.world_radius, locations[i] + z) for i in range(8)]
-
-        transforms = []
-        for i in range(8):
-            t = TransformDepth(self._debug) \
-                .set_interocular(R, self.interocular) \
-                .set_eye(i % 2) \
-                .set_position(locations[i]) \
-                .set_depth(depth_maps[i])
-            if self._debug.verbose:
-                t.validate()
-            transforms.append(t)
 
         threads = []
         for i in range(0, 8, 2):
@@ -149,7 +134,7 @@ class RefineSeams():
                 t.run()
 
         matches_by_seam = []
-        seams = []
+        within_image_by_seam = []
         for i in range(0, 8, 2):
             t = threads[int(i/2)]
             if self._debug.enable_threads:
@@ -157,20 +142,26 @@ class RefineSeams():
             matches = t.result
             if matches is not None:
                 matches = matches[:,[0,2,1,3]]
-            if self._matches_seam is not None:
-                keep = self._filter_existing_matches(self._matches_seam[int(i/2)], matches)
-                combined = np.concatenate([self._matches_seam[int(i/2)][keep], matches])
+            if self._matches_by_seam is not None:
+                keep = self._filter_existing_matches(self._matches_by_seam[int(i/2)], matches)
+                combined = np.concatenate([self._matches_by_seam[int(i/2)][keep], matches])
                 matches_by_seam.append(combined)
+                within_image = np.concatenate([
+                    np.zeros((np.count_nonzero(keep),), bool),
+                    np.ones((matches.shape[0],), bool)
+                ])
+                within_image_by_seam.append(within_image)
             else:
                 matches_by_seam.append(matches)
+                within_image_by_seam.append(np.ones((matches.shape[0],), bool))
 
-        self._matches_seam = matches_by_seam
+        return matches_by_seam, within_image_by_seam
 
+    def _compute_targets(self, matches_by_seam, transforms):
         initial = [[] for i in range(8)]
         target = [[] for i in range(8)]
         side = [[] for i in range(8)]
         target_by_seam = [[] for i in range(4)]
-        depth_maps_by_seam = [[] for i in range(4)]
         for i, ms in enumerate(matches_by_seam):
             adj = np.zeros(ms.shape, np.float32)
             for j in range(4):
@@ -187,17 +178,20 @@ class RefineSeams():
 
                 t = (adj[:,ij] + adj[:,ij+2]) / 2
                 target[ii].append(t + shift)
-                depth_maps_by_seam[i].append(depth_maps[ii])
-                target_by_seam[i].append(t)
+                target_by_seam[i].append(t+shift)
                 side[ii].append(int(j/2) * np.ones((t.shape[0], ), np.float32))
 
         initial = [np.concatenate(c) for c in initial]
         target = [np.concatenate(c) for c in target]
         side = [np.concatenate(c) for c in side]
+        return initial, target, side, target_by_seam
 
+    def _compute_transforms(self, initial, target, transforms):
         self._debug.log('linear regression')
+
         offset = [math.pi/2, math.pi]
         align_err = []
+        transforms_linreg = []
         for i in range(8):
             lrr = LinearRegression(np.array([3, 4]), True)
             kept = trim_outliers_by_diff(target[i], initial[i], [3, 3])
@@ -215,29 +209,47 @@ class RefineSeams():
             tlr = TransformLinReg(self._debug) \
                 .set_regression(lrf, lrr) \
                 .set_offset(offset)
-            transforms[i] = Transforms([transforms[i], tlr])
+            transforms_linreg.append(Transforms([transforms[i], tlr]))
 
             if self._debug.verbose:
-                transforms[i].validate()
+                transforms_linreg[i].validate()
             if self._debug.enable('image-transforms'):
-                transforms[i].show(get_middle(self._images[i]))
+                transforms_linreg[i].show(get_middle(self._images[i]))
+
         self._debug.log('linear regression - finish')
+        return transforms_linreg, align_err
 
-        align_err_by_seam = [[] for i in range(4)]
-        for s in range(4):
-            for j in range(4):
-                i = (s * 2 + j) % 8
-                err = align_err[i]
-                align_err_by_seam[s].append(err[side[i] == int(j/2)])
-
+    # requires _matches_by_seam_this to be populated
+    def _compute_seam_paths(self, depth_maps_by_seam, target_by_seam, align_err_by_seam, within_image_by_seam):
         self._debug.log('seam path finding')
+        imgs = self._images + self._images[:2]
+        locations = [switch_axis(c.t) for c in self.calibration]
+        locations = locations + locations[:2]
+
+        depth_maps_by_seam = [[] for i in range(4)]
+        for i in range(4):
+            within = within_image_by_seam[i]
+            targets = [target[within] for target in target_by_seam[i]]
+            r0, r1, _ = radius_compute(targets[0], targets[1],
+                                       locations[2*i], locations[2*i+1])
+            depth_maps_by_seam[i].append(DepthMapCloud(targets[0], r0))
+            depth_maps_by_seam[i].append(DepthMapCloud(targets[1], r1))
+
+            r2, r3, _ = radius_compute(targets[2], targets[3],
+                                       locations[(2*i+2)%8], locations[(2*i+3)%8])
+            depth_maps_by_seam[i].append(DepthMapCloud(targets[2], r2))
+            depth_maps_by_seam[i].append(DepthMapCloud(targets[3], r3))
+
         seams = []
         threads = []
         for i in range(4):
+            within = within_image_by_seam[i]
+            targets = [target[within] for target in target_by_seam[i]]
+            align_err = [err[within] for err in align_err_by_seam[i]]
             t = ChooseSeam(self._debug) \
                 .depth_maps(depth_maps_by_seam[i]) \
-                .matches(target_by_seam[i]) \
-                .error(align_err_by_seam[i]) \
+                .matches(targets) \
+                .error(align_err) \
                 .images(imgs[2*i:2*i+4]) \
                 .border(self.border)
             threads.append(t)
@@ -255,9 +267,56 @@ class RefineSeams():
             seams.append(s[:,1])
 
         self._debug.log('seam path finding - finish')
-        self._seams = seams
-        self._transforms = transforms
         return seams
+
+
+    def align(self):
+        dim = self._images[0].shape[0]
+        imgs = self._images + self._images[:2]
+        locations = [switch_axis(c.t) for c in self.calibration]
+        locations = locations + locations[:2]
+
+        R = self._calculate_R()
+        z = np.array([[0, 0, self.world_radius[0,2] - self.camera_height]], np.float32)
+        depth_maps = [DepthMapEllipsoid(self.world_radius, locations[i] + z) for i in range(8)]
+        depth_maps_by_seam = []
+        for i in range(4):
+            depth_maps_by_seam.append([])
+            for j in range(4):
+                ii = (i*2+j) % 8
+                depth_maps_by_seam[i].append(depth_maps[ii])
+
+        transforms = []
+        for i in range(8):
+            t = TransformDepth(self._debug) \
+                .set_interocular(R, self.interocular) \
+                .set_eye(i % 2) \
+                .set_position(locations[i]) \
+                .set_depth(depth_maps[i])
+            if self._debug.verbose:
+                t.validate()
+            transforms.append(t)
+
+        # populate _matches_by_seam and _matches_by_seam_this
+        matches_by_seam, within_image_by_seam = self._compute_matches()
+        self._matches_by_seam = matches_by_seam
+
+        initial, target, side, target_by_seam = \
+            self._compute_targets(matches_by_seam, transforms)
+
+        self._transforms, align_err = \
+            self._compute_transforms(initial, target, transforms)
+
+        align_err_by_seam = [[] for i in range(4)]
+        for s in range(4):
+            for j in range(4):
+                i = (s * 2 + j) % 8
+                err = align_err[i]
+                align_err_by_seam[s].append(err[side[i] == int(j/2)])
+
+        self._seams = self._compute_seam_paths(depth_maps_by_seam, target_by_seam, \
+                                               align_err_by_seam, within_image_by_seam)
+        return self._seams
 
     def to_dict(self):
         d = {
@@ -270,7 +329,7 @@ class RefineSeams():
             d['seams'].append(s.tolist())
         for t in self._transforms:
             d['transforms'].append(t.to_dict())
-        for m in self._matches_seam:
+        for m in self._matches_by_seam:
             d['matchesBySeam'].append(m.tolist())
 
         return d
@@ -285,9 +344,9 @@ class RefineSeams():
             t = Transform.from_dict(s, self._debug)
             self._transforms.append(t)
 
-        self._matches_seam = []
+        self._matches_by_seam = []
         for m in d['matchesBySeam']:
-            self._matches_seam.append(np.array(m))
+            self._matches_by_seam.append(np.array(m))
 
         return self
 
@@ -423,9 +482,6 @@ class ChooseSeam(threading.Thread):
             alpha = (alpha < (kernel_size**2 - 1)).astype(np.float32)
 
             p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
-
-            if i >= 2:
-                p -= [0, math.pi/2]
             p_eqr = coordinates.polar_to_eqr(p, shape) \
                                .reshape((p.shape[0] * p.shape[1] * p.shape[2], 2))
             p_alpha = coordinates.eqr_interp(p_eqr, alpha).reshape(p.shape[:-1])
@@ -476,10 +532,10 @@ class ChooseSeam(threading.Thread):
         self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])
         self._theta_cost = self._square_and_scale(m0_row[...,1] - m0_col[...,1])
 
-        self._mat = 0.1 * self._slope_cost \
+        self._mat = 0.15 * self._slope_cost \
             + 0.5 * self._error_cost \
-            + 0.1 * self._phi_cost \
-            + 0.3 * self._theta_cost
+            + 0.15 * self._phi_cost \
+            + 0.2 * self._theta_cost
         self._mat *= self._valid * self._valid_pixel_cost
 
         if self._debug.enable('seam-path-cost'):
