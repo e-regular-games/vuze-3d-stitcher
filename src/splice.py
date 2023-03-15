@@ -160,7 +160,7 @@ class SpliceImages():
             t = ComputeSegment(images[s], polar, self._stitches, s, margin, \
                                self._transforms[s], self._color_transforms[s], self._debug)
 
-            if self._debug.enable_threads:
+            if self._debug.enable_threads_high_mem:
                 t.start()
             else:
                 t.run()
@@ -168,7 +168,7 @@ class SpliceImages():
 
         result = np.zeros(shape, dtype=np.uint8)
         for t in threads:
-            if self._debug.enable_threads:
+            if self._debug.enable_threads_high_mem:
                 t.join()
             result += t.result
 
