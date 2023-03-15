@@ -3,16 +3,16 @@ A python based script for combining 8 separate photos taken by the Vuze 4K 3D 36
 
 <table>
   <tr>
-    <td><img src="test/HET_0014_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
-    <td><img src="test/HET_0014_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
-    <td><img src="test/HET_0014_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
-    <td><img src="test/HET_0014_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_1.JPG" alt="Left-eye, facing forward." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_3.JPG" alt="Left-eye, facing right." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_5.JPG" alt="Left-eye, facing backwards." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_7.JPG" alt="Left-eye, facing left." width="200px" /></td>
   </tr>
   <tr>
-    <td><img src="test/HET_0014_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
-    <td><img src="test/HET_0014_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
-    <td><img src="test/HET_0014_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
-    <td><img src="test/HET_0014_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_2.JPG" alt="Right-eye, facing forward." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_4.JPG" alt="Right-eye, facing right." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_6.JPG" alt="Right-eye, facing backwards." width="200px" /></td>
+    <td><img src="notes/thumbs/HET_0014_8.JPG" alt="Right-eye, facing left." width="200px" /></td>
   </tr>
 </table>
 
@@ -33,15 +33,24 @@ The following image uses a resolution of 4320x4320 (resized for display here) al
 
 This is the command used to generate the full resolution versions of the above images.
 ```
-src/vuze_merge.py -a coeffs_v5.dat -I test/HET_0014 -O test/HET_0014_demo \
-  -f gpano,over-under,anaglyph:90:0:0:1112:955 \
+src/vuze_merge.py -a coeffs_v6.json -I test/HET_0014 -O test/HET_0014_demo \
+  -f over-under,anaglyph:90:0:0:1112:955 \
   --config-option exposure_fuse,test/HET_0011 \
   --config-option exposure_fuse,test/HET_0012 \
   --config-option exposure_fuse,test/HET_0015
+mogrify -resize 25% test/HET_0014_demo.JPG
+src/vuze_merge.py -a coeffs_v6.json -l test/HET_0014_demo.JPG -f gpano
 ```
 
-
 ## Requirements
+
+The test system had the following specification.
+| Hardware | Spec |
+| :--- | ----: |
+| CPU | AMD Ryzen 7 5800U with Radeon Graphics |
+| Cores | 16x @ 2.3Ghz |
+| Memory + Swap | 16GB + 16GB |
+
 The following python models will need to be installed. The installation requires pip.
 ```
 pip install numpy

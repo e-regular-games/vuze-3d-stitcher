@@ -410,16 +410,16 @@ class ChooseSeam(threading.Thread):
         dim = m.shape[0]
         error = np.zeros((dim, dim), np.float32)
 
-        theta_offset = [-self._border / 2, 0, self._border/2]
+        theta_offset = [-self._border/4, 0, self._border/4]
+        flt = np.logical_and(self._valid_pixel_cost, self._valid)
         for i in range(4):
             err_map = DepthMapCloud(self._points[i], self._err[i])
+            p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))[flt]
             for o in theta_offset:
                 o = np.array([0, o], np.float32)
-                p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
-                path_err = err_map.eval(p.reshape((dim, self._D * dim, 2)) + o) \
-                                  .reshape((dim, dim, self._D))
-                error[self._path_valid] += \
-                    np.sum(path_err[...,:-1] * self._delta_position, axis=-1)[self._path_valid]
+                path_err = err_map.eval(p + o)
+                error[flt] += \
+                    np.sum(path_err[...,:-1] * self._delta_position[flt], axis=-1)
         self._error_cost = self._square_and_scale(error)
         self._debug.perf('seam-cost-error')
 
@@ -532,8 +532,8 @@ class ChooseSeam(threading.Thread):
         self._delta_position = np.sqrt(np.sum(delta_position * delta_position, axis=-1))
         self._path_valid = np.all(self._delta_position > 0.00001, axis=-1)
 
-        self._create_error_cost(m)
         self._create_valid_pixel_cost(m)
+        self._create_error_cost(m)
 
         slope = np.zeros((dim, dim), np.float32)
         slope[self._path_valid] = np.sum(np.abs(path_r[...,1:] - path_r[...,:-1])[self._path_valid] / self._delta_position[self._path_valid], axis=-1)
