@@ -181,7 +181,7 @@ class RefineSeams():
 
                 t = (adj[:,ij] + adj[:,ij+2]) / 2
                 target[ii].append(t + shift)
-                target_by_seam[i].append(t+shift)
+                target_by_seam[i].append(t + shift)
                 side[ii].append(int(j/2) * np.ones((t.shape[0], ), np.float32))
 
         initial = [np.concatenate(c) for c in initial]
@@ -194,7 +194,6 @@ class RefineSeams():
         self._debug.perf('seams-transforms')
 
         offset = [math.pi/2, math.pi]
-        align_err = []
         transforms_linreg = []
         for i in range(8):
             lrr = LinearRegression(np.array([3, 4]), True)
@@ -203,7 +202,6 @@ class RefineSeams():
             ii = initial[i][kept]
             err = target[i] - initial[i]
             err[kept] = lrr.regression(ti - offset, ii - offset)
-            align_err.append(np.sqrt(np.sum(err*err, axis=-1)))
 
             lrf = LinearRegression(np.array([3, 4]), True)
             lrf.regression(ii - offset, ti - offset)
@@ -221,41 +219,65 @@ class RefineSeams():
                 transforms_linreg[i].show(get_middle(self._images[i]))
 
         self._debug.perf('seams-transforms')
-        return transforms_linreg, align_err
+        return transforms_linreg
 
     # requires _matches_by_seam_this to be populated
-    def _compute_seam_paths(self, depth_maps_by_seam, target_by_seam,
-                            align_err_by_seam, within_image_by_seam):
+    def _compute_seam_paths(self, matches_by_seam, target_by_seam,
+                            transforms, within_image_by_seam):
         self._debug.perf('seams-paths')
 
         imgs = self._images + self._images[:2]
         locations = [switch_axis(c.t) for c in self.calibration]
         locations = locations + locations[:2]
 
+        # this block ensures adjust_by_seam, align_err_by_seam, target_by_seam
+        # follow the same format of list of lists with the 3rd index being
+        # a numpy matrix of shape (N, 2) which N is the number of points within
+        # the current image set. (ie excluding points from previous runs)
+        adjusted_by_seam = [[] for i in range(4)]
+        align_err_by_seam = [[] for i in range(4)]
+        for i, m in enumerate(matches_by_seam):
+            within = within_image_by_seam[i]
+            targets = [target[within] for target in target_by_seam[i]]
+            target_by_seam[i] = targets
+
+            for j in range(4):
+                t = transforms[(2*i+j)%8]
+                shift = int(j/2)*np.array([0, -math.pi/2], np.float32)
+                adjusted = t.forward(m[within,j] + shift)
+                adjusted_by_seam[i].append(adjusted)
+
+                align_err = (targets[j] - adjusted)**2
+                align_err = np.sum(align_err*align_err, axis=-1)
+                align_err_by_seam[i].append(align_err)
+
         depth_maps_by_seam = [[] for i in range(4)]
         for i in range(4):
             within = within_image_by_seam[i]
-            targets = [target[within] for target in target_by_seam[i]]
-            r0, r1, _ = radius_compute(targets[0], targets[1],
+            matches = matches_by_seam[i][within]
+            adjusted = adjusted_by_seam[i]
+            r0, r1, _ = radius_compute(matches[:,0], matches[:,1],
                                        locations[2*i], locations[2*i+1])
-            depth_maps_by_seam[i].append(DepthMapCloud(targets[0], r0))
-            depth_maps_by_seam[i].append(DepthMapCloud(targets[1], r1))
+            depth_maps_by_seam[i].append(DepthMapCloud(adjusted[0], r0))
+            depth_maps_by_seam[i].append(DepthMapCloud(adjusted[1], r1))
 
-            r2, r3, _ = radius_compute(targets[2], targets[3],
+            r2, r3, _ = radius_compute(matches[:,2], matches[:,3],
                                        locations[(2*i+2)%8], locations[(2*i+3)%8])
-            depth_maps_by_seam[i].append(DepthMapCloud(targets[2], r2))
-            depth_maps_by_seam[i].append(DepthMapCloud(targets[3], r3))
+            depth_maps_by_seam[i].append(DepthMapCloud(adjusted[2], r2))
+            depth_maps_by_seam[i].append(DepthMapCloud(adjusted[3], r3))
+
+            if self._debug.enable('align-depth'):
+                depth_maps_by_seam[i][0].plot(self._images[(2*i)%8])
+                depth_maps_by_seam[i][2].plot(self._images[(2*i+2)%8])
+
 
         seams = []
         threads = []
         for i in range(4):
-            within = within_image_by_seam[i]
-            targets = [target[within] for target in target_by_seam[i]]
-            align_err = [err[within] for err in align_err_by_seam[i]]
             t = ChooseSeam(self._debug) \
                 .depth_maps(depth_maps_by_seam[i]) \
-                .matches(targets) \
-                .error(align_err) \
+                .matches(adjusted_by_seam[i]) \
+                .error(align_err_by_seam[i]) \
                 .images(imgs[2*i:2*i+4]) \
                 .border(self.border)
             threads.append(t)
@@ -310,18 +332,10 @@ class RefineSeams():
         initial, target, side, target_by_seam = \
             self._compute_targets(matches_by_seam, transforms)
 
-        self._transforms, align_err = \
-            self._compute_transforms(initial, target, transforms)
+        self._transforms = self._compute_transforms(initial, target, transforms)
 
-        align_err_by_seam = [[] for i in range(4)]
-        for s in range(4):
-            for j in range(4):
-                i = (s * 2 + j) % 8
-                err = align_err[i]
-                align_err_by_seam[s].append(err[side[i] == int(j/2)])
-
-        self._seams = self._compute_seam_paths(depth_maps_by_seam, target_by_seam, \
-                                               align_err_by_seam, within_image_by_seam)
+        self._seams = self._compute_seam_paths(matches_by_seam, target_by_seam, \
+                                               self._transforms, within_image_by_seam)
         return self._seams
 
     def to_dict(self):
@@ -414,7 +428,7 @@ class ChooseSeam(threading.Thread):
         flt = np.logical_and(self._valid_pixel_cost, self._valid)
         for i in range(4):
             err_map = DepthMapCloud(self._points[i], self._err[i])
-            p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))[flt]
+            p = self._create_path(m[self._sort_idx,i].reshape((1, dim, 2)))[flt]
             for o in theta_offset:
                 o = np.array([0, o], np.float32)
                 path_err = err_map.eval(p + o)

@@ -85,6 +85,7 @@ def print_usage_display():
     print('features-keypoints', '\t\t', 'Show an image of all the detected keypoints (marked in red) within the image.')
     print('features-matches', '\t\t', 'Show an image of all the matching keypoints (marked in red) between two or more images.')
     print('seam-path', '\t\t\t', 'Plot in 3d the points along the seam paths between the images. Each plot will have points for each of the 4 images along the seam.')
+    print('align-depth', '\t\t\t', 'Graph the distance in equirectangular space to each pixel along the seam for 2 out of 4 of the images.')
     print('seam-path-cost', '\t\t\t', 'Graph the cost matrix and its component costs used to find the lowest cost path between the top and bottom of the image, ie the seam.')
 
 class ProgramOptions:
