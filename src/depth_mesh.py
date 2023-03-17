@@ -195,6 +195,7 @@ class DepthCalibration():
         b = get_middle(b)
         p_a = switch_axis(p_a)
         p_b = switch_axis(p_b)
+
         coords, expected, r_expected = \
             self._determine_coordinates(a, b, p_a, p_b, self._patches)
         r_initial, _, _ = radius_compute(coords[0], coords[1], p_a, p_b)
@@ -307,27 +308,27 @@ class DepthCalibration():
         print('kabsch cart err:', np.sum(err * err))
         self._rotation = rot.as_matrix()
 
-    def result_info(self, a, b, p_a, p_b):
+    def result_info(self, a, b0, b1, p_a, p_b):
         a = get_middle(a)
-        b = get_middle(b)
+        b0 = get_middle(b0)
+        b1 = get_middle(b1)
         p_a = switch_axis(p_a)
         p_b = switch_axis(p_b)
 
         info = np.zeros((4,), np.float32)
         coords, expected, r_exp = \
-            self._determine_coordinates(a, b, p_a, p_b, self._patches)
+            self._determine_coordinates(a, b0, p_a, p_b, self._patches)
         r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
         info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[2] = np.sum(d*d)
 
-        b_adj = self.apply(b)
+        a_adj = self.apply(a)
         if self._debug.enable('depth-cal-finalize'):
-            self._debug.subplot('depth-cal-left').imshow(a)
-            self._debug.subplot('depth-cal-original').imshow(b)
-            self._debug.subplot('depth-cal-right').imshow(b_adj)
+            self._debug.subplot('depth-cal-adjusted').imshow(a_adj)
+            self._debug.subplot('depth-cal-original').imshow(a)
 
         coords, expected, r_exp = \
-            self._determine_coordinates(a, b_adj, p_a, p_b, self._patches)
+            self._determine_coordinates(a_adj, b1, p_a, p_b, self._patches)
         r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
         info[1] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[3] = np.sum(d*d)

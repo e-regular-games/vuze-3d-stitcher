@@ -10,6 +10,18 @@ from image_loader import CalibrationParams
 from depth_mesh import DepthCalibration
 from config import Config
 
+def create_from_middle(middle):
+    w = middle.shape[1] * 2
+    r = np.zeros((middle.shape[0], w, middle.shape[2]), np.uint8)
+    r[:,int(w/4):int(3*w/4)] = middle
+    return r
+
+def get_middle(img):
+    width = img.shape[1]
+    middle = range(int(width/4), int(width*3/4))
+    return img[:,middle]
+
+
 class CameraSetup():
     def __init__(self, alignment_file, setup_file, debug):
         self._alignment_file = alignment_file
@@ -189,13 +201,19 @@ class CameraSetup():
             seam_sets.append(ImageSet(images, s['name'], s['seam']))
 
         def rotate_seam_image(i, direction):
-            tmp = np.zeros(i.shape, np.float32)
+            tmp = np.zeros(i.shape, np.uint8)
             w = i.shape[1]
             if direction == 1:
                 tmp[:,int(w/2):] = i[:,int(w/4):int(3*w/4)]
             elif direction == -1:
                 tmp[:,:int(w/2)] = i[:,int(w/4):int(3*w/4)]
             return tmp
+
+        def rotate(p, direction):
+            if direction == 1:
+                return np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], np.float32) @ p
+            elif direction == -1:
+                return np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], np.float32) @ p
 
         for s in seam_sets:
             a = 2*s.seam_only
@@ -208,9 +226,10 @@ class CameraSetup():
                 i0 = s.images[m[0]]
                 i1 = s.images[m[1]]
                 depths[m[0]].add_coordinates(i0, rotate_seam_image(i1, 1), \
-                                             locations[m[0]], locations[m[1]])
+                                             locations[m[0]], rotate(locations[m[1]], 1))
+
                 depths[m[1]].add_coordinates(i1, rotate_seam_image(i0, -1), \
-                                             locations[m[1]], locations[m[0]])
+                                             locations[m[1]], rotate(locations[m[0]], -1))
 
         for i, d in enumerate(depths):
             d.finalize()
@@ -222,13 +241,13 @@ class CameraSetup():
 
             if self._debug.enable('depth-cal-finalize'):
                 self._debug._window_title = s.filename
-                self._debug.figure('depth-cal-left', True)
+                self._debug.figure('depth-cal-adjusted', True)
                 self._debug.figure('depth-cal-original', True)
-                self._debug.figure('depth-cal-right', True)
 
             for i, d in enumerate(depths):
                 o = 1 - 2*(i%2)
-                fit_info[si, i] = d.result_info(s.images[i], s.images[i+o], \
+                i1 = create_from_middle(depths[i+o].apply(get_middle(s.images[i+o])))
+                fit_info[si, i] = d.result_info(s.images[i], s.images[i+o], i1, \
                                                 locations[i], locations[i+o])
 
         print(fit_info)
