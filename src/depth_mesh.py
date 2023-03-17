@@ -291,7 +291,7 @@ class DepthCalibration():
         act = [0, 3*math.pi/2] + [1, -1] * act
 
         self._linreg = LinearRegression(np.array([2, 4]), False)
-        err = self._linreg.regression(exp, act)
+        err, _ = self._linreg.regression(exp, act)
         print('linear regression depth squared error:', np.sum(err*err, axis=0))
 
     def _finalize_kabsch(self, act, exp):

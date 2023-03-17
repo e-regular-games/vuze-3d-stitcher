@@ -10,8 +10,8 @@
       "calibration/colored",
       "calibration/colored_left",
       "calibration/colored_right",
-      "calibration/colored_far_left",
-      "calibration/colored_far_right"
+      "calibration/colored_down",
+      "calibration/colored_up"
     ],
     "seams": [
       {"seam": 0, "name": "calibration/colored_seam_a"},

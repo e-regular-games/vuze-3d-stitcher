@@ -67,10 +67,10 @@ def trim_outliers_by_diff(a, b, d):
 
 # is in a N by 1 vector.
 def trim_outliers(i, d):
-    m = np.mean(i)
-    std = np.std(i)
+    m = np.mean(i, axis=0)
+    std = np.std(i, axis=0)
 
-    inc = np.logical_and(m - d*std < i, i < m + d*std)
+    inc = np.logical_and(m - d*std < i, i < m + d*std).all(axis=-1)
     return inc
 
 class LinearRegression():
@@ -79,6 +79,7 @@ class LinearRegression():
     def __init__(self, order=np.array([2]), cross=False):
         self._order = order
         self._cross = cross
+        self._remove_outliers = False
         self._vars = order.shape[0]
 
         if cross:
@@ -97,14 +98,29 @@ class LinearRegression():
         for i in range(self._num_terms):
             self._powers[i] = self._index_to_powers(i)
 
+    def remove_outliers(self, enable):
+        self._remove_outliers = enable
+        return self
+
     def regression(self, x, y):
         terms = self._terms(x)
         Q, R = np.linalg.qr(terms)
         self._coeffs = np.linalg.inv(R).dot(np.transpose(Q)).dot(y)
 
         approx = terms.dot(self._coeffs)
+        err = approx - y
 
-        return approx - y
+        if self._remove_outliers:
+            keep = trim_outliers(err, 1.5)
+            err = x - y
+            terms = self._terms(x[keep])
+            Q, R = np.linalg.qr(terms)
+            self._coeffs = np.linalg.inv(R).dot(np.transpose(Q)).dot(y[keep])
+            approx = terms.dot(self._coeffs)
+            err[keep] = approx - y[keep]
+            return err, keep
+
+        return err, np.ones((x.shape[0],), bool)
 
     def evaluate(self, x):
         terms = self._terms(x)
@@ -134,7 +150,8 @@ class LinearRegression():
         return {
             "order": (self._order + order_adj).tolist(),
             "coeffs": self._coeffs.tolist(),
-            "cross": self._cross
+            "cross": self._cross,
+            "removeOutliers": self._remove_outliers
         }
 
     def from_dict(self, d):
@@ -142,6 +159,8 @@ class LinearRegression():
         cross = d["cross"]
         self.__init__(order, cross)
         self._coeffs = np.array(d["coeffs"])
+        if "removeOutliers" in d:
+            self._remove_outliers = d["removeOutliers"]
         return self
 
     def _index_to_powers(self, i):

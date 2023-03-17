@@ -1,11 +1,9 @@
 
-import color_correction
 import coordinates
-import math
-import numpy as np
 import cv2 as cv
 import debug_utils
-import linear_regression
+import math
+import numpy as np
 import threading
 from transform import TransformDepth
 from transform import Transform
@@ -16,20 +14,12 @@ import matplotlib.colors as colors
 from Equirec2Perspec import Equirectangular
 from scipy.spatial import KDTree
 from scipy.sparse.csgraph import shortest_path
-from debug_utils import show_polar_plot
-from debug_utils import show_polar_points
 from depth_mesh import radius_compute
 from depth_mesh import switch_axis
-from depth_mesh import DepthMapperSlice
-from depth_mesh import DepthMapper2D
-from depth_mesh import DepthMap
 from depth_mesh import DepthMapEllipsoid
 from depth_mesh import DepthMapCloud
-from feature_matcher import FeatureMatcher2
 from feature_matcher import FeatureMatcher4
-from coordinates import to_1d
 from linear_regression import LinearRegression
-from linear_regression import trim_outliers_by_diff
 
 def get_middle(img):
     width = img.shape[1]
@@ -195,18 +185,19 @@ class RefineSeams():
 
         offset = [math.pi/2, math.pi]
         transforms_linreg = []
+        keeps = []
         for i in range(8):
-            lrr = LinearRegression(np.array([3, 4]), True)
-            kept = trim_outliers_by_diff(target[i], initial[i], [3, 3])
-            ti = target[i][kept]
-            ii = initial[i][kept]
+            lrr = LinearRegression(np.array([3, 4]), True).remove_outliers(True)
             err = target[i] - initial[i]
-            err[kept] = lrr.regression(ti - offset, ii - offset)
+            err, keep = lrr.regression(target[i] - offset, initial[i] - offset)
+            keeps.append(keep)
 
+            ii = initial[i][keep]
+            ti = target[i][keep]
             lrf = LinearRegression(np.array([3, 4]), True)
             lrf.regression(ii - offset, ti - offset)
 
-            self._debug_fit(ti - offset, ii - offset, err[kept])
+            self._debug_fit(ti - offset, ii - offset, err[keep])
 
             tlr = TransformLinReg(self._debug) \
                 .set_regression(lrf, lrr) \
@@ -219,7 +210,7 @@ class RefineSeams():
                 transforms_linreg[i].show(get_middle(self._images[i]))
 
         self._debug.perf('seams-transforms')
-        return transforms_linreg
+        return transforms_linreg, keeps
 
     # requires _matches_by_seam_this to be populated
     def _compute_seam_paths(self, matches_by_seam, target_by_seam,
@@ -297,6 +288,13 @@ class RefineSeams():
         self._debug.perf('seams-paths')
         return seams
 
+    def _seam_keeps(self, by_seam, keeps, side):
+        for i, s in enumerate(by_seam):
+            for j in range(4):
+                ii = (2*i + j) % 8
+                keep = keeps[ii][side[ii] == int(j/2)]
+                by_seam[i] = np.logical_and(by_seam[i], keep)
+        return result
 
     def align(self):
         dim = self._images[0].shape[0]
@@ -327,16 +325,28 @@ class RefineSeams():
 
         # populate _matches_by_seam and _matches_by_seam_this
         matches_by_seam, within_image_by_seam = self._compute_matches()
-        self._matches_by_seam = matches_by_seam
 
         initial, target, side, target_by_seam = \
             self._compute_targets(matches_by_seam, transforms)
 
-        self._transforms = self._compute_transforms(initial, target, transforms)
+        transforms, keeps = self._compute_transforms(initial, target, transforms)
 
-        self._seams = self._compute_seam_paths(matches_by_seam, target_by_seam, \
-                                               self._transforms, within_image_by_seam)
+        # filter out the points removed during the transform computation.
+        # these would be high error points anyway.
+        for i, s in enumerate(within_image_by_seam):
+            for j in range(4):
+                ii = (2*i + j) % 8
+                keep = keeps[ii][side[ii] == int(j/2)]
+                within_image_by_seam[i] = np.logical_and(within_image_by_seam[i], keep)
+
+        seams = self._compute_seam_paths(matches_by_seam, target_by_seam, \
+                                         transforms, within_image_by_seam)
+
+        self._transforms = transforms
+        self._seams = seams
+        self._matches_by_seam = matches_by_seam
         return self._seams
+
 
     def to_dict(self):
         d = {
@@ -556,10 +566,10 @@ class ChooseSeam(threading.Thread):
         self._phi_cost = self._square_and_scale(m0_row[...,0] - m0_col[...,0])
         self._theta_cost = self._square_and_scale(m0_row[...,1] - m0_col[...,1])
 
-        self._mat = 0.15 * self._slope_cost \
-            + 0.5 * self._error_cost \
-            + 0.15 * self._phi_cost \
-            + 0.2 * self._theta_cost
+        self._mat = 0.20 * self._slope_cost \
+            + 0.30 * self._error_cost \
+            + 0.35 * self._phi_cost \
+            + 0.15 * self._theta_cost
         self._mat *= self._valid * self._valid_pixel_cost
 
         if self._debug.enable('seam-path-cost'):
