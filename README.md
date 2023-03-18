@@ -97,6 +97,8 @@ If you wish to support this project please buy me a coffee.
 ## Development Log
 This directory contains documentation on useful processes and tests. It also documents attempts which failed, to avoid repeating them in the future. This is an on-going development log.
 
+[Color Table](./notes/color_table/README.md) (March 18th, 2023)
+
 [Matches and Seams](./notes/matches_and_seams/README.md) (March 17th, 2023)
 
 [World Seams](./notes/world_seams/world_seams.md) (March 5th, 2023)
