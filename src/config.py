@@ -50,7 +50,8 @@ def print_usage():
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('accel_align,<enabled>\t\t\tUse the accelerometer to rotate and translate the lens. default: false')
     print('contrast_equ,<clip>,<gridx>,<gridy>\tEnable adaptive hsv-value histogram equalization.')
-    print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam.')
+    print('seam,blend,<margin>\t\t\tBlend by taking a linear weighted average across the margin about the seam. (degrees)')
+    print('seam,color,<margin>\t\t\tWidth of the area around the seam that is used for color matching. Wider margins require more seam points located away from the image edge. (degrees)')
     print('seam,pyramid,<depth>\t\t\tBlend using Laplacian Pyramids to the specified depth. Experimental: causes color and image distortion.')
     print('super_resolution,<image>\t\tSpecified at least 2 times. Each image will be merged into the result.')
     print('super_resolution,<bucket>,<image>\t\tSpecified at least 4 times, 2 separate buckets. Buckets can be arbitrary, images within a bucket will be merged, then buckets will be exposure merged using Mertens.')
@@ -80,7 +81,6 @@ def print_usage_display():
     print('color-delta', '\t\t\t', 'Graph the difference in each color channel within an image due to color correction.')
     print('color-regression-kmeans', '\t', 'Graph the histogram of separating colors into kmeans.')
     print('color-correction', '\t\t', 'Histogram of the number of pixels falling into each of the kmeans used to correct colors.')
-    print('color-histogram', '\t\t', 'Histogram of each color channel and the number of pixels with that value in each of the seams within the image.')
     print('color', '\t\t\t\t', 'An image of the original colors, the desired color, and the corrected color per pixel for the image.')
     print('features-keypoints', '\t\t', 'Show an image of all the detected keypoints (marked in red) within the image.')
     print('features-matches', '\t\t', 'Show an image of all the matching keypoints (marked in red) between two or more images.')
@@ -223,6 +223,7 @@ class Config:
         self.accel_align = True
         self.contrast_equ = None
         self.seam_blend_margin = 2.5 * math.pi / 180
+        self.seam_color_margin = 6.0 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
 
@@ -273,6 +274,8 @@ class Config:
             if cmd[1] == 'blend':
                 self.seam_blend_margin = float(cmd[2]) * math.pi / 180
                 self.seam_pyramid_depth = 0
+            elif cmd[1] == 'color':
+                self.seam_color_margin = float(cmd[2]) * math.pi / 180
             elif cmd[1] == 'pyramid':
                 self.seam_pyramid_depth = int(cmd[2])
                 self.seam_blend_margin = 0
