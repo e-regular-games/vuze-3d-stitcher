@@ -61,6 +61,9 @@ class RefineSeams():
         self.interocular = 0.06
         self.border = 5 * math.pi / 180
 
+    # seams and coordinate transform objects.
+    # seams are in world coordinates already.
+    # seams are the right side of each of the 8 images and are centered at 0.
     def data(self):
         return self._seams, self._transforms
 
@@ -507,6 +510,7 @@ class ChooseSeam(threading.Thread):
         shape = self._images[0].shape
         dim = m.shape[0]
         cost = np.zeros((dim, dim), np.float32)
+
         kernel_size = int(self._border * shape[0] / math.pi) + 1
         kernel_size += (kernel_size % 2) # make sure its odd
         kernel = np.ones((kernel_size, kernel_size))
@@ -527,10 +531,6 @@ class ChooseSeam(threading.Thread):
             cost[in_bounds] += 1
 
         cost = (cost == 4)
-        #phi_upper = (m[self._sort_idx,:,0] < math.pi/2).all(axis=-1)
-        #phi_lower = (m[self._sort_idx,:,0] > math.pi/2).all(axis=-1)
-        #cost[0,phi_upper] = 1
-        #cost[phi_lower,-1] = 1
 
         self._valid_pixel_cost = cost
         self._debug.perf('seam-cost-valid-pixel')

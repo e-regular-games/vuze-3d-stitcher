@@ -164,13 +164,13 @@ class ColorCorrection():
         self._debug.log_pause();
 
         for i in range(8):
-            left_bgr = regions[(2*i+1) % 16].astype(np.uint8)
-            left_coord = coords[(2*i+1) % 16]
-            left_target = targets[int(i/2)]
+            left_bgr = regions[(2*i-3) % 16].astype(np.uint8)
+            left_coord = coords[(2*i-3) % 16]
+            left_target = targets[(int(i/2)-1)%4]
 
-            right_bgr = regions[(2*i+4) % 16].astype(np.uint8)
-            right_coord = coords[(2*i+4) % 16]
-            right_target = targets[int(i/2+1)%4]
+            right_bgr = regions[2*i].astype(np.uint8)
+            right_coord = coords[2*i]
+            right_target = targets[int(i/2)]
 
             bgr = np.concatenate([left_bgr, right_bgr])
             target = np.concatenate([left_target, right_target])
@@ -186,12 +186,11 @@ class ColorCorrection():
                 left_corrected = t.correct_bgr(left_bgr, left_coord, left_coord, np.full(left_bgr.shape[:-1], True))
                 right_corrected = t.correct_bgr(right_bgr, right_coord, right_coord, np.full(right_bgr.shape[:-1], True))
                 dbg_color = dbg_color + debug_resize([
+                    black, black,
                     left_bgr, black,
                     left_target, black,
-                    left_corrected, black, black,
                     right_bgr, black,
-                    right_target, black,
-                    right_corrected, black, black, black, black
+                    right_target, black, black
                 ])
 
         print('')
@@ -224,8 +223,8 @@ class ColorCorrectionSeams(ColorCorrection):
         regions = []
         coords = []
         for i, seam in enumerate(self._seams):
-            ll = (i-2) % 8
-            lr = i
+            ll = i
+            lr = (i+2) % 8
 
             intersect = coordinates.seam_intersect(seam + [0, math.pi], phi)
             theta = intersect.reshape(intersect.shape + (1,)) + theta_delta
@@ -235,11 +234,10 @@ class ColorCorrectionSeams(ColorCorrection):
 
             for j, idx in enumerate([ll, lr]):
                 shift = [0, math.pi / 2] if j % 2 == 1 else [0, 0]
-                coord = self._transforms[idx].reverse(to_1d(plr - shift)) \
-                                             .reshape(plr.shape)
+                coord = self._transforms[idx].reverse(plr - shift)
                 coords.append(coord)
                 eqr = coordinates.polar_to_eqr(coord, self._images[idx].shape)
-                bgr = coordinates.eqr_interp_3d(eqr.astype(np.float32), self._images[idx]) \
+                bgr = coordinates.eqr_interp_3d(eqr, self._images[idx]) \
                     .astype(np.uint8)
                 regions.append(bgr)
 
