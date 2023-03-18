@@ -2,6 +2,7 @@
 
 import coordinates
 import cv2 as cv
+import linear_regression
 import math
 import numpy as np
 from matplotlib import pyplot as plt
@@ -75,6 +76,11 @@ class ColorTransform():
         self._range = None
         self._range_max_density = None
         self._range_max_dist = None
+
+    def compute_bgr(self, i, f, c):
+        ihsv = cv.cvtColor(i, cv.COLOR_BGR2HSV)
+        fhsv = cv.cvtColor(f, cv.COLOR_BGR2HSV)
+        return self.compute_hsv_coeffs(ihsv, fhsv, c)
 
     def compute_hsv_coeffs(self, i, f, c):
         x = self._arrange_hsv(i, c)
@@ -152,6 +158,13 @@ class ColorTransform():
     def delta_tnorm(self, tnorm, c_global, c_local, flt):
         delta = np.zeros(tnorm.shape, np.float32)
         delta[flt] = self._delta_tnorm(tnorm[flt], c_local[flt])
+        return delta
+
+    # operates on a matrix of bgr, global coords, local coords, and
+    # a boolean filter of which elements to calculate.
+    def delta_bgr(self, bgr, c_global, c_local, flt):
+        delta = np.zeros(bgr.shape, np.float32)
+        delta[flt] = self._delta_bgr(bgr[flt], c_local[flt])
         return delta
 
     # operates on a list of trig norm and coordinates.
@@ -291,25 +304,71 @@ class ColorTransformKMeansFixed(ColorTransform):
 
         return delta
 
+class ColorTransformTable(ColorTransform):
+    def __init__(self, image, debug):
+        super().__init__(image, debug)
+        self._tree = None # will translate from uint8 to float
+        self._delta = None # will translate from uint8 to float
+
+    # expects i and f to be Nx3
+    # expects c to be Nx2
+    def compute_bgr(self, i, f, c):
+        unq_i, idx, inv, cnts = np.unique(i, axis=0, return_index=True, return_inverse=True, return_counts=True)
+        # these conversions to float before doing the subtraction is very important
+        collapsed = np.zeros(unq_i.shape, np.float32)
+        collapsed[:,0] = np.bincount(inv, weights=f[:,0].astype(np.float32)) / cnts
+        collapsed[:,1] = np.bincount(inv, weights=f[:,1].astype(np.float32)) / cnts
+        collapsed[:,2] = np.bincount(inv, weights=f[:,2].astype(np.float32)) / cnts
+
+        delta = (collapsed - unq_i.astype(np.float32)) / 255.0
+        dist = np.sqrt(np.sum(delta**2, axis=-1))
+        keep = linear_regression.trim_outliers(delta, 0.75)
+        self._delta = delta[keep]
+        self._tree = KDTree(unq_i[keep] / 255.0)
+        return np.zeros((i.shape[0],), np.float32)
+
+    def delta_bgr(self, bgr, c_global, c_local, flt):
+        delta = np.zeros(bgr.shape, np.float32)
+        delta[flt] = self._delta_bgr(bgr[flt], c_local[flt])
+        return delta
+
+    # expects bgr to be in the range of [0.0, 1.0]
+    def _delta_bgr(self, bgr, c):
+        dist, idx = self._tree.query(bgr, k=4, workers=12)
+
+        result = np.zeros(bgr.shape, np.float32)
+        exact = np.abs(dist[:,0]) < 0.00001
+        if np.count_nonzero(exact) > 0:
+            result[exact] = self._delta[idx[exact,0]]
+
+        MAX_DIST = 0.1
+        out_of_range = (dist > MAX_DIST).any(axis=-1)
+
+        approx = np.logical_and(np.logical_not(exact), np.logical_not(out_of_range))
+        if np.count_nonzero(approx) > 0:
+            dist = dist[approx]
+            idx = idx[approx]
+            scale = (MAX_DIST - np.min(dist, axis=-1).reshape(dist.shape[:-1] + (1,))) / MAX_DIST
+            limit = (np.max(dist, axis=-1) + np.min(dist, axis=-1)).reshape(dist.shape[:-1] + (1,))
+            dist = (limit - dist) ** 2
+            result[approx] = scale * (np.sum(self._delta[idx].reshape(dist.shape + (3,)) * dist.reshape(dist.shape + (1,)), axis=-2) \
+                              / np.sum(dist, axis=-1).reshape(dist.shape[:-1] + (1,)))
+        return result
+
 class ColorTransformSided(ColorTransform):
     def __init__(self, image, debug):
         super().__init__(image, debug)
 
-        self._left = ColorTransformKMeansFixed(10, image, debug.set_subplot(1, 2, 1))
-        self._right = ColorTransformKMeansFixed(10, image, debug.set_subplot(1, 2, 2))
+        self._left = ColorTransformTable(image, debug.set_subplot(1, 2, 1))
+        self._right = ColorTransformTable(image, debug.set_subplot(1, 2, 2))
 
-    def compute_hsv_coeffs(self, i, f, c):
+    def compute_bgr(self, i, f, c):
         left = c[...,1] <= math.pi
         right = c[...,1] > math.pi
 
         errors = np.zeros(i.shape[:-1])
-        errors[left] = self._left.compute_hsv_coeffs(i[left], f[left], c[left])
-        errors[right] = self._right.compute_hsv_coeffs(i[right], f[right], c[right])
-
-        self._debug.log('regression error sided', i.shape[0], \
-                        np.sum(hsv_error(i, f)) / i.shape[0], \
-                        np.sum(errors) / i.shape[0])
-
+        errors[left] = self._left.compute_bgr(i[left], f[left], c[left])
+        errors[right] = self._right.compute_bgr(i[right], f[right], c[right])
         return errors
 
     def cubic_fade(self, x, r):
@@ -317,9 +376,9 @@ class ColorTransformSided(ColorTransform):
         a = 6 / (r * r * r)
         return  a * r * np.power(x, 2) / 2 - a * np.power(x, 3) / 3
 
-    def delta_tnorm(self, tnorm, c_global, c_local, flt):
-        left_delta = self._left.delta_tnorm(tnorm, c_global, c_local, flt)
-        right_delta = self._right.delta_tnorm(tnorm, c_global, c_local, flt)
+    def delta_bgr(self, bgr, c_global, c_local, flt):
+        left_delta = self._left.delta_bgr(bgr, c_global, c_local, flt)
+        right_delta = self._right.delta_bgr(bgr, c_global, c_local, flt)
 
         right_weight = np.zeros(flt.shape + (1,))
         right_weight[flt,0] = self.cubic_fade(c_local[flt,1] - 3*math.pi/4, math.pi/2)
@@ -328,6 +387,22 @@ class ColorTransformSided(ColorTransform):
         left_weight[flt,0] = 1.0 - right_weight[flt,0]
 
         return left_weight * left_delta + right_weight * right_delta
+
+
+    def correct_bgr(self, bgr, c_global, c_local, flt):
+        delta = self.delta_bgr(bgr / 255.0, c_global, c_local, flt)
+
+        K = 15
+        kernel = np.ones((K,K), np.float32)/(K**2)
+        delta = cv.filter2D(delta, -1, kernel)
+        if self._debug.enable('color-delta'):
+            norm = (delta + 1) / 2
+            self._debug.figure('color-delta', True)
+            for i in range(3):
+                self._debug.set_subplot(2, 2, i+1) \
+                    .subplot('color-delta') \
+                    .imshow(norm[...,i:i+1] * np.ones((1, 1, 3)))
+        return np.round(255.0 * np.clip(bgr / 255.0 + delta, 0, 1)).astype(np.uint8)
 
 class ColorCorrection():
     def __init__(self, images, debug):
@@ -349,12 +424,15 @@ class ColorCorrection():
             hists.append(hist)
 
         hist_targets = []
+        targets = []
         for i in range(4):
             # todo: should this use trig_norm
-            region_mean = 0.25 * regions[4*i] + 0.25 * regions[4*i+1] \
-                + 0.25 * regions[4*i+2] + 0.25 * regions[4*i+3]
+            region_mean = np.median(regions[4*i:4*i+4], axis=0)
+            #region_mean = 0.25 * regions[4*i] + 0.25 * regions[4*i+1] \
+            #    + 0.25 * regions[4*i+2] + 0.25 * regions[4*i+3]
             hist_mean = np.zeros((256, 3))
             bgr = region_mean.astype(np.uint8)
+            targets.append(bgr)
             for c, clr in enumerate(['b', 'g', 'r']):
                 hist_mean[:,c] = cv.calcHist([bgr], [c], None, [256], [0,256])[:,0]
             hist_targets.append(hist_mean / np.sum(hist_mean, axis=0))
@@ -374,9 +452,9 @@ class ColorCorrection():
             axs[0, 3].title.set_text('Right Eye - Right of Seam')
             axs[0, 4].title.set_text('Target')
 
-        return self._regression(regions, coords, hists, hist_targets)
+        return self._regression(regions, coords, hists, hist_targets, targets)
 
-    def _regression(self, regions, coords, hists, hist_targets):
+    def _regression(self, regions, coords, hists, hist_targets, targets):
         transforms = []
         dbg_color = []
 
@@ -397,24 +475,20 @@ class ColorCorrection():
             left_coord = coords[(2*i+1) % 16]
             left_hist = hists[(2*i+1) % 16]
             left_target_hist = hist_targets[int(i/2)]
-            left_target = match_hist(left_bgr, left_hist, left_target_hist)
+            left_target = targets[int(i/2)] #match_hist(left_bgr, left_hist, left_target_hist)
 
             right_bgr = regions[(2*i+4) % 16].astype(np.uint8)
             right_coord = coords[(2*i+4) % 16]
             right_hist = hists[(2*i+4) % 16]
             right_target_hist = hist_targets[int(i/2+1)%4]
-            right_target = match_hist(right_bgr, right_hist, right_target_hist)
+            right_target = targets[int(i/2+1)%4] #match_hist(right_bgr, right_hist, right_target_hist)
 
             bgr = np.concatenate([left_bgr, right_bgr])
-            hsv = cv.cvtColor(bgr, cv.COLOR_BGR2HSV)
             target = np.concatenate([left_target, right_target])
-            target_hsv = cv.cvtColor(target, cv.COLOR_BGR2HSV)
             coord = np.concatenate([left_coord, right_coord])
 
             t = ColorTransformSided(self._images[i], self._debug.window('image ' + str(i)))
-            np.random.seed(0)
-            pick = np.random.choice(hsv.shape[0] * hsv.shape[1], size=8000, replace=False)
-            t.compute_hsv_coeffs(to_1d(hsv)[pick], to_1d(target_hsv)[pick], to_1d(coord)[pick])
+            t.compute_bgr(to_1d(bgr), to_1d(target), to_1d(coord))
             transforms.append(t)
 
             print('.', end='', flush=True)
@@ -514,7 +588,7 @@ class ColorCorrectionSeams(ColorCorrection):
     def _generate_regions(self):
         h = self._images[0].shape[0]
         w = self._images[0].shape[1]
-        y = np.arange(0, h)
+        y = np.arange(h/20, 19*h/20)
         phi = y / (h-1) * math.pi
         x_range = self.border / (2 * math.pi) * w
         x_delta = np.arange(math.floor(-1 * x_range / 2), math.ceil(x_range / 2))

@@ -245,7 +245,7 @@ def main():
     cc = None
     seam = refine_seams.RefineSeams(images, debug)
     seam.calibration = calibration
-    seam.border = max(2*config.seam_blend_margin, 6*math.pi/180)
+    seam.border = 8*math.pi/180
 
     if options.reuse_seams and saved_data is not None and 'seam' in saved_data:
         print('reusing seam data from alignment')
@@ -271,7 +271,7 @@ def main():
 
     if options.fast != 2 and options.fast != 3:
         color = color_correction.ColorCorrectionSeams(images, transforms, seams, debug)
-        color.border = max(2*config.seam_blend_margin, 10*math.pi/180)
+        color.border = 7*math.pi/180
         print('computing color mean-seams')
         cc = color.match_colors()
 

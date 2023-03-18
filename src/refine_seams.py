@@ -506,25 +506,31 @@ class ChooseSeam(threading.Thread):
         self._debug.perf('seam-cost-valid-pixel')
         shape = self._images[0].shape
         dim = m.shape[0]
-        cost = np.ones((dim, dim), np.float32)
+        cost = np.zeros((dim, dim), np.float32)
         kernel_size = int(self._border * shape[0] / math.pi) + 1
         kernel_size += (kernel_size % 2) # make sure its odd
         kernel = np.ones((kernel_size, kernel_size))
+        padding = int(self._images[0].shape[0]/10)
         for i in range(4):
             alpha = cv.filter2D(self._images[i][...,3:4].astype(np.float32), -1, kernel)
-            alpha = (alpha < (kernel_size**2 - 1)).astype(np.float32)
+            outside = (alpha < (kernel_size**2 - 1)).astype(np.float32)
+            # make sure the starting and ending points are considered in-bounds
+            outside[:padding] = 0
+            outside[-padding:] = 0
 
             p = self._create_path(m[self._sort_idx,i:i+1].reshape((1, dim, 2)))
             p_eqr = coordinates.polar_to_eqr(p, shape) \
                                .reshape((p.shape[0] * p.shape[1] * p.shape[2], 2))
-            p_alpha = coordinates.eqr_interp(p_eqr, alpha).reshape(p.shape[:-1])
-            out_of_bounds = np.sum(p_alpha, axis=-1) > 0
-            cost[out_of_bounds] = 0
 
-        # the first and last are probably considered out of bounds, because they are the
-        # start and end points, we must make them in-bounds.
-        cost[0,:20] = 1
-        cost[-20:,-1] = 1
+            p_alpha = coordinates.eqr_interp(p_eqr, outside).reshape(p.shape[:-1])
+            in_bounds = np.sum(p_alpha, axis=-1) == 0
+            cost[in_bounds] += 1
+
+        cost = (cost == 4)
+        #phi_upper = (m[self._sort_idx,:,0] < math.pi/2).all(axis=-1)
+        #phi_lower = (m[self._sort_idx,:,0] > math.pi/2).all(axis=-1)
+        #cost[0,phi_upper] = 1
+        #cost[phi_lower,-1] = 1
 
         self._valid_pixel_cost = cost
         self._debug.perf('seam-cost-valid-pixel')
@@ -533,9 +539,10 @@ class ChooseSeam(threading.Thread):
         # note: phi=0 is the top of the image, phi=pi is the bottom
         # theta is around 3pi/2
 
-        md = np.median(self._points[0][:,1])
-        top = np.ones((1, 4, 2)) * [[[0.0, md]]]
-        bottom = np.ones((1, 4, 2)) * [[[math.pi, md]]]
+        top = np.zeros((1, 4, 2))
+        for i in range(4):
+            top[0,i,1] = np.median(self._points[i][:,1])
+        bottom = top + [math.pi, 0]
 
         matches = np.zeros((self._points[0].shape[0], 4, 2), np.float32)
         for i, p in enumerate(self._points):
