@@ -222,7 +222,7 @@ class Config:
         self.super_res_buckets = {}
         self.accel_align = True
         self.contrast_equ = None
-        self.seam_blend_margin = 2.5 * math.pi / 180
+        self.seam_blend_margin = 1.0 * math.pi / 180
         self.seam_color_margin = 6.0 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()

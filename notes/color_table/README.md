@@ -35,7 +35,8 @@ Only unique values were used for the original pixels. Any originally non-unique 
 To use the lookup table, the closest 4 colors to the input color are determined. The ordered distance, $d = (d_0, d_1, d_2, d_3)$, and index, $i = (i_0, i_1, i_2, i_3)$, of each is provided by the KDTree. A weighted average of the differences, $a = (a_0, a_1, a_2, a_3)$, is used to compute the final adjustment, $A$, needed to the input color. If a color matches exactly, ie. $d_0 == 0$, the adjustment $a_0$ is used. If any of the distances exceeds $D$, then the input is considered out of range and no adjustment is performed. The minimum distance, $d_0$ is also used to scale the magnitude of the adjustment. As $d_0$ approaches $D$, the scaling factor for the adjustment approaches 0.
 
 $$w_i = (d_0 + d_3 - d_i)^2$$
-$$A = \frac{D-d_0}{D}\frac{\sum_{i=0}^{4}{a_iw_i}}{\sum_{i=0}^{4}{w_i}}$$
+
+$$A = \frac{D-d_0}{D} \frac{ \sum a_i w_i }{ \sum w_i }$$
 
 Once the adjustments for each pixel in the image is determined a box blur of 15x15 is applied to the adjustments before the adjustment is applied to the input yielding a result.
 
