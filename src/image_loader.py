@@ -31,7 +31,7 @@ class CalibrationParams():
         self._default_size = (1088, 1600)
 
         self.recalc_ellipse = False
-        self.ellipse = None # (x0, y0, a, b, eccentricity, rotation)
+        self.ellipse = None # [x0, y0, a, b, eccentricity, rotation]
         self.lens_pixels = None
 
         self.depth = None
@@ -69,7 +69,7 @@ class CalibrationParams():
     def from_dict(self, d):
         self.aperture = d['aperture']
         if 'ellipse' in d:
-            self.ellipse = tuple(d['ellipse'])
+            self.ellipse = d['ellipse']
 
         if 'vuzeConfig' in d and d['vuzeConfig']:
             self.camera_matrix = np.array(d['cameraMatrix'])
@@ -98,11 +98,11 @@ class CalibrationParams():
         self.radius = y.getNode('ImageCircleRadius').real()
 
         if self.ellipse:
-            self._debug.log('overwritting lens center with ellipse configuration', \
+            self._debug.log('overwritting ellipse configuration', \
                             '(', self.camera_matrix[0,2], self.camera_matrix[1,2], ')', \
                             '(', self.ellipse[0], self.ellipse[1], ')')
-            self.camera_matrix[0,2] = self.ellipse[0]
-            self.camera_matrix[1,2] = self.ellipse[1]
+            self.ellipse[0] = self.camera_matrix[0,2]
+            self.ellipse[1] = self.camera_matrix[1,2]
 
         return self
 
@@ -249,7 +249,7 @@ class CalibrationParams():
 
         coeffs = self._fit_ellipse(points[:,0], points[:,1])
 
-        self.ellipse = self._cart_to_pol(coeffs)
+        self.ellipse = list(self._cart_to_pol(coeffs))
         self.lens_pixels = thres
 
         # set the center of the lens into the camera_matrix

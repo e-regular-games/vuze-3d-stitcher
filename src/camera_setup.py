@@ -42,8 +42,17 @@ class CameraSetup():
         with open(self._setup_file, 'r') as f:
             self._setup = json.load(f)
 
-        self._alignment = {}
-        self._calibration = [CalibrationParams(self._debug) for c in range(8)]
+        if os.path.exists(self._alignment_file):
+            with open(self._alignment_file, 'r') as f:
+                self._alignment = json.load(f)
+        else:
+            self._alignment = {}
+
+        if 'calib' in self._alignment:
+            self._calibration = \
+                [CalibrationParams(self._debug).from_dict(c) for c in self._alignment['calib']]
+        else:
+            self._calibration = [CalibrationParams(self._debug) for c in range(8)]
 
         self._yaml_config()
         self._ellipse()

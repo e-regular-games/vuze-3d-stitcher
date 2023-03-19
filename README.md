@@ -62,25 +62,25 @@ python -m pip install -U pyexiftool
 
 ## Installation and Usage
 
-Clone this repository and ensure all of the requirements above are met. Assuming your Vuze Camera is similar to the one used for this project, copy a series of 8 images (`_1.JPG` -> `_8.JPG`) and their CSV from the camera to the parent directory of this repo. Also copy the VUZ*.yml file from the root of the memory card. The following commands are run from the parent directory of the repo.
+Clone this repository and ensure all of the requirements above are met. Assuming your Vuze Camera is similar to the one used for this project, copy a series of 8 images (`_1.JPG` -> `_8.JPG`) and their CSV from the camera to the root directory of this repo. Also copy the VUZ*.yml file from the root of the memory card. The following commands are run from the root directory of the repo.
 
 Update the position of the sensors within the lens using your cameras configuration. Note: the images to merge in this command are `HET_0014_1.JPG` -> `HET_0014_8.JPG`.
 
 ```
-vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014 \
-  --yaml-config VUZ*.yml
+echo '{"yamlConfig": "<VUZ_FILE_NAME_HERE>.yml"}' > vuz_config.json
+src/vuze_merge.py -a coeffs_v6.json --setup vuz_config.json
 ```
 
-Merge the images into an over-under 3d equirectangular image.
+Merge the images into an over-under 3d equirectangular image and save the transform and seam coefficients for future images. Note: the write-coeffs option should be use only on images with a large number of details throughout.
 
 ```
-vuze-3d-stitcher/src/vuze_merge.py -a vuze-3d-stitcher/coeffs_v5.dat -i HET_0014
+src/vuze_merge.py -a coeffs_v6.json -i HET_0014 --write-coeffs
 ```
 
-To further configure the merge process examine the additional options provided by `vuze_merge.py` by running the script without any arguments.
+To further configure the merge process examine the additional options provided by `vuze_merge.py` by running the script without any arguments. A more advanced camera calibration process can be used following the example [camera_setup.json](./camera_setup.json). See the [Depth Calibration](./notes/depth_calibration/depth_calibration.md) development log for details.
 
 ```
-vuze-3d-stitcher/src/vuze_merge.py
+src/vuze_merge.py
 ```
 
 ## Contribute
