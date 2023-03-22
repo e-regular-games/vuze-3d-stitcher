@@ -10,10 +10,11 @@ def print_usage():
     print('usage: vuze_merge.py -v -h -c config.dat')
     print('')
 
-    print('-a,--alignment <file>\t\tThe alignment coefficients for image processing. This file will be updated by operations such as yaml-config, ellipse-coeffs, write-coeffs, and depth.')
+    print('-a,--alignment <file>\t\tThe alignment coefficients for image processing. This file will be updated by operations such as setup and write-coeffs.')
     print('--write-coeffs\t\tWrite the alignment equation constants to the provided alingment file.')
     print('--ignore-alignment-seams\t\t\tDo not read previous seam data from the alignment file. Fresh seam data will be written to the file, if write-coeffs is enabled.')
     print('--setup\t\t\tA provided setup file including settings for ellipse-coeffs, yaml-config, and depth calibration as an object with "method" and a list of "files".')
+    print('--depth\t\t\tDisplay the depth map for each lens. No ouput images are rendered.')
     print('')
 
     print('-c,--config <file>\t\tSpecify the config file.')
@@ -101,6 +102,7 @@ class ProgramOptions:
         self.reuse_seams = True
         self.setup = None
 
+        self.depth  = False
         self.display = {}
         self.image_override = None
         self.in_override = ''
@@ -132,6 +134,7 @@ class ProgramOptions:
                 'alignment=',
                 'ignore-alignment-seams',
                 'write-coeffs',
+                'depth',
                 'load-processed=',
                 'setup='
             ])
@@ -149,6 +152,8 @@ class ProgramOptions:
                 self.reuse_seams = False
             elif o == "--write-coeffs":
                 self.write_coeffs = True
+            elif o == "--depth":
+                self.depth = True
             elif o in ("-r", "--read-equation"):
                 self.alignment_file = a
             elif o in ("-w", "--write-equation"):

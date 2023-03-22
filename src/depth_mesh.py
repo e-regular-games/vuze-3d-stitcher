@@ -223,19 +223,23 @@ class DepthCalibration():
             ax = plt.figure().add_subplot(projection='3d')
             ax.scatter(c[:,0], c[:,1], c[:,2], marker='.')
 
-        if self._debug.enable('depth-error'):
-            d = self._coords[0] - self._expected
-            f = plt.figure()
-            f.add_subplot(1, 2, 1, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d[:,0], marker='.')
-            f.add_subplot(1, 2, 2, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d[:,1], marker='.')
-
-
         if self._mode == 'linreg':
             self._finalize_linreg(self._coords[0], self._expected)
         if self._mode == 'kabsch':
             self._finalize_kabsch(self._coords[0], self._expected)
+
+        if self._debug.enable('depth-error'):
+            d0 = self._coords[0] - self._expected
+            d1 = self._coords[0] - self._apply_points(self._expected)
+            f = plt.figure()
+            f.add_subplot(2, 2, 1, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d0[:,0], marker='.', s=0.5)
+            f.add_subplot(2, 2, 2, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d0[:,1], marker='.', s=0.5)
+            f.add_subplot(2, 2, 3, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d1[:,0], marker='.', s=0.5)
+            f.add_subplot(2, 2, 4, projection='3d') \
+             .scatter(self._coords[0][:,0], self._coords[0][:,1], d1[:,1], marker='.', s=0.5)
 
         return self
 
@@ -266,6 +270,14 @@ class DepthCalibration():
 
         return coords, expected, r_expected
 
+    def _apply_points(self, pts):
+        if self._mode == 'linreg':
+            return [0, 3*math.pi/2] + [1, -1] * self._linreg.evaluate([0, 3*math.pi/2] + [1, -1] * pts)
+        elif self._mode == 'kabsch':
+            pts_cart = coordinates.polar_to_cart([0, 3/2*math.pi] + np.array([1, -1]) * pts, 1)
+            pts_cart = (self._rotation @ pts_cart.reshape(pts_cart.shape + (1,)))[...,0]
+            return [0, 3/2*math.pi] + np.array([1, -1]) * coordinates.cart_to_polar(pts_cart)
+
     def _apply_linreg(self, linreg, img):
         shape_full = (img.shape[0], 2*img.shape[0])
         shape_half = (shape_full[0], int(shape_full[1] / 2))
@@ -291,9 +303,12 @@ class DepthCalibration():
         exp = [0, 3*math.pi/2] + [1, -1] * exp
         act = [0, 3*math.pi/2] + [1, -1] * act
 
-        self._linreg = LinearRegression(np.array([2, 4]), False)
+        self._linreg = LinearRegression(np.array([4, 4]), False)
         err, _ = self._linreg.regression(exp, act)
-        print('linear regression depth squared error:', np.sum(err*err, axis=0))
+        print('linear regression depth squared error(0):', \
+              np.mean(exp-act, axis=0), np.std(exp-act, axis=0))
+        print('linear regression depth squared error(1):', \
+              np.mean(err, axis=0), np.std(err, axis=0))
 
     def _finalize_kabsch(self, act, exp):
         cart_a = coordinates.polar_to_cart(act, 1)
@@ -318,14 +333,16 @@ class DepthCalibration():
         info = np.zeros((4,), np.float32)
         coords, expected, r_exp = \
             self._determine_coordinates(a, b0, p_a, p_b, self._patches)
+        if coords.shape[1] == 0:
+            return info
         r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
         info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[2] = np.sum(d*d)
 
         a_adj = self.apply(a)
         if self._debug.enable('depth-cal-finalize'):
-            self._debug.subplot('depth-cal-adjusted').imshow(a_adj)
-            self._debug.subplot('depth-cal-original').imshow(a)
+            self._debug.subplot('depth-cal-adjusted').imshow(cv.cvtColor(a_adj, cv.COLOR_BGR2RGB))
+            self._debug.subplot('depth-cal-original').imshow(cv.cvtColor(a, cv.COLOR_BGR2RGB))
 
         coords, expected, r_exp = \
             self._determine_coordinates(a_adj, b1, p_a, p_b, self._patches)
@@ -583,8 +600,10 @@ class DepthMapperSlice(DepthMapper):
         if self._maps is not None:
             return self._maps
 
-        matches = FeatureMatcher4(self._images[0:4:2], self._images[1:4:2], self._debug) \
-            .matches()
+        matcher = FeatureMatcher4(self._images[0:4:2], self._images[1:4:2], self._debug)
+        matcher.run()
+        matches = matcher.result
+
         self._matches = np.zeros(matches.shape, np.float32)
         self._matches[:,0] = matches[:,0]
         self._matches[:,1] = matches[:,2]
@@ -638,7 +657,9 @@ class DepthMapper2D(DepthMapper):
 
     def map(self):
         if self._map_left is None or self._map_right is None:
-            matches = FeatureMatcher2(self._img_left, self._img_right, self._debug).matches()
+            matcher = FeatureMatcher2(self._img_left, self._img_right, self._debug)
+            matcher.run()
+            matches = matcher.result
 
             self._debug.log('matches', matches.shape[0])
             r_l, r_r, d = radius_compute(matches[:,0], matches[:,1], self._p_left, self._p_right)

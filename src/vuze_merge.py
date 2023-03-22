@@ -17,7 +17,7 @@ import threading
 from exiftool import ExifToolHelper
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
-from depth_mesh import DepthCalibration
+from depth_mesh import DepthMapper2D
 from debug_utils import Debug
 from config import ProgramOptions
 from config import Config
@@ -238,6 +238,20 @@ def main():
 
     images = loader.load(calibration)
     calibration = loader.get_calibration()
+
+    if options.depth:
+        print('generating depth maps')
+        loc = [c.t for c in calibration]
+        for i in range(4):
+            dm = DepthMapper2D(images[2*i], images[2*i+1], loc[2*i], loc[2*i+1], debug)
+            l, r = dm.map()
+            l.plot(images[2*i])
+            r.plot(images[2*i+1])
+            print('.', end='', flush=True)
+            print('.', end='', flush=True)
+        print('')
+        plt.show()
+        exit(0)
 
     stitches = []
     ts = []

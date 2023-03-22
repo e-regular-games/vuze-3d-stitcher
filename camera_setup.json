@@ -6,12 +6,22 @@
   "yamlConfig": "test/VUZ1178200318.yml",
   "depth": {
     "method": "linreg",
+    "images_": [
+      "calibration/colored"
+    ],
     "images": [
       "calibration/colored",
       "calibration/colored_left",
       "calibration/colored_right",
-      "calibration/colored_down",
-      "calibration/colored_up"
+      "calibration/colored_far_left",
+      "calibration/colored_far_right",
+      "calibration/colored_far_far_left",
+      "calibration/colored_far_far_right",
+      "calibration/colored_up",
+      "calibration/colored_down"
+    ],
+    "seams_": [
+      {"seam": 0, "name": "calibration/colored_seam_a"}
     ],
     "seams": [
       {"seam": 0, "name": "calibration/colored_seam_a"},

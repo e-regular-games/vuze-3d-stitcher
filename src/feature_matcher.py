@@ -306,6 +306,9 @@ class FeatureMatcher2(FeatureMatcher):
         for j in range(kp_indices.shape[1]):
             pts[:,j] = kp[j].polar[kp_indices[:,j].astype(np.int)]
 
+        inc = trim_outliers_by_diff(pts[:,0], pts[:,1], 2)
+        pts = pts[inc]
+
         self.result = pts
 
 
