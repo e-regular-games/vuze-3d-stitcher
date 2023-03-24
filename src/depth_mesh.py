@@ -116,22 +116,26 @@ def radius_compute(left, right, p_l, p_r, minimum=0.1, maximum=10):
     return r_l, r_r, r_d
 
 
+# operates using the middle section only of a 360deg equirectangular image.
 class DepthCalibration():
     def __init__(self, debug=None):
         self._patches = None
+        self._center = None # the location from which the patch distance was measured.
         self._debug = debug
 
-        self._coords = np.zeros((2, 0, 2), np.float32)
+        self._coords = np.zeros((0, 2), np.float32)
         self._expected = np.zeros((0, 2), np.float32)
         self._r_expected = np.zeros((0, 1), np.float32)
         self._r_initial = np.zeros((0, 1), np.float32)
+        self._d_initial = np.zeros((0, 1), np.float32)
 
         self._mode = 'linreg'
         self._linreg = None
         self._rotation = None
 
-    def set_patches(self, patches):
+    def set_patches(self, patches, center):
         self._patches = patches;
+        self._center = center
         return self
 
     # mode is either 'kabsch' or 'linreg'
@@ -188,22 +192,19 @@ class DepthCalibration():
             return None
         return np.array([np.mean(ind[0]), np.mean(ind[1])])
 
-    # images a and b and their positions.
-    # note: adjustments are made to image a only.
-    def add_coordinates(self, a, b, p_a, p_b):
-        a = get_middle(a)
-        b = get_middle(b)
-        p_a = switch_axis(p_a)
-        p_b = switch_axis(p_b)
+    def add_coordinates(self, idx, imgs, ps, offsets):
+        coords, expected, r_expected, r_initial, d_initial = \
+            self._determine_coordinates(imgs, ps, offsets, idx, self._patches)
 
-        coords, expected, r_expected = \
-            self._determine_coordinates(a, b, p_a, p_b, self._patches)
-        r_initial, _, _ = radius_compute(coords[0], coords[1], p_a, p_b)
-
-        self._coords = np.concatenate([self._coords, coords], axis=1)
+        self._coords = np.concatenate([self._coords, coords], axis=0)
         self._expected = np.concatenate([self._expected, expected], axis=0)
         self._r_expected = np.concatenate([self._r_expected, r_expected], axis=0)
         self._r_initial = np.concatenate([self._r_initial, r_initial], axis=0)
+        self._d_initial = np.concatenate([self._d_initial, d_initial], axis=0)
+
+        r_err = np.sum((r_expected - r_initial) ** 2) / r_expected.shape[0]
+        d_total = np.sum((d_initial) ** 2) / d_initial.shape[0]
+        return np.array([r_err, d_total], np.float32)
 
     def apply(self, img):
         if self._mode == 'linreg':
@@ -224,51 +225,68 @@ class DepthCalibration():
             ax.scatter(c[:,0], c[:,1], c[:,2], marker='.')
 
         if self._mode == 'linreg':
-            self._finalize_linreg(self._coords[0], self._expected)
+            self._finalize_linreg(self._coords, self._expected)
         if self._mode == 'kabsch':
-            self._finalize_kabsch(self._coords[0], self._expected)
+            self._finalize_kabsch(self._coords, self._expected)
 
         if self._debug.enable('depth-error'):
-            d0 = self._coords[0] - self._expected
-            d1 = self._coords[0] - self._apply_points(self._expected)
+            d0 = self._coords - self._expected
+            d1 = self._coords - self._apply_points(self._expected)
             f = plt.figure()
-            f.add_subplot(2, 2, 1, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d0[:,0], marker='.', s=0.5)
-            f.add_subplot(2, 2, 2, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d0[:,1], marker='.', s=0.5)
-            f.add_subplot(2, 2, 3, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d1[:,0], marker='.', s=0.5)
-            f.add_subplot(2, 2, 4, projection='3d') \
-             .scatter(self._coords[0][:,0], self._coords[0][:,1], d1[:,1], marker='.', s=0.5)
+            ax = f.add_subplot(1, 2, 1, projection='3d')
+            ax.scatter(self._expected[:,0], self._expected[:,1], d0[:,0], marker='.', c='r', s=2)
+            ax.scatter(self._expected[:,0], self._expected[:,1], d1[:,0], marker='.', c='b', s=2)
+            ax = f.add_subplot(1, 2, 2, projection='3d')
+            ax.scatter(self._expected[:,0], self._expected[:,1], d0[:,1], marker='.', c='r', s=2)
+            ax.scatter(self._expected[:,0], self._expected[:,1], d1[:,1], marker='.', c='b', s=2)
 
         return self
 
-    def _determine_coordinates(self, a, b, p_a, p_b, patches):
+    def _determine_coordinates(self, imgs, ps, offsets, idx, patches):
         r_expected = np.zeros((len(patches), 1))
         for pi, p in enumerate(patches):
             r_expected[pi,0] = p['distance']
 
+        k = len(imgs)
         n = len(patches)
-        coords = np.zeros((2, n, 2))
-        valid = np.zeros((2, n), dtype=np.bool)
-        for ii, i in enumerate([a, b]):
-            coords[ii], valid[ii] = self._find_colors(i, patches)
+        coords = np.zeros((k, n, 2))
+        valid = np.ones((n,), dtype=np.bool)
+        for ii, i in enumerate(imgs):
+            coords[ii], v = self._find_colors(i, patches)
+            valid = np.logical_and(valid, v)
 
-        valid_pair = np.logical_and(valid[0], valid[1])
-        coords = coords[:,valid_pair]
-        r_expected = r_expected[valid_pair]
-        n = np.count_nonzero(valid_pair)
+        coords = coords[:,valid]
+        r_expected = r_expected[valid]
+        n = np.count_nonzero(valid)
 
-        cart_a = coordinates.polar_to_cart(coords[0], 1)
-        cart_b = coordinates.polar_to_cart(coords[1], 1)
-        p_a_exp = p_a + r_expected * cart_a
-        p_b_exp = p_b + r_expected * cart_b
-        p_exp = 0.5 * (p_a_exp + p_b_exp)
-        cart_a_exp = p_exp - p_a
-        cart_a_exp = cart_a_exp / np.linalg.norm(cart_a_exp, axis=1).reshape((n, 1))
-        expected = coordinates.cart_to_polar(cart_a_exp)
+        cart_avg = np.zeros((n, 3, 1), np.float32)
+        for i in range(k):
+            offset = offsets[idx] - offsets[i]
+            cart = coordinates.polar_to_cart(coords[i] + [0, offset], 1).reshape((n, 3, 1))
+            cart_avg += coordinates.intersect_sphere(ps[i], cart, self._center, r_expected)
 
-        return coords, expected, r_expected
+        cart_avg /= k
+
+        r_avg = np.zeros((n, 1), np.float32)
+        d_avg = np.zeros((n, 1), np.float32)
+        cnt = 0
+        for i in range(k):
+            for j in range(i+1, k):
+                cnt += 1
+                r, _, d = radius_compute(coords[i], coords[j], \
+                                         ps[i].reshape((1,3)), ps[j].reshape((1,3)))
+                r_avg += r
+                d_avg += d
+
+        r_avg /= cnt
+        d_avg /= cnt
+
+        cart_center = (cart_avg - self._center)[...,0]
+        cart_norm = np.linalg.norm(cart_center, axis=1).reshape((n, 1))
+        cart_exp = self._center[:,0] + r_expected * cart_center / cart_norm - ps[idx][:,0]
+        expected = coordinates.cart_to_polar(cart_exp)
+
+        return coords[idx], expected, r_expected, r_avg, d_avg
 
     def _apply_points(self, pts):
         if self._mode == 'linreg':
@@ -303,7 +321,7 @@ class DepthCalibration():
         exp = [0, 3*math.pi/2] + [1, -1] * exp
         act = [0, 3*math.pi/2] + [1, -1] * act
 
-        self._linreg = LinearRegression(np.array([4, 4]), False)
+        self._linreg = LinearRegression(np.array([5, 5]), False)
         err, _ = self._linreg.regression(exp, act)
         print('linear regression depth squared error(0):', \
               np.mean(exp-act, axis=0), np.std(exp-act, axis=0))
@@ -327,15 +345,13 @@ class DepthCalibration():
         a = get_middle(a)
         b0 = get_middle(b0)
         b1 = get_middle(b1)
-        p_a = switch_axis(p_a)
-        p_b = switch_axis(p_b)
 
         info = np.zeros((4,), np.float32)
         coords, expected, r_exp = \
             self._determine_coordinates(a, b0, p_a, p_b, self._patches)
         if coords.shape[1] == 0:
             return info
-        r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
+        r, _, d = radius_compute(coords[0], coords[1], p_a.reshape((1,3)), p_b.reshape((1,3)))
         info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[2] = np.sum(d*d)
 
@@ -346,7 +362,7 @@ class DepthCalibration():
 
         coords, expected, r_exp = \
             self._determine_coordinates(a_adj, b1, p_a, p_b, self._patches)
-        r, _, d = radius_compute(coords[0], coords[1], p_a, p_b)
+        r, _, d = radius_compute(coords[0], coords[1], p_a.reshape((1,3)), p_b.reshape((1,3)))
         info[1] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
         info[3] = np.sum(d*d)
         return info

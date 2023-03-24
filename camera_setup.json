@@ -5,29 +5,24 @@
   },
   "yamlConfig": "test/VUZ1178200318.yml",
   "depth": {
+    "center": [0, 0.06, 0],
     "method": "linreg",
-    "images_": [
-      "calibration/colored"
-    ],
     "images": [
-      "calibration/colored",
-      "calibration/colored_left",
-      "calibration/colored_right",
-      "calibration/colored_far_left",
-      "calibration/colored_far_right",
-      "calibration/colored_far_far_left",
-      "calibration/colored_far_far_right",
-      "calibration/colored_up",
-      "calibration/colored_down"
-    ],
-    "seams_": [
-      {"seam": 0, "name": "calibration/colored_seam_a"}
+      {"name": "calibration/colored"},
+      {"name": "calibration/colored_left", "rotations": [{"axis": "z", "degree": 18}]},
+      {"name": "calibration/colored_right", "rotations": [{"axis": "z", "degree": -18}]},
+      {"name": "calibration/colored_far_left", "rotations": [{"axis": "z", "degree": 36}]},
+      {"name": "calibration/colored_far_right", "rotations": [{"axis": "z", "degree": -36}]},
+      {"name": "calibration/colored_far_far_left", "rotations": [{"axis": "z", "degree": 54}]},
+      {"name": "calibration/colored_far_far_right", "rotations": [{"axis": "z", "degree": -54}]},
+      {"name": "calibration/colored_up", "rotations": [{"axis": "x", "degree": 45}]},
+      {"name": "calibration/colored_down", "rotations": [{"axis": "x", "degree": -45}]}
     ],
     "seams": [
-      {"seam": 0, "name": "calibration/colored_seam_a"},
-      {"seam": 1, "name": "calibration/colored_seam_b"},
-      {"seam": 2, "name": "calibration/colored_seam_c"},
-      {"seam": 3, "name": "calibration/colored_seam_d"}
+      {"seam": 0, "name": "calibration/colored_seam_a", "rotations": [{"axis": "z", "degree": 45}]},
+      {"seam": 1, "name": "calibration/colored_seam_b", "rotations": [{"axis": "z", "degree": 45}]},
+      {"seam": 2, "name": "calibration/colored_seam_c", "rotations": [{"axis": "z", "degree": 45}]},
+      {"seam": 3, "name": "calibration/colored_seam_d", "rotations": [{"axis": "z", "degree": 45}]}
     ],
     "patches": [
       {

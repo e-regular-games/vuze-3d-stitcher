@@ -19,6 +19,12 @@ def angle(v1, v2):
     d = np.sqrt(np.sum(v1*v1, axis=-1)) * np.sqrt(np.sum(v2*v2, axis=-1))
     return np.arccos(np.sum(v1 * v2, axis=-1) / d).reshape(v1.shape[:-1] + (1,))
 
+# adjust to the scripts perception of the world axis which is y-front, from the vuze camera
+# perception which is y-up.
+def switch_axis(p):
+    R = np.array([[-1, 0, 0], [0, 0, 1], [0, -1, 0]], np.float32)
+    return R @ p
+
 # @param c a matrix with N rows and 2 columns, (x, y)
 # @param shape a tuple with at least 2 values, (height, width)
 # @returns a matrix with N rows and 2 columns, (phi, theta)
@@ -109,6 +115,23 @@ def equirect_points(resolution):
             eq[i, 1] = y
 
     return eq
+
+# vector intersect with sphere, in cartesian space.
+# c and slope are cartesian vectors
+# can be higher dimensional as long as the last dimension of each
+# is [...,3,1]
+# r is the radius of the sphere
+# p is the center of the sphere 3x1 vector
+# returns the intersect in the positive direction only as a cartesian coordinate [...,3,1]
+def intersect_sphere(c, slope, p, r):
+    offset = c - p
+    disc = np.sum(slope * offset, axis=-2) ** 2 \
+        - (np.linalg.norm(offset, axis=-2)**2 - r**2)
+    d = -np.sum(slope * offset, axis=-2) + np.sqrt(disc)
+
+    P = (c + d.reshape((d.shape + (1,))) * slope)
+    return P.reshape(slope.shape[:-2] + (3, 1))
+
 
 # determine the theta value for each phi at which the seam
 # is intersected.

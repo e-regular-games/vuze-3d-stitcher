@@ -4,6 +4,7 @@ import json
 import math
 import numpy as np
 import cv2 as cv
+import coordinates
 from matplotlib import pyplot as plt
 from image_loader import ImageLoader
 from image_loader import CalibrationParams
@@ -118,6 +119,12 @@ class CameraSetup():
             print('The "seams" must be provided as an array of objects with "name" and "seam".')
             return
 
+        if 'center' in self._setup['depth']:
+            center = np.array(self._setup['depth']['center'], np.float32)
+        else:
+            center = np.array([0, 0, 0], np.float32)
+        center = center.reshape((3, 1))
+
         for c in self._calibration:
             if c.empty():
                 print('The yaml or ellipse calibration must be performed before depth analysis.')
@@ -128,7 +135,7 @@ class CameraSetup():
 
         depths = [DepthCalibration(self._debug.set_subplot(2, 4, i+1)) \
                   .set_mode(mode) \
-                  .set_patches(patches) \
+                  .set_patches(patches, center) \
                   for i in range(8)]
 
         # clear out any existing depth calibration
@@ -136,24 +143,41 @@ class CameraSetup():
             c.depth = None
 
         class ImageSet:
-            def __init__(self, images, name, seam_only=None):
-                self.images = images
+            def __init__(self, images, name, rotations=None, seam_only=None):
+                self.images = [get_middle(img) for img in images]
                 self.filename = name
+                self.rotation = self.R(rotations) if rotations is not None else self.R([])
                 self.seam_only = seam_only
 
-        locations = [c.t for c in self._calibration]
+            def R(self, rotations):
+                def x(rad):
+                    return np.array([[1, 0, 0], [0, math.cos(rad), -math.sin(rad)], [0, math.sin(rad), math.cos(rad)]], np.float32)
+                def y(rad):
+                    return np.array([[math.cos(rad), 0, math.sin(rad)], [0, 1, 0], [-math.sin(rad), 0, math.cos(rad)]], np.float32)
+                def z(rad):
+                    return np.array([[math.cos(rad), -math.sin(rad), 0], [math.sin(rad), math.cos(rad), 0], [0, 0, 1]], np.float32)
+
+                R = np.identity(3, np.float32)
+                for r in rotations:
+                    rad = r["degree"] * math.pi / 180
+                    if r["axis"] == "x":
+                        R = R @ x(rad)
+                    elif r["axis"] == "y":
+                        R = R @ y(rad)
+                    elif r["axis"] == "z":
+                        R = R @ z(rad)
+                return R
+
+
+        locations = [coordinates.switch_axis(c.t) for c in self._calibration]
         image_sets = []
-        for img in self._setup['depth']['images']:
+        for i in self._setup['depth']['images']:
             config = Config()
-            config.input = img
+            config.input = i["name"]
             loader = ImageLoader(config, self._debug)
             images = loader.load(self._calibration)
-            image_sets.append(ImageSet(images, img))
-
-        for s in image_sets:
-            for i, d in enumerate(depths):
-                o = 1 - 2*(i%2)
-                d.add_coordinates(s.images[i], s.images[i+o], locations[i], locations[i+o])
+            rotations = i["rotations"] if "rotations" in i else None
+            image_sets.append(ImageSet(images, i["name"], rotations))
 
         seam_sets = []
         for s in self._setup['depth']['seams']:
@@ -164,72 +188,77 @@ class CameraSetup():
             config.input = s['name']
             loader = ImageLoader(config, self._debug)
             images = loader.load(self._calibration)
-            seam_sets.append(ImageSet(images, s['name'], s['seam']))
+            rotations = s["rotations"] if "rotations" in s else None
+            seam_sets.append(ImageSet(images, s['name'], rotations, s['seam']))
 
-        def rotate_seam_image(i, direction):
-            tmp = np.zeros(i.shape, np.uint8)
-            w = i.shape[1]
-            if direction == 1:
-                tmp[:,int(w/2):] = i[:,int(w/4):int(3*w/4)]
-            elif direction == -1:
-                tmp[:,:int(w/2)] = i[:,int(w/4):int(3*w/4)]
-            else:
-                tmp = i
-            return tmp
+        all_sets = image_sets + seam_sets
+        fit_info = np.zeros((len(all_sets), 8, 4))
+
+        for si, s in enumerate(image_sets):
+            R = s.rotation
+            for i in range(4):
+                imgs = [s.images[2*i], s.images[2*i+1]]
+                l = [R @ locations[2*i], R @ locations[2*i+1]]
+                offset = np.zeros((2,), np.float32)
+                fit_info[si,2*i,0:2] = depths[2*i].add_coordinates(0, imgs, l, offset)
+                fit_info[si,2*i+1,0:2] = depths[2*i+1].add_coordinates(1, imgs, l, offset)
 
         def rotate(p, direction):
             if direction == 1:
-                return np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], np.float32) @ p
+                return np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], np.float32) @ p
             elif direction == -1:
-                return np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], np.float32) @ p
+                return np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]], np.float32) @ p
             return p
 
-        for s in seam_sets:
-            a = 2*s.seam_only
-            b = 2*s.seam_only + 1
-            c = (2*s.seam_only + 2) % 8
-            d = (2*s.seam_only + 3) % 8
-            #combos = [(a, b), (a, c), (a, d), (b, c), (b, d), (c, d)]
-            combos = [(a, b), (a, c), (b, d), (c, d)]
-            #combos = [(a, c), (b, d)]
-            for m in combos:
-                i0 = s.images[m[0]]
-                i1 = s.images[m[1]]
-                r = 1 if abs(int(m[0]/2) - int(m[1]/2)) != 0 else 0
-                depths[m[0]].add_coordinates(i0, rotate_seam_image(i1, r), \
-                                             locations[m[0]], rotate(locations[m[1]], r))
+        for si, s in enumerate(seam_sets):
+            idx = [(2*s.seam_only + i) % 8 for i in range(4)]
+            R = s.rotation
+            l = [R @ rotate(locations[ii], -int(i/2)) for i, ii in enumerate(idx)]
+            imgs = [s.images[ii] for ii in idx]
+            offset = np.array([0, 0, math.pi/2, math.pi/2], np.float32)
 
-                depths[m[1]].add_coordinates(i1, rotate_seam_image(i0, -r), \
-                                             locations[m[1]], rotate(locations[m[0]], -r))
+            for i, ii in enumerate(idx):
+                fit_info[len(image_sets) + si,ii,0:2] = \
+                    depths[ii].add_coordinates(i, imgs, l, offset)
 
         for i, d in enumerate(depths):
             d.finalize()
             self._calibration[i].depth = d
 
-        all_sets = image_sets + seam_sets
-        fit_info = np.zeros((len(all_sets), 8, 4))
+        # evaluate how well the calibration performed by adjusting all the images
+        # and then recalculating the error between the expected and actual depth
         for si, s in enumerate(all_sets):
             print(s.filename)
+            adjusted = [depths[i].apply(img) for i, img in enumerate(s.images)]
+            R = s.rotation
 
             if self._debug.enable('depth-cal-finalize'):
-                self._debug._window_title = s.filename
-                self._debug.figure('depth-cal-adjusted', True)
-                self._debug.figure('depth-cal-original', True)
+                f0 = plt.figure()
+                f0.canvas.manager.set_window_title('depth-cal-original -- ' + s.filename)
+                f1 = plt.figure()
+                f1.canvas.manager.set_window_title('depth-cal-adjusted -- ' + s.filename)
+                for i in range(8):
+                    f0.add_subplot(2, 4, i+1) \
+                      .imshow(cv.cvtColor(adjusted[i], cv.COLOR_BGR2RGB))
+                    f1.add_subplot(2, 4, i+1) \
+                      .imshow(cv.cvtColor(s.images[i], cv.COLOR_BGR2RGB))
 
-            for i, d in enumerate(depths):
-                if s.seam_only is None:
-                    o = 1 - 2*(i%2)
-                    i1a = s.images[i+o]
-                    i1b = create_from_middle(depths[i+o].apply(get_middle(s.images[i+o])))
-                    p = locations[i+o]
-                else:
-                    o = 2 if int(i/2) - s.seam_only == 0 else -2
-                    r = 1 if o == 2 else -1
-                    i1a = rotate_seam_image(s.images[(i+o)%8], r)
-                    p = rotate(locations[(i+o)%8], r)
-                    i1b = create_from_middle(depths[(i+o)%8].apply(get_middle(i1a)))
+            if s.seam_only is None:
+                for i in range(4):
+                    imgs = [adjusted[2*i], adjusted[2*i+1]]
+                    l = [R @ locations[2*i], R @ locations[2*i+1]]
+                    offset = np.zeros((2,), np.float32)
+                    fit_info[si,2*i,2:4] = depths[2*i].add_coordinates(0, imgs, l, offset)
+                    fit_info[si,2*i+1,2:4] = depths[2*i+1].add_coordinates(1, imgs, l, offset)
+            else:
+                idx = [(2*s.seam_only + i) % 8 for i in range(4)]
+                l = [R @ rotate(locations[ii], -int(i/2)) for i, ii in enumerate(idx)]
+                imgs = [adjusted[ii] for ii in idx]
+                offset = np.array([0, 0, math.pi/2, math.pi/2], np.float32)
 
-                fit_info[si, i] = d.result_info(s.images[i], i1a, i1b, \
-                                                locations[i], p)
+                for i, ii in enumerate(idx):
+                    fit_info[si,ii,2:4] = \
+                        depths[ii].add_coordinates(i, imgs, l, offset)
 
         print(fit_info)
+        plt.show()
