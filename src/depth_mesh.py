@@ -264,22 +264,21 @@ class DepthCalibration():
             offset = offsets[idx] - offsets[i]
             cart = coordinates.polar_to_cart(coords[i] + [0, offset], 1).reshape((n, 3, 1))
             cart_avg += coordinates.intersect_sphere(ps[i], cart, self._center, r_expected)
-
         cart_avg /= k
 
         r_avg = np.zeros((n, 1), np.float32)
         d_avg = np.zeros((n, 1), np.float32)
-        cnt = 0
         for i in range(k):
-            for j in range(i+1, k):
-                cnt += 1
-                r, _, d = radius_compute(coords[i], coords[j], \
-                                         ps[i].reshape((1,3)), ps[j].reshape((1,3)))
-                r_avg += r
-                d_avg += d
+            if i == idx:
+                continue
+            offset = offsets[i] - offsets[idx]
+            r, _, d = radius_compute(coords[i], coords[idx] + [0, offset], \
+                                     ps[i].reshape((1,3)), ps[idx].reshape((1,3)))
+            r_avg += r
+            d_avg += d
 
-        r_avg /= cnt
-        d_avg /= cnt
+        r_avg /= (k-1)
+        d_avg /= (k-1)
 
         cart_center = (cart_avg - self._center)[...,0]
         cart_norm = np.linalg.norm(cart_center, axis=1).reshape((n, 1))
@@ -290,18 +289,24 @@ class DepthCalibration():
 
     def _apply_points(self, pts):
         if self._mode == 'linreg':
-            return [0, 3*math.pi/2] + [1, -1] * self._linreg.evaluate([0, 3*math.pi/2] + [1, -1] * pts)
+            pts = [0, 3*math.pi/2] + [1, -1] * pts
+            pts = np.concatenate([pts, pts[...,0:1]*pts[...,1:2]], axis=-1)
+            return [0, 3*math.pi/2] + [1, -1] * self._linreg.evaluate(pts)[...,0:2]
         elif self._mode == 'kabsch':
             pts_cart = coordinates.polar_to_cart([0, 3/2*math.pi] + np.array([1, -1]) * pts, 1)
             pts_cart = (self._rotation @ pts_cart.reshape(pts_cart.shape + (1,)))[...,0]
             return [0, 3/2*math.pi] + np.array([1, -1]) * coordinates.cart_to_polar(pts_cart)
 
     def _apply_linreg(self, linreg, img):
+        if linreg is None:
+            return img
+
         shape_full = (img.shape[0], 2*img.shape[0])
         shape_half = (shape_full[0], int(shape_full[1] / 2))
 
         center_pts = coordinates.polar_points_3d(shape_half)
-        center_pts = linreg.evaluate(center_pts)
+        center_pts = np.concatenate([center_pts, center_pts[...,0:1]*center_pts[...,1:2]], axis=-1)
+        center_pts = linreg.evaluate(center_pts)[...,0:2]
         center_pts = coordinates.polar_to_eqr_3d(center_pts, shape_full)
         center_pts -= [shape_full[1]/4, 0]
         return coordinates.eqr_interp_3d(center_pts, img)
@@ -319,10 +324,12 @@ class DepthCalibration():
     def _finalize_linreg(self, act, exp):
         # convert back to coordinates with the image centered at pi
         exp = [0, 3*math.pi/2] + [1, -1] * exp
+        exp = np.concatenate([exp, exp[...,0:1]*exp[...,1:2]], axis=-1)
         act = [0, 3*math.pi/2] + [1, -1] * act
+        act = np.concatenate([act, act[...,0:1]*act[...,1:2]], axis=-1)
 
-        self._linreg = LinearRegression(np.array([5, 5]), False)
-        err, _ = self._linreg.regression(exp, act)
+        self._linreg = LinearRegression(np.array([4, 4, 2]), False)
+        err = self._linreg.regression(exp, act)[0][...,0:2]
         print('linear regression depth squared error(0):', \
               np.mean(exp-act, axis=0), np.std(exp-act, axis=0))
         print('linear regression depth squared error(1):', \
@@ -340,32 +347,6 @@ class DepthCalibration():
         print('kabsch cart init:', np.sum((cart_a - cart_a_exp)*(cart_a - cart_a_exp)))
         print('kabsch cart err:', np.sum(err * err))
         self._rotation = rot.as_matrix()
-
-    def result_info(self, a, b0, b1, p_a, p_b):
-        a = get_middle(a)
-        b0 = get_middle(b0)
-        b1 = get_middle(b1)
-
-        info = np.zeros((4,), np.float32)
-        coords, expected, r_exp = \
-            self._determine_coordinates(a, b0, p_a, p_b, self._patches)
-        if coords.shape[1] == 0:
-            return info
-        r, _, d = radius_compute(coords[0], coords[1], p_a.reshape((1,3)), p_b.reshape((1,3)))
-        info[0] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
-        info[2] = np.sum(d*d)
-
-        a_adj = self.apply(a)
-        if self._debug.enable('depth-cal-finalize'):
-            self._debug.subplot('depth-cal-adjusted').imshow(cv.cvtColor(a_adj, cv.COLOR_BGR2RGB))
-            self._debug.subplot('depth-cal-original').imshow(cv.cvtColor(a, cv.COLOR_BGR2RGB))
-
-        coords, expected, r_exp = \
-            self._determine_coordinates(a_adj, b1, p_a, p_b, self._patches)
-        r, _, d = radius_compute(coords[0], coords[1], p_a.reshape((1,3)), p_b.reshape((1,3)))
-        info[1] = np.sum((r-r_exp)*(r-r_exp)) / r_exp.shape[0]
-        info[3] = np.sum(d*d)
-        return info
 
 class DepthMap():
 

@@ -261,4 +261,3 @@ class CameraSetup():
                         depths[ii].add_coordinates(i, imgs, l, offset)
 
         print(fit_info)
-        plt.show()
