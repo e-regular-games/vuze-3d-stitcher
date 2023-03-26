@@ -366,8 +366,11 @@ class DepthMap():
         ax = f.add_subplot(1, 2, 2)
         pts = coordinates.polar_points_3d((1024, 1024))
         r = self.eval(pts)
-        if np.min(r) != np.max(r) and np.mean(r) != np.max(r) and np.mean(r) != np.min(r):
-            clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
+        r_max = round(np.max(r), 4)
+        r_min = round(np.min(r), 4)
+        r_avg = round(np.mean(r), 4)
+        if  r_min != r_max and r_min != r_avg and r_max != r_avg:
+            clr = colors.TwoSlopeNorm(vmin=r_min, vcenter=r_avg, vmax=r_max)
             pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
         else:
             pos = ax.imshow(r, cmap='summer', interpolation='none')
@@ -483,18 +486,6 @@ class DepthMapCloud(DepthMap):
     def set_area(self, a):
         self._area = min(len(self._pts), a)
         return self
-
-    def plot(self, img):
-        f = plt.figure()
-        img0 = get_middle(img)
-        f.add_subplot(1, 2, 1).imshow(cv.cvtColor(img0, cv.COLOR_BGR2RGB))
-
-        ax = f.add_subplot(1, 2, 2)
-        pts = coordinates.polar_points_3d((1024, 1024))
-        r = self.eval(pts)
-        clr = colors.TwoSlopeNorm(vmin=np.min(r), vcenter=np.mean(r), vmax=np.max(r))
-        pos = ax.imshow(r, norm=clr, cmap='summer', interpolation='none')
-        f.colorbar(pos, ax=ax)
 
     def average_r(arr):
         pts = arr[0]._pts
