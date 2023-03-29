@@ -360,13 +360,18 @@ class ImageLoader:
 
     def _denoise(self, images):
         print('denoising images')
-        for i, img in enumerate(images):
-            images[i] = cv.fastNlMeansDenoisingColored(img, None, \
-                                                       self._config.denoise[0], \
-                                                       self._config.denoise[0], \
-                                                       self._config.denoise[1], \
-                                                       self._config.denoise[2])
-            print('.', end='', flush=True)
+        for i in range(4):
+            h = images[2*i].shape[0]
+            img = np.concatenate([images[2*i], images[2*i+1]])
+            img = cv.fastNlMeansDenoisingColored(img, None, \
+                                                 self._config.denoise[0], \
+                                                 self._config.denoise[0], \
+                                                 self._config.denoise[1], \
+                                                 self._config.denoise[2])
+            images[2*i] = img[:h]
+            images[2*i+1] = img[h:]
+
+            print('..', end='', flush=True)
         print('')
         if self._debug.enable('denoise'): plot_lenses(images, 'Denoise')
         return images

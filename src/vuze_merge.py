@@ -260,6 +260,9 @@ def main():
     seam = refine_seams.RefineSeams(images, debug)
     seam.calibration = calibration
     seam.border = config.seam_color_margin
+    wr = config.world_radius
+    seam.world_radius = np.array([[wr[0], wr[1], wr[2]]], np.float32)
+    seam.camera_height = wr[3]
 
     if options.reuse_seams and saved_data is not None and 'seam' in saved_data:
         print('reusing seam data from alignment')

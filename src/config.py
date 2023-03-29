@@ -44,6 +44,8 @@ def print_usage():
     print('aperture,<degrees>\t\t\tAperture angle of all fisheye lenses. (degrees)')
     print('view_direction,<degrees>\t\tThe initial view direction which will be at the center of the generated image. (degrees)')
     print('resolution,<pixels>\t\t\tOutput vertical resolution.')
+    print('denoise,<h>,<template-size>,<search-size>\tDenoise the images using fastNlMeansDenoisingColor algorithm. Recommend: 3,7,21')
+    print('world,<r-x>,<r-y>,<r-z>,<height>\tDefine the radius of the world and set the height from the ground. Inside: 5,5,3,1.8 or Default: 40,40,20,1.8')
     print('exposure_match,<1-8>\t\t\tImage to use as reference for exposure histogram matching.')
     print('exposure_fuse,<image_prefix>\t\tFile name to include in the exposure fusion stack.')
     print('accel_align,<enabled>\t\t\tUse the accelerometer to rotate and translate the lens. default: false')
@@ -218,6 +220,7 @@ class Config:
         self.seam_color_margin = 6.0 * math.pi / 180
         self.seam_pyramid_depth = 0
         self.denoise = ()
+        self.world_radius = (40, 40, 20, 1.8)
 
         if len(file_path) > 0:
             f = open(file_path, 'r')
@@ -260,6 +263,8 @@ class Config:
             self.super_res_config[cmd[1]] = cmd[2]
         elif cmd[0] == 'accel_align' and len(cmd) == 2:
             self.accel_align = (cmd[1] == 'true')
+        elif cmd[0] == 'world' and len(cmd) == 5:
+            self.world_radius = (float(cmd[1]), float(cmd[2]), float(cmd[3]), float(cmd[4]))
         elif cmd[0] == 'contrast_equ' and len(cmd) == 4:
             self.contrast_equ = (float(cmd[1]), int(cmd[2]), int(cmd[3]))
         elif cmd[0] == 'seam' and len(cmd) == 3:
