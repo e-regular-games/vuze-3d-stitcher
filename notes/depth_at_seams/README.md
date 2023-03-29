@@ -70,7 +70,7 @@ The following tables provide the error in depth and direction of each patch befo
 
 The linear regression before and after yielded the following differences betwen the actual and expected polar coordinates for each patch.
 
-| Lens | Corrected | $\overline{\delta\phi}$ | $\overline{\delta\theta_i}$ | $\sigma_{\delta\phi}$ | $\sigma_{\delta\theta}$
+| Lens | Corrected | $\overline{\Delta\phi}$ | $\overline{\Delta\theta_i}$ | $\sigma_{\Delta\phi}$ | $\sigma_{\Delta\theta}$
 | :----: | :---: | :---: | :---: | :---: | :---: |
 | 1 | No | 0.00207777 | -0.03774529 | 0.00461072 | 0.0170448 |
 | 1 | Yes | -0.00001328 | -0.00004904 | 0.00344267 | 0.0109802 |

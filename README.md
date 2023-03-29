@@ -38,11 +38,12 @@ The following image uses a resolution of 4320x4320 (resized for display here) al
 This is the command used to generate the full resolution versions of the above images.
 ```
 src/vuze_merge.py -a coeffs_v6.json -I test/HET_0014 -O test/HET_0014_demo \
-  -f over-under,anaglyph:90:0:0:1112:955 \
+  -f over-under,anaglyph:90:0:0:1112:955,stereo:90:0:0:1112:955 \
   --config-option exposure_fuse,test/HET_0011 \
   --config-option exposure_fuse,test/HET_0012 \
   --config-option exposure_fuse,test/HET_0015
 mogrify -resize 25% test/HET_0014_demo.JPG
+convert -delay 8 -loop 0 test/HET_0014_demo_stereo*.JPG test/HET_0014_demo_stereo.gif
 src/vuze_merge.py -a coeffs_v6.json -l test/HET_0014_demo.JPG -f gpano
 ```
 
