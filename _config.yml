@@ -1,21 +1,5 @@
-title: Vuze-3D-Stitcher-0.01
-author: E-Regular Games
-
-#navbar-links:
-#  E-Regular Games: "https://e-regular-games.com"
-#  Source Code: "https://github.com/e-regular-games/vuze-3d-stitcher"
-
-avatar: "/notes/erg-logo.png"
-round-avatar: false
-#title-img: /path/to/image
-
-
-# Select the social network links that you want to show in the footer.
-#social-network-links:
-#  email: "e.regular.games.llc@gmail..com"
-#  github: e-regular-games
-
-#url-pretty: "E-Regular-Games.com"
-
-theme: midnight
+title: Vuze 3D Stitcher
+description: Create a 3D 360 VR image from 8 fisheye images.
 show_downloads: false
+
+theme: jekyll-theme-midnight
