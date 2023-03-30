@@ -1,0 +1,16 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+.wrapper {
+    max-width:800px !important;
+}
+
+nav {
+    max-width:800px !important;
+}
+
+section {
+    max-width:800px !important;
+}
