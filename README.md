@@ -50,8 +50,9 @@ src/vuze_merge.py -a coeffs_v6.json -l test/HET_0014_demo.JPG -f gpano
 ## Requirements
 
 The test system had the following specification.
+
 | Hardware | Spec |
-| :-----: | :-----: |
+| :----- | -----: |
 | CPU | AMD Ryzen 7 5800U with Radeon Graphics |
 | Cores | 16x @ 2.3Ghz |
 | Memory + Swap | 16GB + 16GB |

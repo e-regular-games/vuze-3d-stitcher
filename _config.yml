@@ -17,15 +17,5 @@ round-avatar: false
 
 #url-pretty: "E-Regular-Games.com"
 
-theme: minima
-
-lsi: false
-safe: true
-source: /
-incremental: false
-highlighter: rouge
-gist:
-  noscript: false
-kramdown:
-  math_engine: mathjax
-  syntax_highlighter: rouge
+theme: midnight
+show_downloads: false
