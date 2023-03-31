@@ -16,24 +16,21 @@ A python based script for combining 8 separate photos taken by the Vuze 4K 3D 36
   </tr>
 </table>
 
-The following image uses a resolution of 4320x4320 (resized for display here) along with the exposure merge of HET_0011, HET_0012, HET_0014, and HET_0015. The image is also suitable for lens position and size determination. A series of sample depth images (indepent of this one) were used to determine the optimal positioning of the left and right eye images. Using the merged image additional outputs are produced for use in Google Photos and for use with Red-Cyan Anaglyph glasses. Note: the Google Photos image stores the right eye in special EXIF metadata fields which only display with Google Cardboard image viewer or Google Photos.
+The following image uses a resolution of 4320x4320 (resized for display here) along with the exposure merge of HET_0011, HET_0012, HET_0014, and HET_0015. The image is also suitable for lens position and size determination. A series of sample depth images (indepent of this one) were used to determine the optimal positioning of the left and right eye images. Using the merged image additional outputs are produced for use in Google Photos and for use with Red-Cyan Anaglyph glasses. Note: the Google Photos image stores the right eye in special EXIF metadata fields which only display with Google Cardboard image viewer or Google Photos. The final image of the 4 is a wiggle gif which switches between the left and right eye images quickly at times providing an almost 3d effect with the need for special glasses.
 
 | Generated Images |
 | :----: |
 | Over-Under 3D Image |
 | <img src="test/HET_0014_demo.JPG" alt="Over-under 3D" width="400px"/> |
 | |
-| |
 | Google Photos 3D Image (When Viewed in Google Cardboard) |
 | <img src="test/HET_0014_demo_gpano.JPG" alt="Google Photos compatible 3D and 2D." width="700px"/> |
-| |
 | |
 | Red-Cyan Anaglyph |
 | <img src="test/HET_0014_demo_anaglyph_90_0_0_1112_955.JPG" alt="Red-Cyan Anaglyph" width="700px"/> |
 | |
-| |
 | Wiggle 3D GIF |
-| <img src="test/HET_0014_demo_stereo.gif" alt="Widdle 3D Gif" width="700px"/> |
+| <img src="test/HET_0014_demo_stereo.gif" alt="Wiggle 3D Gif" width="700px"/> |
 
 This is the command used to generate the full resolution versions of the above images.
 ```
