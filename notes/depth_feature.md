@@ -29,7 +29,7 @@ $$\vec{v} = \vec{p} + r \vec{m}$$
 
 For a given feature point located in polar coordinates at $( \phi, \theta )$ the slope is defined as follows.
 
-$$\vec{m} = \begin{pmatrix} \sin(\phi) \cos \left( \frac{\pi}{2} - \theta \right) \\\\ \sin(\phi) \sin \left( \frac{\pi}{2} - \theta \right) \\\\ \cos(\phi) \end{pmatrix}$$
+$$\vec{m} = \begin{pmatrix} \sin(\phi) \cos \left( \frac{\pi}{2} - \theta \right) \\ \sin(\phi) \sin \left( \frac{\pi}{2} - \theta \right) \\ \cos(\phi) \end{pmatrix}$$
 
 The slope for the feature point from the left and right lenses is represented as $m_l$ and $m_r$ respectively. The closest point between $v_l$ and $v_r$ will be $r_l$ distance from the left lens and $r_r$ distance from the right lens. The distance between the lines at the closest point is $d$ and the slope of the vector between them is $m_d$.
 
@@ -37,14 +37,14 @@ The slope $m_d$ is calculated using $m_r \times m_l$.  The objective is to solve
 
 $$\vec{p_l} + r_l\vec{m_l} + d\vec{m_d} = \vec{p_r} + r_r\vec{m_r}$$
 
-$$\begin{array}{cc} \vec{p_l} = \begin{pmatrix} -0.03 \\\\ 0 \\\\ 1.8 \end{pmatrix} & \vec{p_r} = \begin{pmatrix} 0.03 \\\\ 0 \\\\ 1.8 \end{pmatrix} \end{array}$$
+$$\begin{array}{cc} \vec{p_l} = \begin{pmatrix} -0.03 \\ 0 \\ 1.8 \end{pmatrix} & \vec{p_r} = \begin{pmatrix} 0.03 \\ 0 \\ 1.8 \end{pmatrix} \end{array}$$
 
 The values of $m_d$ and $d$ can be computed for each feature point. The computation is as follows for the components. The offset of each lens in the x-axis from the center of the camera is $X = 0.03$.
 
 $$\begin{array}{cc}
-m_l = \begin{pmatrix} a_l \\\\ b_l \\\\ c_l \end{pmatrix}
-& m_r = \begin{pmatrix} a_r \\\\ b_r \\\\ c_r \end{pmatrix}
-& m_d = \begin{pmatrix} a_d \\\\ b_d \\\\ c_d \end{pmatrix}
+m_l = \begin{pmatrix} a_l \\ b_l \\ c_l \end{pmatrix}
+& m_r = \begin{pmatrix} a_r \\ b_r \\ c_r \end{pmatrix}
+& m_d = \begin{pmatrix} a_d \\ b_d \\ c_d \end{pmatrix}
 \end{array}$$
 
 $$A = \frac{b_l c_r - c_l b_r}{c_d b_r - b_d c_r}$$
@@ -61,7 +61,7 @@ Determining the distance to the best 3 feature points within each of the section
 
 During the lens and sensor alignment the one adjustment which was neglected was the rotation of the sensor parallel to the lens. This leds to a difference in rotation of the image between the two lenses. To account for the rotation between the lenses, $\rho$, the left slope, $m_l$ can be adjusted. To reduce the length of the formulas $\rho_1 = \cos\rho$ and $\rho_2 = \sin\rho$.
 
-$$\vec{m_l} = \begin{bmatrix} \rho_1 & 0 \rho_2 \\\\ 0 1 0 \\\\ -\rho_2 & 0 & \rho_1 \end{bmatrix} \vec{m_l}$$
+$$\vec{m_l} = \begin{bmatrix} \rho_1 & 0 \rho_2 \\ 0 1 0 \\ -\rho_2 & 0 & \rho_1 \end{bmatrix} \vec{m_l}$$
 
 To solve for $\rho$ multiple feature points will need to be used. The objective is to solve for $\rho_1$ and $\rho_2$ such that $\rho_1 + \rho_2 = 1$.
 

@@ -37,9 +37,9 @@ $$r_y = \tan^{-1} \left( \frac{a_y}{a_z} \right)$$
 
 The adjustments are applied to the final stitched image by converting from equirectangular to polar and finally to cartesian coordinates. Using the cartesian coordinates and the rotation angles, $r_x$ and $r_y$ along each accelerometer axis, the image is remapped. The following equations represent the cartesian remapping of coordinates, $c$.
 
-$$X = \begin{bmatrix} \cos(r_x) & 0 & \sin(r_x) \\\\ 0 & 1 & 0 \\\\ -\sin(r_x) & 0 & \cos(r_x) \end{bmatrix}$$
+$$X = \begin{bmatrix} \cos(r_x) & 0 & \sin(r_x) \\ 0 & 1 & 0 \\ -\sin(r_x) & 0 & \cos(r_x) \end{bmatrix}$$
 
-$$Y = \begin{bmatrix} 1 & 0 & 0 \\\\ 0 & \cos(r_y) & \sin(r_y) \\\\ 0 & -\sin(r_y) & \cos(r_y) \end{bmatrix}$$
+$$Y = \begin{bmatrix} 1 & 0 & 0 \\ 0 & \cos(r_y) & \sin(r_y) \\ 0 & -\sin(r_y) & \cos(r_y) \end{bmatrix}$$
 
 $$c = (YXc^\intercal)^\intercal$$
 

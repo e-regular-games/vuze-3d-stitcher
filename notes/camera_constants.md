@@ -41,7 +41,7 @@ $$\theta_d = \theta \left( k_0 + k_2 \theta^2 + k_4 \theta^4 + k_6 \theta^6 + k_
 
 The OpenCV fisheye projectPoints function is used during the equirectangular conversion. Each pixel's coordinates in the equirectangular image are identified and arranged in a square image representing the center of the equirectangular view. The coordinates in terms of $c = (x, y, z)$ are initially represented in the y-axis forward orientation and need to be adjusted to y-axis up orientation.
 
-$$c_c = c \begin{bmatrix} 1 & 0 & 0 \\\\ 0 & 0 & -1 \\\\ 0 & 1 & 0 \end{bmatrix}$$
+$$c_c = c \begin{bmatrix} 1 & 0 & 0 \\ 0 & 0 & -1 \\ 0 & 1 & 0 \end{bmatrix}$$
 
 These points are projected into the image space to obtain the coordinate pair $c_i = (u, v)$. The final adjustment is to account for the elliptical distortion as explained in [Lens Alignment](./lens_alignment.md). This is done by translating into the unit vector space as defined by the axis of the ellipse and then scaling the minor axis to create a circle.
 

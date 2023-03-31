@@ -23,8 +23,8 @@ $$\phi_a = (c_0\theta^2 + c_1\theta + c_2)(c_3\phi^2 + c_4\phi + c_5)$$
 
 $$
 \begin{split}
-\phi_a &= c_0\theta^2\phi^2 + c_1\theta^2\phi + c_2\theta^2 \\\\
-&+ c_3\theta\phi^2 + c_4\theta\phi + c_5\theta \\\\
+\phi_a &= c_0\theta^2\phi^2 + c_1\theta^2\phi + c_2\theta^2 \\
+&+ c_3\theta\phi^2 + c_4\theta\phi + c_5\theta \\
 &+ c_6\phi^2 + c_7\phi + c_8
 \end{split}
 $$
@@ -60,9 +60,9 @@ $$\theta_a = (c_0\theta^3 + c_1\theta^2 + c_2\theta + c_3)(c_4\phi^3 + c_5\phi^2
 
 $$
 \begin{split}
-\theta_a &= c_0\theta^3\phi^3 + c_1\theta^3\phi^2 + c_2\theta^3\phi + c_3\theta^3 \\\\
-&+ c_4\theta^2\phi^3 + c_5\theta^2\phi^2 + c_6\theta^2\phi + c_7\theta^2 \\\\
-&+ c_8\theta\phi^3 + c_9\theta\phi^2 + c_{10}\theta\phi + c_{11}\theta \\\\
+\theta_a &= c_0\theta^3\phi^3 + c_1\theta^3\phi^2 + c_2\theta^3\phi + c_3\theta^3 \\
+&+ c_4\theta^2\phi^3 + c_5\theta^2\phi^2 + c_6\theta^2\phi + c_7\theta^2 \\
+&+ c_8\theta\phi^3 + c_9\theta\phi^2 + c_{10}\theta\phi + c_{11}\theta \\
 &+ c_{12}\phi^3 + c_{13}\phi^2 + c_{14}\phi + c_{15}
 \end{split}
 $$

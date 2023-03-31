@@ -64,15 +64,15 @@ $$r = \frac{2}{aperture} \tan^{-1}\left( \sqrt{ \frac{x^2 + z^2}{y} } \right)$$
 
 $$\alpha = \tan^{-1}\left( \frac{z}{x} \right)$$
 
-$$\vec{f} = \begin{pmatrix} r \cos \alpha \\\\ r \sin \alpha \end{pmatrix}$$
+$$\vec{f} = \begin{pmatrix} r \cos \alpha \\ r \sin \alpha \end{pmatrix}$$
 
 Since the true lens and sensor are not perfectly aligned, the points $f$ must be converted to a basis which is aligned to the semi-major and semi-minor axes of the calibration ellipse.
 
-$$\mathbf{E} = \begin{bmatrix} \cos\rho & -\sin\rho \\\\ \sin\rho & \cos\rho \end{bmatrix}$$
+$$\mathbf{E} = \begin{bmatrix} \cos\rho & -\sin\rho \\ \sin\rho & \cos\rho \end{bmatrix}$$
 
 Given the point $\vec{f}$ in the perfect fisheye lens the following is used to map to the actual pixel value within the sensor, $p$. The skew of the lens and the sensor is accounted for using similar triangles and scaling the semi-minor component of the point in the ellipse basis space.
 
-$$\vec{p} = r_a \mathbf{E}^{\intercal} \begin{bmatrix} 1 & 0 \\\\ 0 & \frac{r_b}{r_a} \end{bmatrix} \mathbf{E} \vec{f} + \begin{pmatrix} x_0 \\\\ y_0 \end{pmatrix}$$
+$$\vec{p} = r_a \mathbf{E}^{\intercal} \begin{bmatrix} 1 & 0 \\ 0 & \frac{r_b}{r_a} \end{bmatrix} \mathbf{E} \vec{f} + \begin{pmatrix} x_0 \\ y_0 \end{pmatrix}$$
 
 The adjustment produces a slightly different image by horizontally expanding the pixels in the equirectangular image. An example before and after image is provided below.
 

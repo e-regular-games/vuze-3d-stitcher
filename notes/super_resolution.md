@@ -15,7 +15,7 @@ It is possible to create a high resolution image from a series of slightly shift
 
 The lower resolution images are loaded into memory and each image is converted to equirectangular format in the desired higher resolution. The equarectangular images for each lens are aligned using OpenCV alignMTB and the mean is taken. The result is sharpened using the following filter2D kernal.
 
-$$\begin{bmatrix} 0 & -1 & 0 \\\\ -1 & 5 & -1 \\\\ 0 & -1 & 0 \end{bmatrix}$$
+$$\begin{bmatrix} 0 & -1 & 0 \\ -1 & 5 & -1 \\ 0 & -1 & 0 \end{bmatrix}$$
 
 Each of these higher resolution images is used for the remaining alignment and stitching as normal.
 

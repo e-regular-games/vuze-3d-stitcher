@@ -63,18 +63,18 @@ A configuration file was created that saved the color and the distance the color
 ### Initial Depth Calculation
 The location in polar coordinates of each colored post-it note was determined by taking the mean of the pixel locations. These coordinates are $(\phi_l,\theta_l)$ and $(\phi_r,\theta_r)$ for the left and right images. The YAML configuration parameters were used to know the position of each lens, $p_l$ and $p_r$ for the left and right positions. The cartesian coordinates are found, using the polar coordinates, but only after adjusting the coordinates to ensure the $\theta=0^\circ$ aligns with the postive x-axis. Each vector is then represented as its 3 components, $a, b, c$.
 
-$$\begin{pmatrix} a_l \\\\ b_l \\\\ c_l \end{pmatrix} = \vec{m_l} = \begin{pmatrix} \sin(\phi_l)\cos(1.5\pi - \theta_l) \\\\ \sin(\phi_l)\sin(1.5\pi - \theta_l) \\\\ \cos(\phi_l) \end{pmatrix}$$
+$$\begin{pmatrix} a_l \\ b_l \\ c_l \end{pmatrix} = \vec{m_l} = \begin{pmatrix} \sin(\phi_l)\cos(1.5\pi - \theta_l) \\ \sin(\phi_l)\sin(1.5\pi - \theta_l) \\ \cos(\phi_l) \end{pmatrix}$$
 
-$$\begin{pmatrix} a_r \\\\ b_r \\\\ c_r \end{pmatrix} = \vec{m_r} = \begin{pmatrix} \sin(\phi_r)\cos(1.5\pi - \theta_r) \\\\ \sin(\phi_r)\sin(1.5\pi - \theta_r) \\\\ \cos(\phi_r) \end{pmatrix}$$
+$$\begin{pmatrix} a_r \\ b_r \\ c_r \end{pmatrix} = \vec{m_r} = \begin{pmatrix} \sin(\phi_r)\cos(1.5\pi - \theta_r) \\ \sin(\phi_r)\sin(1.5\pi - \theta_r) \\ \cos(\phi_r) \end{pmatrix}$$
 
 The direction of the vector between $\vec{m_l}$ and $\vec{m_r}$ is the cross product of the two.
 
-$$\begin{pmatrix} a_d \\\\ b_d \\\\ c_d \end{pmatrix} = \vec{m_d} = \frac{ \vec{m_r} \times \vec{m_l} }{ \left|\left| \vec{m_r} \times \vec{m_l} \right|\right| }$$
+$$\begin{pmatrix} a_d \\ b_d \\ c_d \end{pmatrix} = \vec{m_d} = \frac{ \vec{m_r} \times \vec{m_l} }{ \left|\left| \vec{m_r} \times \vec{m_l} \right|\right| }$$
 
 $$\begin{array}{cc}
-\begin{pmatrix} a_{pl} \\\\ b_{pl} \\\\ c_{pl} \end{pmatrix} = \vec{p_l}
+\begin{pmatrix} a_{pl} \\ b_{pl} \\ c_{pl} \end{pmatrix} = \vec{p_l}
 &
-\begin{pmatrix} a_{pr} \\\\ b_{pr} \\\\ c_{pr} \end{pmatrix} = \vec{p_r}
+\begin{pmatrix} a_{pr} \\ b_{pr} \\ c_{pr} \end{pmatrix} = \vec{p_r}
 \end{array}$$
 
 This setup allows for the following equation which can be solved to determine the closest point between the two vectors: $\vec{v_l} = \vec{p_l} + r_l \vec{m_l}$ and $\vec{v_r} = \vec{p_r} + r_r \vec{m_r}$.
@@ -163,7 +163,7 @@ The squared errors listed below are between the expected depth and the actual de
 
 Using the coordinates $(\phi_l, \theta_l)$ and the expected depth the correct coordinates for $(\phi_r', \theta_r')$ can be computed using the following.
 
-$$\vec{m_l} = \begin{pmatrix} \sin(\phi_l)\cos(1.5\pi - \theta_l) \\\\ \sin(\phi_l)\sin(1.5\pi - \theta_l) \\\\ \cos(\phi_l) \end{pmatrix}$$
+$$\vec{m_l} = \begin{pmatrix} \sin(\phi_l)\cos(1.5\pi - \theta_l) \\ \sin(\phi_l)\sin(1.5\pi - \theta_l) \\ \cos(\phi_l) \end{pmatrix}$$
 
 With all of the given information and the known expected distance from the camera to the point the following can be determind to be the expected direction of the point from the right eye.
 
@@ -190,8 +190,8 @@ The SciPy module was used for the Kabsch algorithm calculation. [SciPy](https://
 Below is the example rotation matrix generated from the front of the camera using points from the 9 image sets.
 
 $$R = \begin{bmatrix}
-0.99817681 & 0.06026117 & -0.00341253 \\\\
--0.0602696 & 0.99817919 & -0.00242472 \\\\
+0.99817681 & 0.06026117 & -0.00341253 \\
+-0.0602696 & 0.99817919 & -0.00242472 \\
 0.0032602  & 0.00262597 & 0.99999124
 \end{bmatrix}$$
 

@@ -32,7 +32,7 @@ The following image uses a resolution of 4320x4320 (resized for display here) al
 | <img src="test/HET_0014_demo_anaglyph_90_0_0_1112_955.JPG" alt="Red-Cyan Anaglyph" width="700px"/> |
 | |
 | |
-| Widdle 3D GIF |
+| Wiggle 3D GIF |
 | <img src="test/HET_0014_demo_stereo.gif" alt="Widdle 3D Gif" width="700px"/> |
 
 This is the command used to generate the full resolution versions of the above images.

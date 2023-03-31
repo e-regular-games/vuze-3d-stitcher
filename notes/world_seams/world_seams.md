@@ -46,26 +46,26 @@ The investigation into determining the radius used feature points from all 4 ove
 The forward transformation will be applied in 2 steps; first calculate $\theta_H$, then calculate $\phi_H$. The input and output coordinates of the transform will be polar with the left side of the image at $\frac{\pi}{2}$ radians and the right side of the image at $\frac{3\pi}{2}$ radians. This is oposite and offset from the lens coordinates system defined above. For simplicity the plane of the camera is assumed to be the x-y-axis plane, ie. $z=0$. The objective is to find $(\phi_H, \theta_H)$. A required input is the interocular distance, $E$, in meters.
 
 $$P_H = \vec{P_0} + \begin{pmatrix}
-r \sin \left( \phi \right) \cos \left( \frac{3\pi}{2} - \theta \right) \\\\
-r \sin \left( \phi \right) \sin \left( \frac{3\pi}{2} - \theta \right) \\\\
+r \sin \left( \phi \right) \cos \left( \frac{3\pi}{2} - \theta \right) \\
+r \sin \left( \phi \right) \sin \left( \frac{3\pi}{2} - \theta \right) \\
 0
 \end{pmatrix}$$
 
 $$\begin{array}
-& R = \left\\| \vec{p_0} \right\\| & \alpha = \sin^{-1} \left( \frac{E}{2R} \right) & y = x \tan(\alpha) & d = \left\\| P_H - C \right\\|
+& R = \left\| \vec{p_0} \right\| & \alpha = \sin^{-1} \left( \frac{E}{2R} \right) & y = x \tan(\alpha) & d = \left\| P_H - C \right\|
 \end{array}$$
 
 $$\begin{align}
-d^2 &= ( R + x )^2 + y^2 \\\\
-d^2 &= ( R + x )^2 + x^2 \tan^2(\alpha) \\\\
-d^2 &= x^2 + 2Rx + R^2 + x^2 \tan^2(\alpha) \\\\
+d^2 &= ( R + x )^2 + y^2 \\
+d^2 &= ( R + x )^2 + x^2 \tan^2(\alpha) \\
+d^2 &= x^2 + 2Rx + R^2 + x^2 \tan^2(\alpha) \\
 0 &= \left( 1 + \tan^2(\alpha) \right) x^2 + 2Rx + (R^2 - d^2)
 \end{align}$$
 
 This yields an equation with two solutions for $x$. The quadratic formula is used and the solution which will yield a positive $x$ in all cases is selected.
 
 $$\begin{align}
-x &= \frac{-2R + \sqrt{4R^2 - 4 \left( 1 + \tan^2(\alpha) \right) (R^2 - d^2)}}{2 \left( 1 + \tan^2(\alpha) \right)}\\\\
+x &= \frac{-2R + \sqrt{4R^2 - 4 \left( 1 + \tan^2(\alpha) \right) (R^2 - d^2)}}{2 \left( 1 + \tan^2(\alpha) \right)} \\
 x &= \frac{-R + \sqrt{R^2 - \left( 1 + \tan^2(\alpha) \right) (R^2 - d^2)}}{\left( 1 + \tan^2(\alpha) \right)}
 \end{align}$$
 
@@ -81,15 +81,15 @@ The location of $P_1$ and $C_1$ are computed in order to calculate $\phi_H$. The
 
 $$\begin{array}
 & P_1 = C + \begin{pmatrix}
-R \cos \left( \psi + e \beta \right) \\\\
-R \sin \left( \psi + e \beta \right) \\\\
+R \cos \left( \psi + e \beta \right) \\
+R \sin \left( \psi + e \beta \right) \\
 0
 \end{pmatrix}
-& \vec{H_\theta} = \frac{P_H - P_1}{ \left\\| P_H - P_1 \right\\| }
+& \vec{H_\theta} = \frac{P_H - P_1}{ \left\| P_H - P_1 \right\| }
 & C_1 = P_1 - R_H \vec{H_\theta}
 \end{array}$$
 
-$$\phi_H = \cos^{_1} \left( \frac{R_H + \left\\| P_H - P_1 \right\\|}{ \left\\|P - C_1 \right\\| } \right)$$
+$$\phi_H = \cos^{_1} \left( \frac{R_H + \left\| P_H - P_1 \right\|}{ \left\|P - C_1 \right\| } \right)$$
 
 The following diagrams labels the distances in a specific example using a location of $P_1$ to the right of $P_0$. The polar coordinate $(\phi_H, \theta_H)$ will need to be converted into the proper orientation with $\phi_H = 0$ being the top of the image and $\theta_H = \pi$ being at the center of the image with $\theta_H = \frac{\pi}{2}$ on the left side.
 
@@ -104,36 +104,36 @@ The transform from eye to lens is a bit more complicated because the distance fr
 The calculation will be performend using vectors only and trigonometric functions will be avoided. The distance $R_H$ is the distance from the eye to the tilt axis of the head behind the eye. The value of $e$ is dependent upon the eye being calculated: $e=1$ for the left eye and $e=-1$ for the left eye.
 
 $$\begin{array}
-& R = \left\\| \vec{p_0} \right\\| & \alpha = -e \sin^{-1} \left( \frac{E}{2R} \right)
+& R = \left\| \vec{p_0} \right\| & \alpha = -e \sin^{-1} \left( \frac{E}{2R} \right)
 \end{array}$$
 
 Three rotation matrices will be required $R_\alpha$, $R_{\phi_H}$, and $R_z$. The rotation $R_\alpha$ rotates a vector about the x-axis by an angle of $\alpha$. The rotation $R_{\phi_H}$ rotates a vector about the y-axis by an angle of $\phi_H$. The rotation $R_z$ rotates a vector $90^\circ$ about the z-axis.
 
 $$\begin{array}
 & R_\alpha = \begin{bmatrix}
-\cos(\alpha) & -\sin(\alpha) & 0 \\\\
-\sin(\alpha) & \cos(\alpha) & 0 \\\\
+\cos(\alpha) & -\sin(\alpha) & 0 \\
+\sin(\alpha) & \cos(\alpha) & 0 \\
 0 & 0 & 1
 \end{bmatrix}
 & R_{\phi_H} = \begin{bmatrix}
-\cos(\phi_H) & 0 & \sin(\phi_H) \\\\
-0 & 1 & 0 \\\\
+\cos(\phi_H) & 0 & \sin(\phi_H) \\
+0 & 1 & 0 \\
 -\sin(\phi_H) & 0 & \cos(\phi_H)
 \end{bmatrix}
 & R_z = \begin{bmatrix}
-0 & -1 & 0 \\\\
-1 & 0 & 0 \\\\
+0 & -1 & 0 \\
+1 & 0 & 0 \\
 0 & 0 & 1
 \end{bmatrix}
 \end{array}$$
 
 $$P_1 = \begin{pmatrix}
-R \cos(\theta_H) \\\\
-R \sin(\theta_H) \\\\
+R \cos(\theta_H) \\
+R \sin(\theta_H) \\
 0
 \end{pmatrix}$$
 
-$$\vec{H_\theta} = \frac{R_\alpha P_1}{ \left\\| P_1 \right\\| }$$
+$$\vec{H_\theta} = \frac{R_\alpha P_1}{ \left\| P_1 \right\| }$$
 
 The objective is to determine the vector from $C_1$ in the direction $\vec{H_\phi}$ of $P$. The exact value of $P$ will be the final result and using it the polar coordinates of $P$ from $P_0$ can be computed. Once the vector from $C_1$ is determined its intersection with the sphere centered at $P_0$ with radius $r$ will be determined.
 
@@ -142,22 +142,22 @@ $$C_1 = P_1 - R_H \vec{H_\theta}$$
 To determine $H_\phi$ the vector $H_\theta$ will be rotated about $C_1$ by the angle $\phi_H$. This will require create a basis for the space which allows for easier rotation using $R_{\phi_H}$. Since $\vec{H_\theta}$ is in the x-y-axis plane the $R_z$ rotation can be used to create a perpendicular unit vector. The basis will be defined as follows. Using this bases the unit vector in the x-direction can be rotated by $R_\phi$ and then untransformed from this bases to obtain $\vec{H_\phi}$.
 
 $$T_H = \begin{bmatrix}
- & \vec{H_\theta} & \\\\
- & R_z \vec{H_\theta} & \\\\
+ & \vec{H_\theta} & \\
+ & R_z \vec{H_\theta} & \\
 0 & 0 & 1
 \end{bmatrix}$$
 
-$$\vec{H_\phi} = T^T_H R_\phi \begin{pmatrix} 1 \\\\ 0 \\\\ 0 \end{pmatrix}$$
+$$\vec{H_\phi} = T^T_H R_\phi \begin{pmatrix} 1 \\ 0 \\ 0 \end{pmatrix}$$
 
 Now the intersection $P$ can be computed.
 
 $$P = C_1 + d \vec{H_\phi}$$
 
-$$\left\\| P - P_0 \right\\|^2 = r^2$$
+$$\left\| P - P_0 \right\|^2 = r^2$$
 
 Using the intersection of a line and sphere from Wikipedia there are two possible solutions for $d$. Again the solution which yields a positive value for $d$ is used. The radius from $P_0$ to $P$ was assumed to be a constant value for all points.
 
-$$d = -\vec{H_\phi} \cdot (C_1 - P_0) + \sqrt{ \left( \vec{H_\phi} \cdot (C_1 - P_0) \right) ^2 - \left( \left\\| C_1 - P_0 \right\\| ^2 - r^2 \right)}$$
+$$d = -\vec{H_\phi} \cdot (C_1 - P_0) + \sqrt{ \left( \vec{H_\phi} \cdot (C_1 - P_0) \right) ^2 - \left( \left\| C_1 - P_0 \right\| ^2 - r^2 \right)}$$
 
 This $d$ can be used to compute $P$ and the polar coordinates of $P$ from $P_0$ yield $(\phi, \theta)$.
 
@@ -229,19 +229,19 @@ Short answer: No
 The setup uses 2 cameras at $c_1$ and $c_2$ in the same y-plane and z-plane, and 1 point at $P$. Represented in cartesian coordinates as follows.
 
 $$\begin{array}{cc}
-c_1 = \begin{pmatrix} c_{x1} \\\\ c_y \\\\ c_z \end{pmatrix}
+c_1 = \begin{pmatrix} c_{x1} \\ c_y \\ c_z \end{pmatrix}
 &
-c_2 = \begin{pmatrix} c_{x2} \\\\ c_y \\\\ c_z \end{pmatrix}
+c_2 = \begin{pmatrix} c_{x2} \\ c_y \\ c_z \end{pmatrix}
 &
-P = \begin{pmatrix} P_x \\\\ P_y \\\\ P_z \end{pmatrix}
+P = \begin{pmatrix} P_x \\ P_y \\ P_z \end{pmatrix}
 \end{array}$$
 
 From each camera the point $P$ appears at the following locations.
 
 $$\begin{array}{cc}
-P_1 = \begin{pmatrix} P_x - c_{x1} \\\\ P_y - c_y \\\\ P_z - c_z \end{pmatrix}
+P_1 = \begin{pmatrix} P_x - c_{x1} \\ P_y - c_y \\ P_z - c_z \end{pmatrix}
 &
-P_2 = \begin{pmatrix} P_x - c_{x2} \\\\ P_y - c_y \\\\ P_z - c_z \end{pmatrix}
+P_2 = \begin{pmatrix} P_x - c_{x2} \\ P_y - c_y \\ P_z - c_z \end{pmatrix}
 \end{array}$$
 
 Next Convert to polar coordinates and specifically calculating $\phi$.
